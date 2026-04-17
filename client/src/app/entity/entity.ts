@@ -7,6 +7,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatListModule } from '@angular/material/list';
 import { MatCardModule } from '@angular/material/card';
 import { MatSelectModule } from '@angular/material/select';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { EntityService } from './entity.service';
 import { SeriesService } from '../series/series.service';
 import { Entity } from '@shared/models/entity.model';
@@ -25,6 +26,7 @@ import { v4 as uuidv4 } from 'uuid';
     MatListModule,
     MatCardModule,
     MatSelectModule,
+    MatProgressSpinnerModule,
   ],
   templateUrl: './entity.html',
   styleUrl: './entity.css',
@@ -41,6 +43,8 @@ export class EntityComponent implements OnInit {
   newSeriesId = signal('');
   filterSeriesId = signal('');
   loading = signal(false);
+  uploading = signal(false);
+  thumbnailPreview = signal<string | null>(null);
 
   entityTypes: Entity['type'][] = ['PERSON', 'PLACE', 'THING'];
 
@@ -105,10 +109,12 @@ export class EntityComponent implements OnInit {
 
   startEdit(entity: Entity): void {
     this.editingEntity.set({ ...entity });
+    this.thumbnailPreview.set(this.proxyUrl(entity.thumbnailUrl));
   }
 
   cancelEdit(): void {
     this.editingEntity.set(null);
+    this.thumbnailPreview.set(null);
   }
 
   saveEdit(): void {
@@ -121,6 +127,7 @@ export class EntityComponent implements OnInit {
           list.map((e) => (e.id === updated.id ? updated : e))
         );
         this.editingEntity.set(null);
+        this.thumbnailPreview.set(null);
       },
     });
   }
@@ -135,5 +142,34 @@ export class EntityComponent implements OnInit {
 
   getSeriesTitle(seriesId: string): string {
     return this.seriesList().find((s) => s.id === seriesId)?.title ?? 'Unknown';
+  }
+
+  onFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => this.thumbnailPreview.set(reader.result as string);
+    reader.readAsDataURL(file);
+
+    this.uploading.set(true);
+    this.entityService.uploadThumbnail(file).subscribe({
+      next: ({ url, thumbnailUrl }) => {
+        const current = this.editingEntity();
+        if (current) {
+          this.editingEntity.set({ ...current, thumbnailUrl, originalUrl: url });
+        }
+        this.thumbnailPreview.set(this.proxyUrl(thumbnailUrl));
+        this.uploading.set(false);
+      },
+      error: () => this.uploading.set(false),
+    });
+  }
+
+  proxyUrl(azureUrl: string | undefined): string | null {
+    if (!azureUrl) return null;
+    const filename = azureUrl.split('/').pop();
+    return filename ? `/api/image/${filename}` : null;
   }
 }

@@ -139,3 +139,60 @@
   display: flex;
   gap: 8px;
 }
+
+.books-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.add-entity-form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.add-entity-form mat-form-field {
+  width: 100%;
+}
+
+.entity-list-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 0;
+}
+
+.entity-type-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  background-color: #e0e0e0;
+  border-radius: 4px;
+  padding: 2px 6px;
+  flex-shrink: 0;
+  color: #555;
+}
+
+.entity-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entity-actions {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.entity-edit-row {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 4px;
+}
+
+.entity-edit-row mat-form-field {
+  width: 100%;
+}

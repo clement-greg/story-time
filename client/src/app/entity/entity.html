@@ -78,15 +78,45 @@
                        (ngModelChange)="editingEntity.set({ ...editingEntity()!, name: $event })"
                        (keyup.enter)="saveEdit()" />
               </mat-form-field>
+              <mat-form-field appearance="outline" class="biography-field">
+                <mat-label>Short biography</mat-label>
+                <textarea matInput rows="3"
+                          [ngModel]="editingEntity()!.biography"
+                          (ngModelChange)="editingEntity.set({ ...editingEntity()!, biography: $event })"
+                          placeholder="Enter a short biography"></textarea>
+              </mat-form-field>
               <button mat-icon-button color="primary" (click)="saveEdit()">
                 <mat-icon>check</mat-icon>
               </button>
               <button mat-icon-button (click)="cancelEdit()">
                 <mat-icon>close</mat-icon>
               </button>
+              <div class="entity-thumbnail-edit">
+                @if (thumbnailPreview()) {
+                  <img [src]="thumbnailPreview()!" alt="Thumbnail preview" />
+                } @else {
+                  <mat-icon>image</mat-icon>
+                }
+                @if (uploading()) {
+                  <div class="upload-overlay-small">
+                    <mat-spinner diameter="24" />
+                  </div>
+                }
+              </div>
+              <button mat-icon-button type="button" (click)="fileInput.click()" [disabled]="uploading()">
+                <mat-icon>upload</mat-icon>
+              </button>
+              <input #fileInput type="file" accept="image/*" hidden (change)="onFileSelected($event)" />
             </div>
           } @else {
             <div class="list-row">
+              <div class="entity-thumbnail">
+                @if (entity.thumbnailUrl) {
+                  <img [src]="proxyUrl(entity.thumbnailUrl)!" [alt]="entity.name" />
+                } @else {
+                  <mat-icon>person</mat-icon>
+                }
+              </div>
               <span class="entity-series">{{ getSeriesTitle(entity.seriesId) }}</span>
               <span class="entity-type">{{ entity.type }}</span>
               <span class="entity-name">{{ entity.name }}</span>

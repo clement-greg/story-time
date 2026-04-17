@@ -1,5 +1,6 @@
 <app-slide-out-panel-container
   [showRightPanel]="showPanel()"
+  [rightPanelWidth]="panelWidth"
   (showRightPanelChange)="onPanelChanged($event)">
 
   <div main-content>
@@ -38,42 +39,172 @@
   </div>
 
   <div right-panel>
-    @if (editingSeries()) {
-      <div class="editor-content">
-        <h3>{{ isNew() ? 'New Series' : 'Edit Series' }}</h3>
-        <mat-form-field appearance="outline">
-          <mat-label>Title</mat-label>
-          <input matInput
-                 [ngModel]="editingSeries()!.title"
-                 (ngModelChange)="updateTitle($event)" />
-        </mat-form-field>
+    <div class="panel-columns">
 
-        <div class="thumbnail-section">
-          <div class="thumbnail-preview">
-            @if (thumbnailPreview()) {
-              <img [src]="thumbnailPreview()!" alt="Thumbnail preview" />
-            } @else {
-              <mat-icon class="thumbnail-placeholder-icon">image</mat-icon>
-            }
-            @if (uploading()) {
-              <div class="upload-overlay">
-                <mat-spinner diameter="36" />
-              </div>
-            }
+      <!-- Column 1: Series edit -->
+      @if (editingSeries()) {
+        <div class="panel-col">
+          <h3>{{ isNew() ? 'New Series' : 'Edit Series' }}</h3>
+          <mat-form-field appearance="outline">
+            <mat-label>Title</mat-label>
+            <input matInput
+                   [ngModel]="editingSeries()!.title"
+                   (ngModelChange)="updateTitle($event)" />
+          </mat-form-field>
+
+          <div class="thumbnail-section">
+            <div class="thumbnail-preview">
+              @if (thumbnailPreview()) {
+                <img [src]="thumbnailPreview()!" alt="Thumbnail preview" />
+              } @else {
+                <mat-icon class="thumbnail-placeholder-icon">image</mat-icon>
+              }
+              @if (uploading()) {
+                <div class="upload-overlay">
+                  <mat-spinner diameter="36" />
+                </div>
+              }
+            </div>
+            <button mat-stroked-button type="button" (click)="fileInput.click()" [disabled]="uploading()">
+              <mat-icon>upload</mat-icon>
+              {{ thumbnailPreview() ? 'Change Image' : 'Upload Thumbnail' }}
+            </button>
+            <input #fileInput type="file" accept="image/*" hidden (change)="onFileSelected($event)" />
           </div>
-          <button mat-stroked-button type="button" (click)="fileInput.click()" [disabled]="uploading()">
-            <mat-icon>upload</mat-icon>
-            {{ thumbnailPreview() ? 'Change Image' : 'Upload Thumbnail' }}
-          </button>
-          <input #fileInput type="file" accept="image/*" hidden (change)="onFileSelected($event)" />
-        </div>
 
-        <div class="editor-actions">
-          <button mat-flat-button (click)="saveEdit()" [disabled]="uploading()">Save</button>
-          <button mat-button (click)="closePanel()">Cancel</button>
+          <mat-divider></mat-divider>
+
+          @if (!isNew()) {
+            <button mat-stroked-button (click)="openEntityPanel()" [class.active-col-btn]="showEntityPanel()">
+              <mat-icon>people</mat-icon> Entities
+            </button>
+          }
+
+          <div class="editor-actions">
+            <button mat-flat-button (click)="saveEdit()" [disabled]="uploading()">Save</button>
+            <button mat-button (click)="closePanel()">Cancel</button>
+          </div>
         </div>
-      </div>
-    }
+      }
+
+      <!-- Column 2: Entities list -->
+      @if (showEntityPanel()) {
+        <div class="panel-col panel-col-divider">
+          <div class="col-header">
+            <h3>Entities</h3>
+            <button mat-icon-button (click)="closeEntityPanel()">
+              <mat-icon>chevron_right</mat-icon>
+            </button>
+          </div>
+
+          <div class="add-entity-form">
+            <mat-form-field appearance="outline">
+              <mat-label>Type</mat-label>
+              <mat-select [ngModel]="newEntityType()" (ngModelChange)="newEntityType.set($event)">
+                @for (type of entityTypes; track type) {
+                  <mat-option [value]="type">{{ type }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Name</mat-label>
+              <input matInput
+                     [ngModel]="newEntityName()"
+                     (ngModelChange)="newEntityName.set($event)"
+                     (keyup.enter)="addEntity()"
+                     placeholder="Enter name" />
+            </mat-form-field>
+
+            <button mat-flat-button (click)="addEntity()">
+              <mat-icon>add</mat-icon> Add
+            </button>
+          </div>
+
+          @if (entityLoading()) {
+            <p class="loading">Loading...</p>
+          }
+
+          <mat-list>
+            @for (entity of entityList(); track entity.id) {
+              <mat-list-item [class.selected-entity]="editingEntity()?.id === entity.id"
+                             (click)="startEditEntity(entity)">
+                <div class="entity-list-row">
+                  @if (entity.thumbnailUrl) {
+                    <img class="entity-thumb" [src]="proxyUrl(entity.thumbnailUrl)!" [alt]="entity.name" />
+                  }
+                  <span class="entity-type-badge">{{ entity.type }}</span>
+                  <span class="entity-name">{{ entity.name }}</span>
+                  <div class="entity-actions">
+                    <button mat-icon-button color="warn"
+                            (click)="deleteEntity(entity.id); $event.stopPropagation()">
+                      <mat-icon>delete</mat-icon>
+                    </button>
+                  </div>
+                </div>
+              </mat-list-item>
+            }
+          </mat-list>
+        </div>
+      }
+
+      <!-- Column 3: Entity edit -->
+      @if (editingEntity()) {
+        <div class="panel-col panel-col-divider">
+          <div class="col-header">
+            <h3>Edit Entity</h3>
+            <button mat-icon-button (click)="cancelEditEntity()">
+              <mat-icon>chevron_right</mat-icon>
+            </button>
+          </div>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Type</mat-label>
+            <mat-select [ngModel]="editingEntity()!.type"
+                        (ngModelChange)="editingEntity.set({ ...editingEntity()!, type: $event })">
+              @for (type of entityTypes; track type) {
+                <mat-option [value]="type">{{ type }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Name</mat-label>
+            <input matInput
+                   [ngModel]="editingEntity()!.name"
+                   (ngModelChange)="editingEntity.set({ ...editingEntity()!, name: $event })"
+                   (keyup.enter)="saveEntityEdit()" />
+          </mat-form-field>
+
+          <div class="thumbnail-section">
+            <div class="thumbnail-preview">
+              @if (entityThumbnailPreview()) {
+                <img [src]="entityThumbnailPreview()!" alt="Thumbnail preview" />
+              } @else {
+                <mat-icon class="thumbnail-placeholder-icon">image</mat-icon>
+              }
+              @if (entityUploading()) {
+                <div class="upload-overlay">
+                  <mat-spinner diameter="36" />
+                </div>
+              }
+            </div>
+            <button mat-stroked-button type="button" (click)="entityFileInput.click()" [disabled]="entityUploading()">
+              <mat-icon>upload</mat-icon>
+              {{ entityThumbnailPreview() ? 'Change Image' : 'Upload Image' }}
+            </button>
+            <input #entityFileInput type="file" accept="image/*" hidden (change)="onEntityFileSelected($event)" />
+          </div>
+
+          <div class="editor-actions">
+            <button mat-flat-button color="primary" (click)="saveEntityEdit()">Save</button>
+            <button mat-button (click)="cancelEditEntity()">Cancel</button>
+          </div>
+        </div>
+      }
+
+    </div>
   </div>
 
 </app-slide-out-panel-container>
+

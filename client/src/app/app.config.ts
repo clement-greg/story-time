@@ -6,7 +6,6 @@ import { SeriesComponent } from './series/series';
 import { SeriesDetailComponent } from './series-detail/series-detail';
 import { BookComponent } from './book/book';
 import { BookDetailComponent } from './book-detail/book-detail';
-import { EntityComponent } from './entity/entity';
 import { ChapterComponent } from './chapter/chapter';
 import { ChapterEditComponent } from './chapter-edit/chapter-edit';
 import { SomethingElseComponent } from './something-else/something-else';
@@ -18,7 +17,6 @@ const routes: Routes = [
   { path: 'books/:id', component: BookDetailComponent },
   { path: 'chapters', component: ChapterComponent },
   { path: 'chapters/:id/edit', component: ChapterEditComponent },
-  { path: 'entities', component: EntityComponent },
   { path: 'something-else', component: SomethingElseComponent },
   { path: '', redirectTo: 'series', pathMatch: 'full' },
 ];

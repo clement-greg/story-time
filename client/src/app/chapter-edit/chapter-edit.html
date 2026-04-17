@@ -1,26 +1,105 @@
-<div class="container">
-  <div class="header">
+<div class="page">
+  <div class="top-bar">
     <button mat-icon-button (click)="goBack()">
       <mat-icon>arrow_back</mat-icon>
     </button>
-    <h1>Edit Chapter</h1>
-  </div>
-
-  @if (chapter()) {
-    <div class="form-content">
-      <mat-form-field appearance="outline">
+    @if (chapter()) {
+      <mat-form-field appearance="outline" class="title-field">
         <mat-label>Title</mat-label>
         <input matInput
                [ngModel]="chapter()!.title"
                (ngModelChange)="updateTitle($event)" />
       </mat-form-field>
-
-      <div class="actions">
-        <button mat-flat-button (click)="save()" [disabled]="saving()">Save</button>
-        <button mat-button (click)="goBack()">Cancel</button>
-      </div>
+    } @else {
+      <h1 class="title-placeholder">Edit Chapter</h1>
+    }
+    <div class="top-bar-actions">
+      @if (hasDraft()) {
+        <span class="draft-indicator">Unsaved draft</span>
+        <button mat-button (click)="discardDraft()">Discard draft</button>
+      }
+      <button mat-flat-button (click)="save()" [disabled]="saving() || !chapter()">
+        {{ saving() ? 'Saving…' : 'Save' }}
+      </button>
+      <button mat-button (click)="goBack()">Cancel</button>
     </div>
+  </div>
+
+  @if (chapter()) {
+    <div class="workspace">
+
+      <!-- Content editor -->
+      <div class="editor-panel">
+        <div #contentEditor
+             class="content-editor"
+             contenteditable="true"
+             (input)="onContentInput($event)"
+             (keydown)="onEditorKeyDown($event)"
+             (mousemove)="onEditorMouseMove($event)"
+             (mouseleave)="onEditorMouseLeave()"
+             placeholder="Start writing your chapter…"></div>
+      </div>
+
+      <!-- Chat panel -->
+      <aside class="chat-panel">
+        <div class="chat-header">
+          <mat-icon>smart_toy</mat-icon>
+          <span>AI Assistant</span>
+        </div>
+        <div class="chat-messages">
+          @if (chatMessages().length === 0) {
+            <p class="chat-empty">Ask anything about your chapter…</p>
+          }
+          @for (msg of chatMessages(); track $index) {
+            <div class="chat-message" [class.user]="msg.role === 'user'" [class.assistant]="msg.role === 'assistant'">
+              <span class="chat-role">{{ msg.role === 'user' ? 'You' : 'AI' }}</span>
+              <p>{{ msg.text }}</p>
+            </div>
+          }
+        </div>
+        <div class="chat-input-area">
+          <textarea class="chat-textarea"
+                    placeholder="Message AI…"
+                    rows="3"
+                    [value]="chatInput()"
+                    (input)="chatInput.set($any($event.target).value)"></textarea>
+          <button mat-flat-button class="chat-send-btn" disabled>Send</button>
+        </div>
+      </aside>
+
+    </div>
+
+    <!-- Entity autocomplete dropdown -->
+    @if (autocompleteItems().length > 0) {
+      <div class="autocomplete-dropdown"
+           [style.top.px]="autocompleteTop()"
+           [style.left.px]="autocompleteLeft()">
+        @for (item of autocompleteItems(); track item.id; let i = $index) {
+          <div class="autocomplete-item"
+               [class.active]="i === autocompleteIndex()"
+               (mousedown)="selectAutocomplete(item)">
+            @if (item.thumbnailUrl) {
+              <img [src]="proxyUrl(item.thumbnailUrl)!" class="autocomplete-thumb" alt="" />
+            }
+            <span>{{ item.name }}</span>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- Entity hover popup -->
+    @if (hoveredEntity()) {
+      <div class="entity-hover-popup"
+           [style.top.px]="popupTop()"
+           [style.left.px]="popupLeft()">
+        @if (hoveredEntity()!.thumbnailUrl) {
+          <img [src]="proxyUrl(hoveredEntity()!.thumbnailUrl)!" class="popup-thumb" alt="" />
+        }
+        <span class="popup-name">{{ hoveredEntity()!.name }}</span>
+      </div>
+    }
+
   } @else {
-    <p class="loading">Loading...</p>
+    <p class="loading">Loading…</p>
   }
 </div>

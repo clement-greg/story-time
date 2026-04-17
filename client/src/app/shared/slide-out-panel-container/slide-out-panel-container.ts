@@ -18,14 +18,14 @@ export class SlideOutPanelContainer {
     @Input() showRightPanel: boolean = false;
     @Output() showRightPanelChange: EventEmitter<boolean> = new EventEmitter<boolean>();
     @Input() rightPanelWidth: number = 400;
-    @Input() rightPanelTop: number = 60;
-    @Input() rightCloseButtonTop: number = 60;
+    @Input() rightPanelTop: number = 0;
+    @Input() rightCloseButtonTop: number = 8;
 
     @Input() showLeftPanel: boolean = false;
     @Output() showLeftPanelChange: EventEmitter<boolean> = new EventEmitter<boolean>()
     @Input() leftPanelWidth: number = 400;
-    @Input() leftPanelTop: number = 60;
-    @Input() leftCloseButtonTop: number = 60;
+    @Input() leftPanelTop: number = 0;
+    @Input() leftCloseButtonTop: number = 8;
 
     @Input() showBottomPanel = false;
     @Output() showBottomPanelChange: EventEmitter<boolean> = new EventEmitter<boolean>();

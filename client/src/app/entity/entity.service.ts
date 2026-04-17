@@ -31,4 +31,10 @@ export class EntityService {
   delete(id: string): Observable<void> {
     return this.http.delete<void>(`${this.apiUrl}/${id}`);
   }
+
+  uploadThumbnail(file: File): Observable<{ url: string; thumbnailUrl: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<{ url: string; thumbnailUrl: string }>('/api/upload', formData);
+  }
 }

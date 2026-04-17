@@ -7,8 +7,13 @@ import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatListModule } from '@angular/material/list';
+import { MatSelectModule } from '@angular/material/select';
+import { MatDividerModule } from '@angular/material/divider';
 import { SeriesService } from './series.service';
+import { EntityService } from '../entity/entity.service';
 import { Series } from '@shared/models/series.model';
+import { Entity } from '@shared/models/entity.model';
 import { v4 as uuidv4 } from 'uuid';
 import { SlideOutPanelContainer } from '../shared/slide-out-panel-container/slide-out-panel-container';
 
@@ -22,6 +27,9 @@ import { SlideOutPanelContainer } from '../shared/slide-out-panel-container/slid
     MatFormFieldModule,
     MatCardModule,
     MatProgressSpinnerModule,
+    MatListModule,
+    MatSelectModule,
+    MatDividerModule,
     SlideOutPanelContainer,
   ],
   templateUrl: './series.html',
@@ -29,6 +37,7 @@ import { SlideOutPanelContainer } from '../shared/slide-out-panel-container/slid
 })
 export class SeriesComponent implements OnInit {
   private seriesService = inject(SeriesService);
+  private entityService = inject(EntityService);
   private router = inject(Router);
 
   seriesList = signal<Series[]>([]);
@@ -38,6 +47,20 @@ export class SeriesComponent implements OnInit {
   isNew = signal(false);
   uploading = signal(false);
   thumbnailPreview = signal<string | null>(null);
+
+  showEntityPanel = signal(false);
+  entityList = signal<Entity[]>([]);
+  editingEntity = signal<Entity | null>(null);
+  entityThumbnailPreview = signal<string | null>(null);
+  entityUploading = signal(false);
+  newEntityName = signal('');
+  newEntityType = signal<Entity['type']>('PERSON');
+  entityLoading = signal(false);
+  readonly entityTypes: Entity['type'][] = ['PERSON', 'PLACE', 'THING'];
+
+  get panelWidth(): number {
+    return 400 + (this.showEntityPanel() ? 400 : 0) + (this.editingEntity() ? 400 : 0);
+  }
 
   ngOnInit(): void {
     this.loadSeries();
@@ -58,6 +81,8 @@ export class SeriesComponent implements OnInit {
     this.editingSeries.set({ id: '', title: '', thumnailUrl: '' });
     this.isNew.set(true);
     this.thumbnailPreview.set(null);
+    this.showEntityPanel.set(false);
+    this.editingEntity.set(null);
     this.showPanel.set(true);
   }
 
@@ -65,7 +90,23 @@ export class SeriesComponent implements OnInit {
     this.editingSeries.set({ ...series });
     this.isNew.set(false);
     this.thumbnailPreview.set(this.proxyUrl(series.thumnailUrl));
+    this.showEntityPanel.set(false);
+    this.editingEntity.set(null);
     this.showPanel.set(true);
+  }
+
+  openEntityPanel(): void {
+    const s = this.editingSeries();
+    if (!s) return;
+    this.editingEntity.set(null);
+    this.showEntityPanel.set(true);
+    this.loadEntities(s.id);
+  }
+
+  closeEntityPanel(): void {
+    this.showEntityPanel.set(false);
+    this.editingEntity.set(null);
+    this.newEntityName.set('');
   }
 
   onPanelChanged(open: boolean): void {
@@ -73,6 +114,9 @@ export class SeriesComponent implements OnInit {
     if (!open) {
       this.editingSeries.set(null);
       this.thumbnailPreview.set(null);
+      this.showEntityPanel.set(false);
+      this.editingEntity.set(null);
+      this.newEntityName.set('');
     }
   }
 
@@ -80,6 +124,9 @@ export class SeriesComponent implements OnInit {
     this.showPanel.set(false);
     this.editingSeries.set(null);
     this.thumbnailPreview.set(null);
+    this.showEntityPanel.set(false);
+    this.editingEntity.set(null);
+    this.newEntityName.set('');
   }
 
   updateTitle(value: string): void {
@@ -147,6 +194,87 @@ export class SeriesComponent implements OnInit {
 
   navigateToDetail(seriesId: string): void {
     this.router.navigate(['/series', seriesId]);
+  }
+
+  loadEntities(seriesId: string): void {
+    this.entityLoading.set(true);
+    this.entityService.getBySeries(seriesId).subscribe({
+      next: (data) => {
+        this.entityList.set(data);
+        this.entityLoading.set(false);
+      },
+      error: () => this.entityLoading.set(false),
+    });
+  }
+
+  addEntity(): void {
+    const s = this.editingSeries();
+    const name = this.newEntityName().trim();
+    if (!name || !s) return;
+
+    const entity: Entity = { id: uuidv4(), name, type: this.newEntityType(), seriesId: s.id };
+    this.entityService.create(entity).subscribe({
+      next: (created) => {
+        this.entityList.update((list) => [...list, created]);
+        this.newEntityName.set('');
+      },
+    });
+  }
+
+  startEditEntity(entity: Entity): void {
+    this.editingEntity.set({ ...entity });
+    this.entityThumbnailPreview.set(this.proxyUrl(entity.thumbnailUrl));
+  }
+
+  cancelEditEntity(): void {
+    this.editingEntity.set(null);
+    this.entityThumbnailPreview.set(null);
+  }
+
+  saveEntityEdit(): void {
+    const editing = this.editingEntity();
+    if (!editing || !editing.name.trim()) return;
+
+    this.entityService.update(editing).subscribe({
+      next: (updated) => {
+        this.entityList.update((list) =>
+          list.map((e) => (e.id === updated.id ? updated : e))
+        );
+        this.editingEntity.set(null);
+        this.entityThumbnailPreview.set(null);
+      },
+    });
+  }
+
+  onEntityFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => this.entityThumbnailPreview.set(reader.result as string);
+    reader.readAsDataURL(file);
+
+    this.entityUploading.set(true);
+    this.entityService.uploadThumbnail(file).subscribe({
+      next: ({ url, thumbnailUrl }) => {
+        const current = this.editingEntity();
+        if (current) {
+          this.editingEntity.set({ ...current, thumbnailUrl, originalUrl: url });
+        }
+        this.entityThumbnailPreview.set(this.proxyUrl(thumbnailUrl));
+        this.entityUploading.set(false);
+      },
+      error: () => this.entityUploading.set(false),
+    });
+  }
+
+  deleteEntity(id: string): void {
+    this.entityService.delete(id).subscribe({
+      next: () => {
+        this.entityList.update((list) => list.filter((e) => e.id !== id));
+      },
+    });
   }
 }
 

@@ -24,9 +24,14 @@
 
     <div class="books-header">
       <h2>Books</h2>
-      <button mat-flat-button (click)="openNew()">
-        <mat-icon>add</mat-icon> Add Book
-      </button>
+      <div class="books-header-actions">
+        <button mat-flat-button (click)="openNew()">
+          <mat-icon>add</mat-icon> Add Book
+        </button>
+        <button mat-stroked-button (click)="openEntities()">
+          <mat-icon>people</mat-icon> Entities
+        </button>
+      </div>
     </div>
 
     @if (loading()) {
@@ -57,7 +62,7 @@
   </div>
 
   <div right-panel>
-    @if (editingBook()) {
+    @if (panelMode() === 'book' && editingBook()) {
       <div class="editor-content">
         <h3>{{ isNew() ? 'Add Book' : 'Edit Book' }}</h3>
         <mat-form-field appearance="outline">
@@ -91,6 +96,86 @@
           <button mat-flat-button (click)="saveEdit()" [disabled]="uploading()">Save</button>
           <button mat-button (click)="closePanel()">Cancel</button>
         </div>
+      </div>
+    }
+
+    @if (panelMode() === 'entity') {
+      <div class="editor-content">
+        <h3>Entities</h3>
+
+        <div class="add-entity-form">
+          <mat-form-field appearance="outline">
+            <mat-label>Type</mat-label>
+            <mat-select [ngModel]="newEntityType()" (ngModelChange)="newEntityType.set($event)">
+              @for (type of entityTypes; track type) {
+                <mat-option [value]="type">{{ type }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Name</mat-label>
+            <input matInput
+                   [ngModel]="newEntityName()"
+                   (ngModelChange)="newEntityName.set($event)"
+                   (keyup.enter)="addEntity()"
+                   placeholder="Enter name" />
+          </mat-form-field>
+
+          <button mat-flat-button (click)="addEntity()">
+            <mat-icon>add</mat-icon> Add
+          </button>
+        </div>
+
+        @if (entityLoading()) {
+          <p class="loading">Loading...</p>
+        }
+
+        <mat-list>
+          @for (entity of entityList(); track entity.id) {
+            <mat-list-item>
+              @if (editingEntity()?.id === entity.id) {
+                <div class="entity-edit-row">
+                  <mat-form-field appearance="outline">
+                    <mat-label>Type</mat-label>
+                    <mat-select [ngModel]="editingEntity()!.type"
+                                (ngModelChange)="editingEntity.set({ ...editingEntity()!, type: $event })">
+                      @for (type of entityTypes; track type) {
+                        <mat-option [value]="type">{{ type }}</mat-option>
+                      }
+                    </mat-select>
+                  </mat-form-field>
+                  <mat-form-field appearance="outline">
+                    <mat-label>Name</mat-label>
+                    <input matInput
+                           [ngModel]="editingEntity()!.name"
+                           (ngModelChange)="editingEntity.set({ ...editingEntity()!, name: $event })"
+                           (keyup.enter)="saveEntityEdit()" />
+                  </mat-form-field>
+                  <button mat-icon-button color="primary" (click)="saveEntityEdit()">
+                    <mat-icon>check</mat-icon>
+                  </button>
+                  <button mat-icon-button (click)="cancelEditEntity()">
+                    <mat-icon>close</mat-icon>
+                  </button>
+                </div>
+              } @else {
+                <div class="entity-list-row">
+                  <span class="entity-type-badge">{{ entity.type }}</span>
+                  <span class="entity-name">{{ entity.name }}</span>
+                  <div class="entity-actions">
+                    <button mat-icon-button (click)="startEditEntity(entity)">
+                      <mat-icon>edit</mat-icon>
+                    </button>
+                    <button mat-icon-button color="warn" (click)="deleteEntity(entity.id)">
+                      <mat-icon>delete</mat-icon>
+                    </button>
+                  </div>
+                </div>
+              }
+            </mat-list-item>
+          }
+        </mat-list>
       </div>
     }
   </div>

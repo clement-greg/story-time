@@ -7,10 +7,14 @@ import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatListModule } from '@angular/material/list';
+import { MatSelectModule } from '@angular/material/select';
 import { SeriesService } from '../series/series.service';
 import { BookService } from '../book/book.service';
+import { EntityService } from '../entity/entity.service';
 import { Series } from '@shared/models/series.model';
 import { Book } from '@shared/models/book.model';
+import { Entity } from '@shared/models/entity.model';
 import { v4 as uuidv4 } from 'uuid';
 import { SlideOutPanelContainer } from '../shared/slide-out-panel-container/slide-out-panel-container';
 
@@ -24,6 +28,8 @@ import { SlideOutPanelContainer } from '../shared/slide-out-panel-container/slid
     MatFormFieldModule,
     MatCardModule,
     MatProgressSpinnerModule,
+    MatListModule,
+    MatSelectModule,
     SlideOutPanelContainer,
   ],
   templateUrl: './series-detail.html',
@@ -34,6 +40,7 @@ export class SeriesDetailComponent implements OnInit {
   private router = inject(Router);
   private seriesService = inject(SeriesService);
   private bookService = inject(BookService);
+  private entityService = inject(EntityService);
 
   series = signal<Series | null>(null);
   bookList = signal<Book[]>([]);
@@ -43,6 +50,14 @@ export class SeriesDetailComponent implements OnInit {
   isNew = signal(false);
   uploading = signal(false);
   thumbnailPreview = signal<string | null>(null);
+
+  panelMode = signal<'book' | 'entity' | null>(null);
+  entityList = signal<Entity[]>([]);
+  editingEntity = signal<Entity | null>(null);
+  newEntityName = signal('');
+  newEntityType = signal<Entity['type']>('PERSON');
+  entityLoading = signal(false);
+  readonly entityTypes: Entity['type'][] = ['PERSON', 'PLACE', 'THING'];
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id')!;
@@ -73,6 +88,7 @@ export class SeriesDetailComponent implements OnInit {
     this.editingBook.set({ id: '', title: '', seriesId: s.id });
     this.isNew.set(true);
     this.thumbnailPreview.set(null);
+    this.panelMode.set('book');
     this.showPanel.set(true);
   }
 
@@ -80,6 +96,7 @@ export class SeriesDetailComponent implements OnInit {
     this.editingBook.set({ ...book });
     this.isNew.set(false);
     this.thumbnailPreview.set(this.proxyUrl(book.thumnailUrl));
+    this.panelMode.set('book');
     this.showPanel.set(true);
   }
 
@@ -92,13 +109,19 @@ export class SeriesDetailComponent implements OnInit {
     if (!open) {
       this.editingBook.set(null);
       this.thumbnailPreview.set(null);
+      this.panelMode.set(null);
+      this.editingEntity.set(null);
+      this.newEntityName.set('');
     }
   }
 
   closePanel(): void {
     this.showPanel.set(false);
     this.editingBook.set(null);
+    this.editingEntity.set(null);
+    this.newEntityName.set('');
     this.thumbnailPreview.set(null);
+    this.panelMode.set(null);
   }
 
   updateTitle(value: string): void {
@@ -159,6 +182,71 @@ export class SeriesDetailComponent implements OnInit {
     if (!azureUrl) return null;
     const filename = azureUrl.split('/').pop();
     return filename ? `/api/image/${filename}` : null;
+  }
+
+  openEntities(): void {
+    const s = this.series();
+    if (!s) return;
+    this.editingBook.set(null);
+    this.thumbnailPreview.set(null);
+    this.panelMode.set('entity');
+    this.showPanel.set(true);
+    this.loadEntities(s.id);
+  }
+
+  loadEntities(seriesId: string): void {
+    this.entityLoading.set(true);
+    this.entityService.getBySeries(seriesId).subscribe({
+      next: (data) => {
+        this.entityList.set(data);
+        this.entityLoading.set(false);
+      },
+      error: () => this.entityLoading.set(false),
+    });
+  }
+
+  addEntity(): void {
+    const s = this.series();
+    const name = this.newEntityName().trim();
+    if (!name || !s) return;
+
+    const entity: Entity = { id: uuidv4(), name, type: this.newEntityType(), seriesId: s.id };
+    this.entityService.create(entity).subscribe({
+      next: (created) => {
+        this.entityList.update((list) => [...list, created]);
+        this.newEntityName.set('');
+      },
+    });
+  }
+
+  startEditEntity(entity: Entity): void {
+    this.editingEntity.set({ ...entity });
+  }
+
+  cancelEditEntity(): void {
+    this.editingEntity.set(null);
+  }
+
+  saveEntityEdit(): void {
+    const editing = this.editingEntity();
+    if (!editing || !editing.name.trim()) return;
+
+    this.entityService.update(editing).subscribe({
+      next: (updated) => {
+        this.entityList.update((list) =>
+          list.map((e) => (e.id === updated.id ? updated : e))
+        );
+        this.editingEntity.set(null);
+      },
+    });
+  }
+
+  deleteEntity(id: string): void {
+    this.entityService.delete(id).subscribe({
+      next: () => {
+        this.entityList.update((list) => list.filter((e) => e.id !== id));
+      },
+    });
   }
 
   goBack(): void {
