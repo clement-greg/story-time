@@ -1,0 +1,26 @@
+<div class="container">
+  <div class="header">
+    <button mat-icon-button (click)="goBack()">
+      <mat-icon>arrow_back</mat-icon>
+    </button>
+    <h1>Edit Chapter</h1>
+  </div>
+
+  @if (chapter()) {
+    <div class="form-content">
+      <mat-form-field appearance="outline">
+        <mat-label>Title</mat-label>
+        <input matInput
+               [ngModel]="chapter()!.title"
+               (ngModelChange)="updateTitle($event)" />
+      </mat-form-field>
+
+      <div class="actions">
+        <button mat-flat-button (click)="save()" [disabled]="saving()">Save</button>
+        <button mat-button (click)="goBack()">Cancel</button>
+      </div>
+    </div>
+  } @else {
+    <p class="loading">Loading...</p>
+  }
+</div>

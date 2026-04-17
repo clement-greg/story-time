@@ -1,0 +1,53 @@
+import { BlobServiceClient, StorageSharedKeyCredential } from '@azure/storage-blob';
+import config from '../_private/config.json';
+
+const credential = new StorageSharedKeyCredential(
+  config.storageAccountName,
+  config.storageAccountKey
+);
+
+const blobServiceClient = new BlobServiceClient(
+  `https://${config.storageAccountName}.blob.core.windows.net`,
+  credential
+);
+
+const containerClient = blobServiceClient.getContainerClient(config.storageContainerName);
+
+export async function uploadFileToBlob(
+  buffer: Buffer,
+  filename: string,
+  contentType: string
+): Promise<string> {
+  const blockBlobClient = containerClient.getBlockBlobClient(filename);
+  await blockBlobClient.upload(buffer, buffer.length, {
+    blobHTTPHeaders: { blobContentType: contentType },
+  });
+  return blockBlobClient.url;
+}
+
+interface CachedBlob {
+  data: Buffer;
+  contentType: string;
+}
+
+const blobCache = new Map<string, CachedBlob>();
+
+export async function downloadBlob(filename: string): Promise<CachedBlob> {
+  const cached = blobCache.get(filename);
+  if (cached) return cached;
+
+  const blockBlobClient = containerClient.getBlockBlobClient(filename);
+  const downloadResponse = await blockBlobClient.download();
+
+  const contentType = downloadResponse.contentType ?? 'application/octet-stream';
+
+  const chunks: Buffer[] = [];
+  for await (const chunk of downloadResponse.readableStreamBody as AsyncIterable<Buffer>) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  const data = Buffer.concat(chunks);
+
+  const entry: CachedBlob = { data, contentType };
+  blobCache.set(filename, entry);
+  return entry;
+}

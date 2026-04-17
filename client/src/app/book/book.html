@@ -1,0 +1,89 @@
+<mat-card>
+  <mat-card-header>
+    <mat-card-title>Books</mat-card-title>
+  </mat-card-header>
+
+  <mat-card-content>
+    <!-- Filter by series -->
+    <div class="filter-row">
+      <mat-form-field appearance="outline">
+        <mat-label>Filter by series</mat-label>
+        <mat-select [ngModel]="filterSeriesId()" (ngModelChange)="filterBySeries($event)">
+          <mat-option value="">All series</mat-option>
+          @for (series of seriesList(); track series.id) {
+            <mat-option [value]="series.id">{{ series.title }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+    </div>
+
+    <!-- Add new book -->
+    <div class="add-book">
+      <mat-form-field appearance="outline">
+        <mat-label>Series</mat-label>
+        <mat-select [ngModel]="newSeriesId()" (ngModelChange)="newSeriesId.set($event)">
+          @for (series of seriesList(); track series.id) {
+            <mat-option [value]="series.id">{{ series.title }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Book title</mat-label>
+        <input matInput [ngModel]="newTitle()" (ngModelChange)="newTitle.set($event)"
+               (keyup.enter)="addBook()" placeholder="Enter title" />
+      </mat-form-field>
+      <button mat-flat-button color="primary" (click)="addBook()">
+        <mat-icon>add</mat-icon> Add
+      </button>
+    </div>
+
+    @if (loading()) {
+      <p>Loading...</p>
+    }
+
+    <!-- Book list -->
+    <mat-list>
+      @for (book of bookList(); track book.id) {
+        <mat-list-item>
+          @if (editingBook()?.id === book.id) {
+            <div class="edit-row">
+              <mat-form-field appearance="outline">
+                <mat-label>Series</mat-label>
+                <mat-select [ngModel]="editingBook()!.seriesId"
+                            (ngModelChange)="editingBook.set({ ...editingBook()!, seriesId: $event })">
+                  @for (series of seriesList(); track series.id) {
+                    <mat-option [value]="series.id">{{ series.title }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <input matInput [ngModel]="editingBook()!.title"
+                       (ngModelChange)="editingBook.set({ ...editingBook()!, title: $event })"
+                       (keyup.enter)="saveEdit()" />
+              </mat-form-field>
+              <button mat-icon-button color="primary" (click)="saveEdit()">
+                <mat-icon>check</mat-icon>
+              </button>
+              <button mat-icon-button (click)="cancelEdit()">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+          } @else {
+            <div class="list-row">
+              <span class="book-series">{{ getSeriesTitle(book.seriesId) }}</span>
+              <span class="book-title">{{ book.title }}</span>
+              <div class="actions">
+                <button mat-icon-button (click)="startEdit(book)">
+                  <mat-icon>edit</mat-icon>
+                </button>
+                <button mat-icon-button color="warn" (click)="deleteBook(book.id)">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </div>
+            </div>
+          }
+        </mat-list-item>
+      }
+    </mat-list>
+  </mat-card-content>
+</mat-card>

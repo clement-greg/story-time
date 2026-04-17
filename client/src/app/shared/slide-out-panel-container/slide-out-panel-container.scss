@@ -1,0 +1,237 @@
+.right-panel,
+.left-panel {
+    transition: all;
+    height: 100vh;
+    background-color: #f5f5f5;
+    width: calc(100% - 50px);
+    position: fixed;
+    padding-right: 0;
+    box-shadow: -5px 0 19px 0 rgba(0, 0, 0, 0.15);
+    padding-bottom: 0;
+    z-index: 2;
+
+    &.left-panel {
+        left: 0;
+        transform-origin: 0 0;
+    }
+
+    &.right-panel {
+        right: 0;
+        transform-origin: 100% 0;
+    }
+}
+
+.bottom-panel {
+
+    width: 100vw;
+    position: fixed;
+    z-index: 2;
+    bottom: 0;
+
+    >div {
+
+        box-shadow: -5px 0 19px 0 rgba(0, 0, 0, 0.15);
+        height: 100%;
+        display: table;
+        margin: 0 auto;
+        background-color: #f5f5f5;
+
+        .close-detail-button {
+            position: absolute;
+            top: -38px;
+            right: calc(50% - 24px);
+            border-radius: 50% 50% 0 0;
+            box-shadow: 0px -4px 5px 0px rgba(0, 0, 0, 0.1);
+            background-color: #f5f5f5;
+
+        }
+        >div {
+            height: 100%;
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+    }
+}
+
+.right-panel>div,
+.left-panel>div {
+    height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+.right-panel {
+
+    .close-detail-button {
+        margin-left: -48px;
+        border: 1px solid rgb(200, 200, 200);
+        min-width: unset;
+        background-color: #f5f5f5;
+        padding: 0 3px;
+        border-right: unset;
+        border-radius: 50% 0 0 50%;
+        box-shadow: -3px 0 3px 0 rgba(0, 0, 0, 0.35);
+        top: 30px;
+        position: absolute;
+        left: 0;
+    }
+}
+
+
+
+.left-panel .close-detail-button {
+    margin-right: -48px;
+    border: 1px solid rgb(200, 200, 200);
+    min-width: unset;
+    background-color: #f5f5f5;
+    padding: 0 3px;
+    border-left: unset;
+    border-radius: 0 50% 50% 0;
+    box-shadow: 3px 0 3px 0 rgba(0, 0, 0, 0.35);
+    top: 60px;
+    position: absolute;
+    right: 0;
+}
+
+.backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.05);
+    z-index: 1;
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+}
+
+@media (max-width: 400px) {
+    .right-panel.scrolled .close-detail-button {
+        box-shadow: 0 4px 6px 0 rgba(0, 0, 0, 0.2) !important;
+    }
+}
+
+@media (max-width: 400px) {
+
+    .right-panel .close-detail-button,
+    .left-panel .close-detail-button {
+        border: unset;
+        margin-left: calc(50% - 24px);
+        border-radius: 50%;
+        margin-top: -19px;
+        box-shadow: unset;
+
+        &.scrolled {
+            box-shadow: 0 0 6px 6px rgba(0, 0, 0, 0.1) !important;
+        }
+    }
+}
+
+@media (max-width: 400px) {
+
+    .right-panel,
+    .left-panel {
+        width: 100%;
+
+        >div {
+            padding-top: 60px;
+        }
+    }
+
+}
+
+@keyframes slide-in {
+    from {
+        opacity: 0;
+        transform: scaleX(0);
+    }
+
+    to {
+        opacity: 1;
+        transform: scaleX(1);
+    }
+}
+
+.slide-in {
+    animation: slide-in 250ms ease-out forwards;
+}
+
+@keyframes slide-out {
+    from {
+        opacity: 1;
+        transform: scaleX(1);
+    }
+
+    to {
+        opacity: 0;
+        transform: scaleX(0);
+    }
+}
+
+.slide-out {
+    animation: slide-out 250ms ease-in forwards;
+}
+
+@keyframes slide-in-left {
+    from {
+        opacity: 0;
+        transform: scaleX(0);
+    }
+
+    to {
+        opacity: 1;
+        transform: scaleX(1);
+    }
+}
+
+.slide-in-left {
+    animation: slide-in-left 250ms ease-out forwards;
+}
+
+@keyframes slide-out-left {
+    from {
+        opacity: 1;
+        transform: scaleX(1);
+    }
+
+    to {
+        opacity: 0;
+        transform: scaleX(0);
+    }
+}
+
+.slide-out-left {
+    animation: slide-out-left 250ms ease-in forwards;
+}
+
+@keyframes slide-up {
+    from {
+        opacity: 0;
+        transform: translateY(100%);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.slide-up {
+    animation: slide-up 250ms ease-out forwards;
+}
+
+@keyframes slide-down {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    to {
+        opacity: 0;
+        transform: translateY(100%);
+    }
+}
+
+.slide-down {
+    animation: slide-down 250ms ease-in forwards;
+}

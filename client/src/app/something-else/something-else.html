@@ -1,0 +1,58 @@
+<mat-card>
+  <mat-card-header>
+    <mat-card-title>Something Else</mat-card-title>
+  </mat-card-header>
+
+  <mat-card-content>
+    <!-- Add new item -->
+    <div class="add-item">
+      <mat-form-field appearance="outline">
+        <mat-label>New title</mat-label>
+        <input matInput [ngModel]="newTitle()" (ngModelChange)="newTitle.set($event)"
+               (keyup.enter)="addItem()" placeholder="Enter title" />
+      </mat-form-field>
+      <button mat-flat-button color="primary" (click)="addItem()">
+        <mat-icon>add</mat-icon> Add
+      </button>
+    </div>
+
+    @if (loading()) {
+      <p>Loading...</p>
+    }
+
+    <!-- Item list -->
+    <mat-list>
+      @for (item of itemList(); track item.id) {
+        <mat-list-item>
+          @if (editingItem()?.id === item.id) {
+            <div class="edit-row">
+              <mat-form-field appearance="outline">
+                <input matInput [ngModel]="editingItem()!.title"
+                       (ngModelChange)="editingItem.set({ id: editingItem()!.id, title: $event })"
+                       (keyup.enter)="saveEdit()" />
+              </mat-form-field>
+              <button mat-icon-button color="primary" (click)="saveEdit()">
+                <mat-icon>check</mat-icon>
+              </button>
+              <button mat-icon-button (click)="cancelEdit()">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+          } @else {
+            <div class="list-row">
+              <span class="item-title">{{ item.title }}</span>
+              <div class="actions">
+                <button mat-icon-button (click)="startEdit(item)">
+                  <mat-icon>edit</mat-icon>
+                </button>
+                <button mat-icon-button color="warn" (click)="deleteItem(item.id)">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </div>
+            </div>
+          }
+        </mat-list-item>
+      }
+    </mat-list>
+  </mat-card-content>
+</mat-card>

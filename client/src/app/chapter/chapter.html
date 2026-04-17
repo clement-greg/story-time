@@ -1,0 +1,89 @@
+<mat-card>
+  <mat-card-header>
+    <mat-card-title>Chapters</mat-card-title>
+  </mat-card-header>
+
+  <mat-card-content>
+    <!-- Filter by book -->
+    <div class="filter-row">
+      <mat-form-field appearance="outline">
+        <mat-label>Filter by book</mat-label>
+        <mat-select [ngModel]="filterBookId()" (ngModelChange)="filterByBook($event)">
+          <mat-option value="">All books</mat-option>
+          @for (book of bookList(); track book.id) {
+            <mat-option [value]="book.id">{{ book.title }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+    </div>
+
+    <!-- Add new chapter -->
+    <div class="add-chapter">
+      <mat-form-field appearance="outline">
+        <mat-label>Book</mat-label>
+        <mat-select [ngModel]="newBookId()" (ngModelChange)="newBookId.set($event)">
+          @for (book of bookList(); track book.id) {
+            <mat-option [value]="book.id">{{ book.title }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Chapter title</mat-label>
+        <input matInput [ngModel]="newTitle()" (ngModelChange)="newTitle.set($event)"
+               (keyup.enter)="addChapter()" placeholder="Enter title" />
+      </mat-form-field>
+      <button mat-flat-button color="primary" (click)="addChapter()">
+        <mat-icon>add</mat-icon> Add
+      </button>
+    </div>
+
+    @if (loading()) {
+      <p>Loading...</p>
+    }
+
+    <!-- Chapter list -->
+    <mat-list>
+      @for (chapter of chapterList(); track chapter.id) {
+        <mat-list-item>
+          @if (editingChapter()?.id === chapter.id) {
+            <div class="edit-row">
+              <mat-form-field appearance="outline">
+                <mat-label>Book</mat-label>
+                <mat-select [ngModel]="editingChapter()!.bookId"
+                            (ngModelChange)="editingChapter.set({ ...editingChapter()!, bookId: $event })">
+                  @for (book of bookList(); track book.id) {
+                    <mat-option [value]="book.id">{{ book.title }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <input matInput [ngModel]="editingChapter()!.title"
+                       (ngModelChange)="editingChapter.set({ ...editingChapter()!, title: $event })"
+                       (keyup.enter)="saveEdit()" />
+              </mat-form-field>
+              <button mat-icon-button color="primary" (click)="saveEdit()">
+                <mat-icon>check</mat-icon>
+              </button>
+              <button mat-icon-button (click)="cancelEdit()">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+          } @else {
+            <div class="list-row">
+              <span class="chapter-book">{{ getBookTitle(chapter.bookId) }}</span>
+              <span class="chapter-title">{{ chapter.title }}</span>
+              <div class="actions">
+                <button mat-icon-button (click)="startEdit(chapter)">
+                  <mat-icon>edit</mat-icon>
+                </button>
+                <button mat-icon-button color="warn" (click)="deleteChapter(chapter.id)">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </div>
+            </div>
+          }
+        </mat-list-item>
+      }
+    </mat-list>
+  </mat-card-content>
+</mat-card>

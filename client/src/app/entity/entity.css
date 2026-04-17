@@ -1,0 +1,52 @@
+.filter-row {
+  margin-bottom: 16px;
+}
+
+.filter-row mat-form-field {
+  width: 100%;
+}
+
+.add-entity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.add-entity mat-form-field {
+  flex: 1;
+}
+
+.list-row,
+.edit-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 8px;
+}
+
+.entity-series {
+  min-width: 120px;
+  color: rgba(0, 0, 0, 0.54);
+  font-size: 0.875rem;
+}
+
+.entity-type {
+  min-width: 80px;
+  color: rgba(0, 0, 0, 0.54);
+  font-size: 0.875rem;
+  text-transform: capitalize;
+}
+
+.entity-name {
+  flex: 1;
+}
+
+.edit-row mat-form-field {
+  flex: 1;
+}
+
+.actions {
+  display: flex;
+  gap: 4px;
+}

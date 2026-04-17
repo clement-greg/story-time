@@ -1,0 +1,79 @@
+<app-slide-out-panel-container
+  [showRightPanel]="showPanel()"
+  (showRightPanelChange)="onPanelChanged($event)">
+
+  <div main-content>
+    <div class="series-header">
+      <h2>Series</h2>
+      <button mat-flat-button (click)="openNew()">
+        <mat-icon>add</mat-icon> New Series
+      </button>
+    </div>
+
+    @if (loading()) {
+      <p class="loading">Loading...</p>
+    }
+
+    <div class="series-grid">
+      @for (series of seriesList(); track series.id) {
+        <mat-card class="series-card" (click)="navigateToDetail(series.id)">
+          @if (series.thumnailUrl) {
+            <img mat-card-image [src]="proxyUrl(series.thumnailUrl)!" [alt]="series.title" />
+          } @else {
+            <div class="series-card-placeholder">
+              <mat-icon>menu_book</mat-icon>
+            </div>
+          }
+          <mat-card-header>
+            <mat-card-title>{{ series.title }}</mat-card-title>
+          </mat-card-header>
+          <mat-card-actions align="end">
+            <button mat-icon-button (click)="openEdit(series); $event.stopPropagation()">
+              <mat-icon>edit</mat-icon>
+            </button>
+          </mat-card-actions>
+        </mat-card>
+      }
+    </div>
+  </div>
+
+  <div right-panel>
+    @if (editingSeries()) {
+      <div class="editor-content">
+        <h3>{{ isNew() ? 'New Series' : 'Edit Series' }}</h3>
+        <mat-form-field appearance="outline">
+          <mat-label>Title</mat-label>
+          <input matInput
+                 [ngModel]="editingSeries()!.title"
+                 (ngModelChange)="updateTitle($event)" />
+        </mat-form-field>
+
+        <div class="thumbnail-section">
+          <div class="thumbnail-preview">
+            @if (thumbnailPreview()) {
+              <img [src]="thumbnailPreview()!" alt="Thumbnail preview" />
+            } @else {
+              <mat-icon class="thumbnail-placeholder-icon">image</mat-icon>
+            }
+            @if (uploading()) {
+              <div class="upload-overlay">
+                <mat-spinner diameter="36" />
+              </div>
+            }
+          </div>
+          <button mat-stroked-button type="button" (click)="fileInput.click()" [disabled]="uploading()">
+            <mat-icon>upload</mat-icon>
+            {{ thumbnailPreview() ? 'Change Image' : 'Upload Thumbnail' }}
+          </button>
+          <input #fileInput type="file" accept="image/*" hidden (change)="onFileSelected($event)" />
+        </div>
+
+        <div class="editor-actions">
+          <button mat-flat-button (click)="saveEdit()" [disabled]="uploading()">Save</button>
+          <button mat-button (click)="closePanel()">Cancel</button>
+        </div>
+      </div>
+    }
+  </div>
+
+</app-slide-out-panel-container>

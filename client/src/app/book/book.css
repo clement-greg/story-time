@@ -1,0 +1,45 @@
+.filter-row {
+  margin-bottom: 16px;
+}
+
+.filter-row mat-form-field {
+  width: 100%;
+}
+
+.add-book {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.add-book mat-form-field {
+  flex: 1;
+}
+
+.list-row,
+.edit-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 8px;
+}
+
+.book-series {
+  min-width: 120px;
+  color: rgba(0, 0, 0, 0.54);
+  font-size: 0.875rem;
+}
+
+.book-title {
+  flex: 1;
+}
+
+.edit-row mat-form-field {
+  flex: 1;
+}
+
+.actions {
+  display: flex;
+  gap: 4px;
+}

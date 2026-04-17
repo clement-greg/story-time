@@ -1,0 +1,42 @@
+<ng-content select="[main-content]"></ng-content>
+
+<div class="backdrop" (click)="closeRightPanel();closeLeftPanel();closeBottomPanel()"
+    *ngIf="showRightPanel || showLeftPanel || showBottomPanel"></div>
+
+<div class="left-panel" animate.enter="slide-in-left" animate.leave="slide-out-left" *ngIf="showLeftPanel"
+    [style.width.px]="leftPanelWidth" [style.height]="leftPanelHeight" [style.top.px]="leftPanelTop">
+
+    <button [class.scrolled]="isScrolled" [style.top.px]="leftCloseButtonTop" mat-icon-button
+        class="close-detail-button" (click)="closeLeftPanel()">
+        <mat-icon style="vertical-align: middle;">close</mat-icon>
+    </button>
+    <div (scroll)="trackScroll($event)">
+        <ng-content select="[left-panel]"></ng-content>
+    </div>
+</div>
+<div class="right-panel" animate.enter="slide-in" animate.leave="slide-out" *ngIf="showRightPanel"
+    [style.width.px]="rightPanelWidth" [style.height]="rightPanelHeight" [style.top.px]="rightPanelTop">
+
+    <button [class.scrolled]="isScrolled" [style.top.px]="rightCloseButtonTop" mat-icon-button
+        class="close-detail-button" (click)="closeRightPanel()">
+        <mat-icon style="vertical-align: middle;">close</mat-icon>
+    </button>
+
+    <div (scroll)="trackScroll($event)">
+        <ng-content select="[right-panel]"></ng-content>
+    </div>
+</div>
+
+<div class="bottom-panel" animate.enter="slide-up" animate.leave="slide-down" *ngIf="showBottomPanel"
+    [style.height.px]="bottomPanelHeight">
+
+    <div [style.width.px]="bottomPanelWidth">
+        <button [class.scrolled]="isScrolled" mat-icon-button class="close-detail-button" (click)="closeBottomPanel()">
+            <mat-icon>close</mat-icon>
+        </button>
+
+        <div (scroll)="trackScroll($event)">
+            <ng-content select="[bottom-panel]"></ng-content>
+        </div>
+    </div>
+</div>

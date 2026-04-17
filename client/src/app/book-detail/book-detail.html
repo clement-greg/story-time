@@ -1,0 +1,44 @@
+<div class="container">
+  @if (book()) {
+    <div class="hero">
+      @if (book()!.thumnailUrl) {
+        <img class="hero-image" [src]="proxyUrl(book()!.originalUrl)!" [alt]="book()!.title" />
+      } @else {
+        <div class="hero-placeholder">
+          <mat-icon>book</mat-icon>
+        </div>
+      }
+      <div class="hero-overlay">
+        <button mat-icon-button class="back-button" (click)="goBack()">
+          <mat-icon>arrow_back</mat-icon>
+        </button>
+        <h1 class="hero-title">{{ book()!.title }}</h1>
+      </div>
+    </div>
+  }
+
+  <div class="chapters-header">
+    <h2>Chapters</h2>
+    <button mat-flat-button (click)="addChapter()">
+      <mat-icon>add</mat-icon> Add Chapter
+    </button>
+  </div>
+
+  @if (loading()) {
+    <p class="loading">Loading...</p>
+  }
+
+  <mat-nav-list>
+    @for (chapter of chapterList(); track chapter.id) {
+      <mat-list-item (click)="openChapter(chapter)">
+        <span matListItemTitle>{{ chapter.title }}</span>
+        <button mat-icon-button matListItemMeta>
+          <mat-icon>chevron_right</mat-icon>
+        </button>
+      </mat-list-item>
+    }
+    @if (!loading() && chapterList().length === 0) {
+      <p class="empty">No chapters yet.</p>
+    }
+  </mat-nav-list>
+</div>

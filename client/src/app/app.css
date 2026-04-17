@@ -1,0 +1,12 @@
+mat-toolbar nav {
+  margin-left: 16px;
+}
+
+.active-link {
+  font-weight: bold;
+  text-decoration: underline;
+}
+
+main {
+  padding: 24px;
+}
