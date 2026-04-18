@@ -18,6 +18,9 @@
             <mat-icon>arrow_back</mat-icon>
           </button>
           <h1 class="hero-title">{{ series()!.title }}</h1>
+          <button mat-icon-button class="settings-button" (click)="openSeriesSettings()" matTooltip="Series Settings">
+            <mat-icon>settings</mat-icon>
+          </button>
         </div>
       </div>
     }
@@ -99,8 +102,7 @@
       </div>
     }
 
-    @if (panelMode() === 'entity') {
-      <div class="editor-content">
+    @if (panelMode() === 'entity') {      <div class="editor-content">
         <h3>Entities</h3>
 
         <div class="add-entity-form">
@@ -134,31 +136,11 @@
         <mat-list>
           @for (entity of entityList(); track entity.id) {
             <mat-list-item>
-              @if (editingEntity()?.id === entity.id) {
-                <div class="entity-edit-row">
-                  <mat-form-field appearance="outline">
-                    <mat-label>Type</mat-label>
-                    <mat-select [ngModel]="editingEntity()!.type"
-                                (ngModelChange)="editingEntity.set({ ...editingEntity()!, type: $event })">
-                      @for (type of entityTypes; track type) {
-                        <mat-option [value]="type">{{ type }}</mat-option>
-                      }
-                    </mat-select>
-                  </mat-form-field>
-                  <mat-form-field appearance="outline">
-                    <mat-label>Name</mat-label>
-                    <input matInput
-                           [ngModel]="editingEntity()!.name"
-                           (ngModelChange)="editingEntity.set({ ...editingEntity()!, name: $event })"
-                           (keyup.enter)="saveEntityEdit()" />
-                  </mat-form-field>
-                  <button mat-icon-button color="primary" (click)="saveEntityEdit()">
-                    <mat-icon>check</mat-icon>
-                  </button>
-                  <button mat-icon-button (click)="cancelEditEntity()">
-                    <mat-icon>close</mat-icon>
-                  </button>
-                </div>
+              @if (editingEntityId() === entity.id) {
+                <app-entity-edit
+                  [entity]="entity"
+                  (save)="saveEntityEdit($event)"
+                  (cancel)="cancelEditEntity()" />
               } @else {
                 <div class="entity-list-row">
                   <span class="entity-type-badge">{{ entity.type }}</span>
@@ -176,6 +158,41 @@
             </mat-list-item>
           }
         </mat-list>
+      </div>
+    }
+
+    @if (panelMode() === 'series') {
+      <div class="editor-content">
+        <h3>Series Settings</h3>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>AI System Prompt</mat-label>
+          <textarea matInput
+                    cdkTextareaAutosize
+                    cdkAutosizeMinRows="6"
+                    cdkAutosizeMaxRows="20"
+                    [ngModel]="editingSystemPrompt()"
+                    (ngModelChange)="editingSystemPrompt.set($event)"
+                    placeholder="Describe the tone, style, setting, and rules for AI responses in this series…"></textarea>
+          <mat-hint>This prompt guides all AI responses within this series.</mat-hint>
+        </mat-form-field>
+
+        <button mat-stroked-button
+                class="generate-btn"
+                (click)="generateSystemPrompt()"
+                [disabled]="generatingPrompt()">
+          @if (generatingPrompt()) {
+            <mat-spinner diameter="18" />
+          } @else {
+            <mat-icon>auto_awesome</mat-icon>
+          }
+          {{ generatingPrompt() ? 'Generating…' : 'Enhance with AI' }}
+        </button>
+
+        <div class="editor-actions">
+          <button mat-flat-button (click)="saveSeriesSettings()">Save</button>
+          <button mat-button (click)="closePanel()">Cancel</button>
+        </div>
       </div>
     }
   </div>

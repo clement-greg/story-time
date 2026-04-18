@@ -1,6 +1,14 @@
 import { Router, Request, Response } from 'express';
+import { AzureOpenAI } from 'openai';
+import config from '../../_private/config.json';
 import { getContainer } from '../cosmos';
 import { Entity } from '../../shared/models/entity.model';
+
+const aiClient = new AzureOpenAI({
+  endpoint: config.foundry.endpoint,
+  apiKey: config.foundry.key,
+  apiVersion: '2024-10-21',
+});
 
 const router = Router();
 const container = getContainer('entities');
@@ -97,6 +105,39 @@ router.delete('/:id', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('Error deleting entity:', err);
     res.status(500).json({ error: 'Failed to delete entity' });
+  }
+});
+
+// POST generate a personality prompt from basic entity info
+router.post('/:id/generate-personality', async (req: Request, res: Response) => {
+  try {
+    const id = req.params['id'] as string;
+    const basicDescription: string = req.body.basicDescription ?? '';
+
+    const { resource } = await container.item(id, id).read<Entity>();
+    const name = resource?.name ?? 'this character';
+    const biography = resource?.biography ?? '';
+
+    const metaPrompt =
+      `You are an expert creative writing consultant. A user is writing a story featuring a character named "${name}"` +
+      (biography ? ` with the following biography: ${biography}` : '') + `.
+` +
+      `Based on the following basic description, write a thorough personality profile for this character. ` +
+      `Cover their speech patterns, mannerisms, emotional tendencies, values, fears, how they respond under pressure, ` +
+      `and any quirks that would help an AI write authentic dialog for them. ` +
+      `Return only the personality profile text — no explanations, no preamble.\n\n` +
+      `Basic description: ${basicDescription}`;
+
+    const completion = await aiClient.chat.completions.create({
+      model: config.foundry.miniModel,
+      messages: [{ role: 'user', content: metaPrompt }],
+    });
+
+    const personality = completion.choices[0]?.message?.content?.trim() ?? '';
+    res.json({ personality });
+  } catch (err) {
+    console.error('Error generating personality:', err);
+    res.status(500).json({ error: 'Failed to generate personality' });
   }
 });
 

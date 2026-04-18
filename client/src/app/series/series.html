@@ -74,6 +74,31 @@
 
           <mat-divider></mat-divider>
 
+          <mat-form-field appearance="outline">
+            <mat-label>AI System Prompt</mat-label>
+            <textarea matInput
+                      cdkTextareaAutosize
+                      cdkAutosizeMinRows="4"
+                      cdkAutosizeMaxRows="14"
+                      [ngModel]="editingSeries()!.systemPrompt ?? ''"
+                      (ngModelChange)="updateSystemPrompt($event)"
+                      placeholder="Describe the tone, style, setting, and rules for AI responses in this series…"></textarea>
+            <mat-hint>Guides all AI responses within this series.</mat-hint>
+          </mat-form-field>
+
+          @if (!isNew()) {
+            <button mat-stroked-button (click)="generateSystemPrompt()" [disabled]="generatingPrompt()">
+              @if (generatingPrompt()) {
+                <mat-spinner diameter="18" />
+              } @else {
+                <mat-icon>auto_awesome</mat-icon>
+              }
+              {{ generatingPrompt() ? 'Generating…' : 'Enhance with AI' }}
+            </button>
+          }
+
+          <mat-divider></mat-divider>
+
           @if (!isNew()) {
             <button mat-stroked-button (click)="openEntityPanel()" [class.active-col-btn]="showEntityPanel()">
               <mat-icon>people</mat-icon> Entities
@@ -158,48 +183,10 @@
             </button>
           </div>
 
-          <mat-form-field appearance="outline">
-            <mat-label>Type</mat-label>
-            <mat-select [ngModel]="editingEntity()!.type"
-                        (ngModelChange)="editingEntity.set({ ...editingEntity()!, type: $event })">
-              @for (type of entityTypes; track type) {
-                <mat-option [value]="type">{{ type }}</mat-option>
-              }
-            </mat-select>
-          </mat-form-field>
-
-          <mat-form-field appearance="outline">
-            <mat-label>Name</mat-label>
-            <input matInput
-                   [ngModel]="editingEntity()!.name"
-                   (ngModelChange)="editingEntity.set({ ...editingEntity()!, name: $event })"
-                   (keyup.enter)="saveEntityEdit()" />
-          </mat-form-field>
-
-          <div class="thumbnail-section">
-            <div class="thumbnail-preview">
-              @if (entityThumbnailPreview()) {
-                <img [src]="entityThumbnailPreview()!" alt="Thumbnail preview" />
-              } @else {
-                <mat-icon class="thumbnail-placeholder-icon">image</mat-icon>
-              }
-              @if (entityUploading()) {
-                <div class="upload-overlay">
-                  <mat-spinner diameter="36" />
-                </div>
-              }
-            </div>
-            <button mat-stroked-button type="button" (click)="entityFileInput.click()" [disabled]="entityUploading()">
-              <mat-icon>upload</mat-icon>
-              {{ entityThumbnailPreview() ? 'Change Image' : 'Upload Image' }}
-            </button>
-            <input #entityFileInput type="file" accept="image/*" hidden (change)="onEntityFileSelected($event)" />
-          </div>
-
-          <div class="editor-actions">
-            <button mat-flat-button color="primary" (click)="saveEntityEdit()">Save</button>
-            <button mat-button (click)="cancelEditEntity()">Cancel</button>
-          </div>
+          <app-entity-edit
+            [entity]="editingEntity()!"
+            (save)="saveEntityEdit($event)"
+            (cancel)="cancelEditEntity()" />
         </div>
       }
 

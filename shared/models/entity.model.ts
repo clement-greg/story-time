@@ -1,3 +1,5 @@
+export type EntityReference = 'full-name' | 'first-name' | 'last-name' | 'nickname';
+
 export interface Entity {
     id: string;
     name: string;
@@ -6,4 +8,9 @@ export interface Entity {
     thumbnailUrl?: string;
     originalUrl?: string;
     biography?: string;
+    firstName?: string;
+    lastName?: string;
+    nickname?: string;
+    preferredReference?: EntityReference;
+    personality?: string;
 }

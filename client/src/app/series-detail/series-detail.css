@@ -196,3 +196,24 @@
 .entity-edit-row mat-form-field {
   width: 100%;
 }
+
+.settings-button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  color: white;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.generate-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.generate-btn mat-spinner {
+  display: inline-flex;
+}

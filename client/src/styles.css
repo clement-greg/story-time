@@ -3,3 +3,17 @@
     text-decoration: underline;
     color: cadetblue;
 }
+
+.note-indicator {
+    background: color-mix(in srgb, #ffa000 14%, transparent);
+    border-bottom: 2px solid #ffa000;
+    border-radius: 2px;
+    padding: 0 1px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.note-indicator:hover,
+.note-indicator.note-highlighted {
+    background: color-mix(in srgb, #ffa000 35%, transparent);
+}

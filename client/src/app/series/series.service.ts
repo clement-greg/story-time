@@ -33,4 +33,8 @@ export class SeriesService {
     formData.append('file', file);
     return this.http.post<{ url: string; thumbnailUrl: string }>('/api/upload', formData);
   }
+
+  generateSystemPrompt(seriesId: string, basicPrompt: string): Observable<{ systemPrompt: string }> {
+    return this.http.post<{ systemPrompt: string }>(`${this.apiUrl}/${seriesId}/generate-system-prompt`, { basicPrompt });
+  }
 }

@@ -37,4 +37,8 @@ export class EntityService {
     formData.append('file', file);
     return this.http.post<{ url: string; thumbnailUrl: string }>('/api/upload', formData);
   }
+
+  generatePersonality(entityId: string, basicDescription: string): Observable<{ personality: string }> {
+    return this.http.post<{ personality: string }>(`${this.apiUrl}/${entityId}/generate-personality`, { basicDescription });
+  }
 }

@@ -3,4 +3,5 @@ export interface Series {
     id: string;
     thumnailUrl?: string;
     originalUrl?: string;
+    systemPrompt?: string;
 }

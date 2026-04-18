@@ -1,8 +1,14 @@
 import { Injectable } from '@angular/core';
+import { ChapterNote } from '@shared/models/chapter.model';
 
 const DB_NAME = 'story-time';
 const STORE_NAME = 'chapter-drafts';
 const DB_VERSION = 1;
+
+export interface ChapterDraft {
+  content: string;
+  notes: ChapterNote[];
+}
 
 @Injectable({ providedIn: 'root' })
 export class ChapterDraftService {
@@ -26,22 +32,26 @@ export class ChapterDraftService {
     });
   }
 
-  async saveDraft(id: string, content: string): Promise<void> {
+  async saveDraft(id: string, content: string, notes: ChapterNote[] = []): Promise<void> {
     const db = await this.open();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
-      tx.objectStore(STORE_NAME).put({ id, content, savedAt: Date.now() });
+      tx.objectStore(STORE_NAME).put({ id, content, notes, savedAt: Date.now() });
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
   }
 
-  async getDraft(id: string): Promise<string | null> {
+  async getDraft(id: string): Promise<ChapterDraft | null> {
     const db = await this.open();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readonly');
       const request = tx.objectStore(STORE_NAME).get(id);
-      request.onsuccess = () => resolve(request.result?.content ?? null);
+      request.onsuccess = () => {
+        const result = request.result;
+        if (!result) { resolve(null); return; }
+        resolve({ content: result.content ?? '', notes: result.notes ?? [] });
+      };
       request.onerror = () => reject(request.error);
     });
   }

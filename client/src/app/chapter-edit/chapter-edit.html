@@ -1,3 +1,13 @@
+<app-slide-out-panel-container
+  [showRightPanel]="!!editingEntity()"
+  (showRightPanelChange)="$event ? null : cancelEntityEdit()"
+  [rightPanelWidth]="420"
+  [showBottomPanel]="historyVisible()"
+  (showBottomPanelChange)="historyVisible.set($event)"
+  [bottomPanelHeight]="500"
+  [bottomPanelWidth]="historyPanelWidth">
+
+  <div main-content>
 <div class="page">
   <div class="top-bar">
     <button mat-icon-button (click)="goBack()">
@@ -18,6 +28,22 @@
         <span class="draft-indicator">Unsaved draft</span>
         <button mat-button (click)="discardDraft()">Discard draft</button>
       }
+      <button mat-icon-button
+              class="notes-toggle-btn"
+              [class.active]="notesListVisible()"
+              (click)="toggleNotesList()"
+              title="Toggle notes">
+        <mat-icon>sticky_note_2</mat-icon>
+        @if (notes().length > 0) {
+          <span class="notes-count-badge">{{ notes().length }}</span>
+        }
+      </button>
+      <button mat-icon-button
+              [class.active]="historyVisible()"
+              (click)="toggleHistory()"
+              title="Version history">
+        <mat-icon>history</mat-icon>
+      </button>
       <button mat-flat-button (click)="save()" [disabled]="saving() || !chapter()">
         {{ saving() ? 'Saving…' : 'Save' }}
       </button>
@@ -28,6 +54,35 @@
   @if (chapter()) {
     <div class="workspace">
 
+      <!-- Notes panel -->
+      @if (notesListVisible()) {
+        <aside class="notes-panel">
+          <div class="notes-panel-header">
+            <mat-icon>sticky_note_2</mat-icon>
+            <span>Notes</span>
+            <span class="notes-panel-count">({{ notes().length }})</span>
+          </div>
+          <div class="notes-list">
+            @if (notes().length === 0) {
+              <p class="notes-empty">No notes yet. Select text and click <mat-icon style="font-size:14px;vertical-align:middle">sticky_note_2</mat-icon> to add one.</p>
+            }
+            @for (note of notes(); track note.id) {
+              <div class="note-item"
+                   [class.note-item-highlighted]="highlightedNoteId() === note.id"
+                   (click)="scrollToNote(note.id)">
+                <div class="note-selected-text">&ldquo;{{ note.selectedText }}&rdquo;</div>
+                <div class="note-text">{{ note.noteText }}</div>
+                <button class="note-delete-btn" mat-icon-button
+                        (click)="deleteNote(note.id); $event.stopPropagation()"
+                        title="Delete note">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </div>
+            }
+          </div>
+        </aside>
+      }
+
       <!-- Content editor -->
       <div class="editor-panel">
         <div #contentEditor
@@ -35,9 +90,45 @@
              contenteditable="true"
              (input)="onContentInput($event)"
              (keydown)="onEditorKeyDown($event)"
+             (mouseup)="onEditorMouseUp()"
              (mousemove)="onEditorMouseMove($event)"
              (mouseleave)="onEditorMouseLeave()"
              placeholder="Start writing your chapter…"></div>
+
+        <!-- Formatting toolbar (shown on text selection) -->
+        @if (formattingToolbarVisible()) {
+          <div class="formatting-toolbar"
+               [style.top.px]="formattingToolbarTop()"
+               [style.left.px]="formattingToolbarLeft()">
+            <button class="fmt-btn" [class.active]="formattingState().bold"
+                    (mousedown)="$event.preventDefault(); applyFormat('bold')"
+                    title="Bold">
+              <strong>B</strong>
+            </button>
+            <button class="fmt-btn" [class.active]="formattingState().italic"
+                    (mousedown)="$event.preventDefault(); applyFormat('italic')"
+                    title="Italic">
+              <em>I</em>
+            </button>
+            <button class="fmt-btn" [class.active]="formattingState().underline"
+                    (mousedown)="$event.preventDefault(); applyFormat('underline')"
+                    title="Underline">
+              <span style="text-decoration:underline">U</span>
+            </button>
+            <div class="fmt-separator"></div>
+            <button class="fmt-btn"
+                    (mousedown)="$event.preventDefault(); applyFormat('insertUnorderedList')"
+                    title="Bullet list">
+              <mat-icon style="font-size:16px;width:16px;height:16px;line-height:16px">format_list_bulleted</mat-icon>
+            </button>
+            <div class="fmt-separator"></div>
+            <button class="fmt-btn"
+                    (mousedown)="$event.preventDefault(); $event.stopPropagation(); openNoteInput()"
+                    title="Add note">
+              <mat-icon style="font-size:16px;width:16px;height:16px;line-height:16px">sticky_note_2</mat-icon>
+            </button>
+          </div>
+        }
       </div>
 
       <!-- Chat panel -->
@@ -45,13 +136,19 @@
         <div class="chat-header">
           <mat-icon>smart_toy</mat-icon>
           <span>AI Assistant</span>
+          @if (chatMessages().length > 0) {
+            <button mat-icon-button class="chat-clear-btn" title="Clear chat history" (click)="clearChat()">
+              <mat-icon>delete_sweep</mat-icon>
+            </button>
+          }
         </div>
-        <div class="chat-messages">
+        <div class="chat-messages" #chatMessagesEl>
           @if (chatMessages().length === 0) {
             <p class="chat-empty">Ask anything about your chapter…</p>
           }
-          @for (msg of chatMessages(); track $index) {
-            <div class="chat-message" [class.user]="msg.role === 'user'" [class.assistant]="msg.role === 'assistant'">
+          @for (msg of chatMessages(); track $index; let last = $last) {
+            <div class="chat-message" [class.user]="msg.role === 'user'" [class.assistant]="msg.role === 'assistant'"
+                 [class.streaming]="last && msg.role === 'assistant' && chatStreaming()">
               <span class="chat-role">{{ msg.role === 'user' ? 'You' : 'AI' }}</span>
               <p>{{ msg.text }}</p>
             </div>
@@ -59,11 +156,16 @@
         </div>
         <div class="chat-input-area">
           <textarea class="chat-textarea"
-                    placeholder="Message AI…"
+                    placeholder="Message AI… (Enter to send, Shift+Enter for new line)"
                     rows="3"
                     [value]="chatInput()"
-                    (input)="chatInput.set($any($event.target).value)"></textarea>
-          <button mat-flat-button class="chat-send-btn" disabled>Send</button>
+                    (input)="chatInput.set($any($event.target).value)"
+                    (keydown)="onChatKeyDown($event)"></textarea>
+          <button mat-icon-button class="chat-send-btn"
+                  [disabled]="chatStreaming() || !chatInput().trim()"
+                  (click)="sendChat()">
+            <mat-icon>{{ chatStreaming() ? 'hourglass_top' : 'send' }}</mat-icon>
+          </button>
         </div>
       </aside>
 
@@ -74,14 +176,20 @@
       <div class="autocomplete-dropdown"
            [style.top.px]="autocompleteTop()"
            [style.left.px]="autocompleteLeft()">
-        @for (item of autocompleteItems(); track item.id; let i = $index) {
+        @for (item of autocompleteItems(); track $index; let i = $index) {
           <div class="autocomplete-item"
                [class.active]="i === autocompleteIndex()"
-               (mousedown)="selectAutocomplete(item)">
-            @if (item.thumbnailUrl) {
-              <img [src]="proxyUrl(item.thumbnailUrl)!" class="autocomplete-thumb" alt="" />
+               [class.is-preferred]="item.isPreferred"
+               (mousedown)="selectAutocomplete(item.entity, item.text)">
+            @if (item.isPreferred && item.entity.thumbnailUrl) {
+              <img [src]="proxyUrl(item.entity.thumbnailUrl)!" class="autocomplete-thumb" alt="" />
+            } @else if (item.isPreferred) {
+              <span class="autocomplete-thumb-placeholder"></span>
+            } @else {
+              <span class="autocomplete-alt-indent"></span>
             }
-            <span>{{ item.name }}</span>
+            <span [class.autocomplete-preferred]="item.isPreferred"
+                  [class.autocomplete-alt]="!item.isPreferred">{{ item.text }}</span>
           </div>
         }
       </div>
@@ -91,11 +199,92 @@
     @if (hoveredEntity()) {
       <div class="entity-hover-popup"
            [style.top.px]="popupTop()"
-           [style.left.px]="popupLeft()">
+           [style.left.px]="popupLeft()"
+           (mouseenter)="onPopupMouseEnter()"
+           (mouseleave)="onPopupMouseLeave()">
         @if (hoveredEntity()!.thumbnailUrl) {
           <img [src]="proxyUrl(hoveredEntity()!.thumbnailUrl)!" class="popup-thumb" alt="" />
         }
-        <span class="popup-name">{{ hoveredEntity()!.name }}</span>
+        <div class="popup-info">
+          <span class="popup-name">{{ hoveredEntity()!.name }}</span>
+          @if (hoveredEntity()!.biography) {
+            <span class="popup-bio">{{ hoveredEntity()!.biography }}</span>
+          }
+        </div>
+        <button mat-icon-button class="popup-edit-btn" (click)="openEntityEdit(hoveredEntity()!)">
+          <mat-icon>edit</mat-icon>
+        </button>
+      </div>
+    }
+
+    <!-- Note input popup -->
+    @if (noteInputVisible()) {
+      <div class="note-input-popup"
+           [style.top.px]="noteInputTop()"
+           [style.left.px]="noteInputLeft()">
+        <div class="note-input-header">
+          <mat-icon>sticky_note_2</mat-icon>
+          <span>Add Note</span>
+          <button mat-icon-button class="note-input-close-btn" (click)="dismissNoteInput()" title="Dismiss">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+        <div class="note-input-body">
+          <textarea #noteInputEl
+                    class="note-textarea"
+                    placeholder="Enter your note… (Ctrl+Enter to save)"
+                    rows="3"
+                    [value]="noteInputText()"
+                    (input)="noteInputText.set($any($event.target).value)"
+                    (keydown)="onNoteInputKeyDown($event)"></textarea>
+        </div>
+        <div class="note-input-actions">
+          <button mat-flat-button (click)="submitNote()" [disabled]="!noteInputText().trim()">Save</button>
+          <button mat-button (click)="dismissNoteInput()">Cancel</button>
+        </div>
+      </div>
+    }
+
+    <!-- Inline AI prompt (Ctrl+.) -->
+    @if (inlineAiVisible()) {
+      <div class="inline-ai-prompt"
+           [style.top.px]="inlineAiTop()"
+           [style.left.px]="inlineAiLeft()">
+        <div class="inline-ai-header">
+          <mat-icon>auto_awesome</mat-icon>
+          <span>{{ inlineAiSelectedText() ? 'AI Reword' : 'AI Insert' }}</span>
+          <button mat-icon-button class="inline-ai-close-btn" (click)="dismissInlineAiPrompt()" title="Dismiss (Esc)">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+        @if (inlineAiSelectedText()) {
+          <div class="inline-ai-selection-preview">{{ inlineAiSelectedText() }}</div>
+        }
+        <div class="inline-ai-input-row">
+          <input #inlineAiInputEl
+                 class="inline-ai-input"
+                 type="text"
+                 [placeholder]="inlineAiSelectedText() ? 'Optional: describe how to reword… (Enter to send)' : 'Describe what to insert… (Enter to send)'"
+                 [value]="inlineAiInput()"
+                 (input)="inlineAiInput.set($any($event.target).value)"
+                 (keydown)="onInlineAiKeyDown($event)"
+                 [disabled]="inlineAiStreaming()" />
+          <button mat-icon-button
+                  [disabled]="inlineAiStreaming() || (!inlineAiInput().trim() && !inlineAiSelectedText())"
+                  (click)="submitInlineAiPrompt()"
+                  title="Send">
+            <mat-icon>{{ inlineAiStreaming() ? 'hourglass_top' : 'send' }}</mat-icon>
+          </button>
+        </div>
+        @if (inlineAiStreaming() || inlineAiResponse()) {
+          <div class="inline-ai-response" [class.streaming]="inlineAiStreaming()">{{ inlineAiResponse() }}</div>
+          @if (!inlineAiStreaming() && inlineAiResponse()) {
+            <div class="inline-ai-actions">
+              <button mat-flat-button (click)="acceptInlineAiResponse()">Accept</button>
+              <button mat-button (click)="dismissInlineAiPrompt()">Dismiss</button>
+            </div>
+          }
+        }
       </div>
     }
 
@@ -103,3 +292,60 @@
     <p class="loading">Loading…</p>
   }
 </div>
+  </div>
+
+  <div right-panel>
+    @if (editingEntity()) {
+      <div class="entity-edit-panel">
+        <h3>Edit Entity</h3>
+        <app-entity-edit
+          [entity]="editingEntity()!"
+          (save)="saveEntityEdit($event)"
+          (cancel)="cancelEntityEdit()" />
+      </div>
+    }
+  </div>
+
+  <div bottom-panel>
+    <div class="history-panel">
+      <div class="history-list">
+        <div class="history-list-title">Version History</div>
+        @if (historyLoading()) {
+          <p class="history-status">Loading…</p>
+        } @else if (historyVersions().length === 0) {
+          <p class="history-status">No saved versions yet.</p>
+        } @else {
+          @for (version of historyVersions(); track version.id) {
+            <button class="history-version-item"
+                    [class.selected]="selectedVersion()?.id === version.id"
+                    (click)="selectVersion(version)">
+              {{ formatVersionDate(version.savedAt) }}
+            </button>
+          }
+        }
+      </div>
+      <div class="history-diff">
+        @if (!selectedVersion()) {
+          <p class="history-status">Select a version from the list to compare it with the current content.</p>
+        } @else {
+          <div class="history-diff-legend">
+            <span class="legend-remove">&#8722; Version ({{ formatVersionDate(selectedVersion()!.savedAt) }})</span>
+            <span class="legend-add">&#43; Current</span>
+          </div>
+          <div class="history-diff-lines">
+            @for (line of diffLines(); track $index) {
+              <div class="diff-line"
+                   [class.diff-add]="line.type === 'add'"
+                   [class.diff-remove]="line.type === 'remove'"
+                   [class.diff-same]="line.type === 'same'">
+                <span class="diff-marker">{{ line.type === 'add' ? '+' : line.type === 'remove' ? '-' : ' ' }}</span>
+                <span class="diff-text">{{ line.text }}</span>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+
+</app-slide-out-panel-container>

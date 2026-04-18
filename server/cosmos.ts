@@ -8,13 +8,40 @@ const client = new CosmosClient({
 
 const database: Database = client.database(config.cosmosDatabase);
 
-const containerDefs = [
+const standardContainerDefs = [
   { id: 'series', partitionKey: { paths: ['/id'] } },
   { id: 'books', partitionKey: { paths: ['/id'] } },
   { id: 'entities', partitionKey: { paths: ['/id'] } },
-  { id: 'chapters', partitionKey: { paths: ['/id'] } },
   { id: 'something-else', partitionKey: { paths: ['/id'] } },
+  { id: 'chat-history', partitionKey: { paths: ['/id'] } },
+  { id: 'chapter-versions', partitionKey: { paths: ['/chapterId'] } },
 ];
+
+// text-embedding-3-small produces 1536-dimensional vectors.
+// A vectorEmbeddingPolicy is required to store vectors in Cosmos DB.
+// A vectorIndex is NOT used here — the account's 1000 RU/s shared limit would
+// be exceeded by dedicated container throughput. VectorDistance() queries still
+// work on shared throughput via full scan, which is fine for this app's scale.
+const chaptersContainerDef = {
+  id: 'chapters',
+  partitionKey: { paths: ['/id'] },
+  vectorEmbeddingPolicy: {
+    vectorEmbeddings: [
+      {
+        path: '/contentVector',
+        dataType: 'float32',
+        distanceFunction: 'cosine',
+        dimensions: 1536,
+      },
+    ],
+  },
+  indexingPolicy: {
+    automatic: true,
+    indexingMode: 'consistent',
+    includedPaths: [{ path: '/*' }],
+    excludedPaths: [{ path: '/contentVector/*' }],
+  },
+};
 
 export function getContainer(containerName: string): Container {
   return database.container(containerName);
@@ -26,45 +53,17 @@ export async function initDatabase(): Promise<void> {
     throughput: 1000,
   });
 
-  // Try creating all containers
+  // Create standard containers
   try {
-    for (const def of containerDefs) {
+    for (const def of standardContainerDefs) {
       await database.containers.createIfNotExists(def);
     }
-    return;
   } catch (err: any) {
     if (err.code !== 400 || err.substatus !== 1028) throw err;
   }
 
-  // Throughput limit hit — migrate to shared database throughput
-  console.log('Migrating database to shared throughput...');
-
-  const backup: Record<string, any[]> = {};
-  for (const def of containerDefs) {
-    try {
-      const { resources } = await database
-        .container(def.id)
-        .items.query('SELECT * FROM c')
-        .fetchAll();
-      backup[def.id] = resources;
-    } catch {
-      backup[def.id] = [];
-    }
-  }
-
-  await database.delete();
-  await client.databases.create({
-    id: config.cosmosDatabase,
-    throughput: 1000,
-  });
-
-  for (const def of containerDefs) {
-    await database.containers.createIfNotExists(def);
-    for (const item of backup[def.id]) {
-      const { _rid, _self, _etag, _attachments, _ts, ...cleanItem } = item;
-      await database.container(def.id).items.create(cleanItem);
-    }
-  }
-
-  console.log('Database migration complete.');
+  // Create chapters container with vector embedding policy if it doesn't exist.
+  // Note: vector embedding policies cannot be changed on existing containers.
+  await database.containers.createIfNotExists(chaptersContainerDef as any);
+  console.log('Chapters container ready.');
 }

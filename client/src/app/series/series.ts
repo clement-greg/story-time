@@ -10,12 +10,14 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatListModule } from '@angular/material/list';
 import { MatSelectModule } from '@angular/material/select';
 import { MatDividerModule } from '@angular/material/divider';
+import { TextFieldModule } from '@angular/cdk/text-field';
 import { SeriesService } from './series.service';
-import { EntityService } from '../entity/entity.service';
 import { Series } from '@shared/models/series.model';
-import { Entity } from '@shared/models/entity.model';
 import { v4 as uuidv4 } from 'uuid';
 import { SlideOutPanelContainer } from '../shared/slide-out-panel-container/slide-out-panel-container';
+import { EntityService } from '../services/entity.service';
+import { Entity } from '@shared/models/entity.model';
+import { EntityEditComponent } from '../entity-edit/entity-edit';
 
 @Component({
   selector: 'app-series',
@@ -30,7 +32,9 @@ import { SlideOutPanelContainer } from '../shared/slide-out-panel-container/slid
     MatListModule,
     MatSelectModule,
     MatDividerModule,
+    TextFieldModule,
     SlideOutPanelContainer,
+    EntityEditComponent,
   ],
   templateUrl: './series.html',
   styleUrl: './series.css',
@@ -48,11 +52,11 @@ export class SeriesComponent implements OnInit {
   uploading = signal(false);
   thumbnailPreview = signal<string | null>(null);
 
+  generatingPrompt = signal(false);
+
   showEntityPanel = signal(false);
   entityList = signal<Entity[]>([]);
   editingEntity = signal<Entity | null>(null);
-  entityThumbnailPreview = signal<string | null>(null);
-  entityUploading = signal(false);
   newEntityName = signal('');
   newEntityType = signal<Entity['type']>('PERSON');
   entityLoading = signal(false);
@@ -134,6 +138,26 @@ export class SeriesComponent implements OnInit {
     if (current) {
       this.editingSeries.set({ ...current, title: value });
     }
+  }
+
+  updateSystemPrompt(value: string): void {
+    const current = this.editingSeries();
+    if (current) {
+      this.editingSeries.set({ ...current, systemPrompt: value });
+    }
+  }
+
+  generateSystemPrompt(): void {
+    const s = this.editingSeries();
+    if (!s) return;
+    this.generatingPrompt.set(true);
+    this.seriesService.generateSystemPrompt(s.id, s.systemPrompt ?? '').subscribe({
+      next: ({ systemPrompt }) => {
+        this.editingSeries.set({ ...s, systemPrompt });
+        this.generatingPrompt.set(false);
+      },
+      error: () => this.generatingPrompt.set(false),
+    });
   }
 
   onFileSelected(event: Event): void {
@@ -223,49 +247,20 @@ export class SeriesComponent implements OnInit {
 
   startEditEntity(entity: Entity): void {
     this.editingEntity.set({ ...entity });
-    this.entityThumbnailPreview.set(this.proxyUrl(entity.thumbnailUrl));
   }
 
   cancelEditEntity(): void {
     this.editingEntity.set(null);
-    this.entityThumbnailPreview.set(null);
   }
 
-  saveEntityEdit(): void {
-    const editing = this.editingEntity();
-    if (!editing || !editing.name.trim()) return;
-
-    this.entityService.update(editing).subscribe({
+  saveEntityEdit(entity: Entity): void {
+    this.entityService.update(entity).subscribe({
       next: (updated) => {
         this.entityList.update((list) =>
           list.map((e) => (e.id === updated.id ? updated : e))
         );
         this.editingEntity.set(null);
-        this.entityThumbnailPreview.set(null);
       },
-    });
-  }
-
-  onEntityFileSelected(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = () => this.entityThumbnailPreview.set(reader.result as string);
-    reader.readAsDataURL(file);
-
-    this.entityUploading.set(true);
-    this.entityService.uploadThumbnail(file).subscribe({
-      next: ({ url, thumbnailUrl }) => {
-        const current = this.editingEntity();
-        if (current) {
-          this.editingEntity.set({ ...current, thumbnailUrl, originalUrl: url });
-        }
-        this.entityThumbnailPreview.set(this.proxyUrl(thumbnailUrl));
-        this.entityUploading.set(false);
-      },
-      error: () => this.entityUploading.set(false),
     });
   }
 

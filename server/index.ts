@@ -9,6 +9,8 @@ import chapterRoutes from './routes/chapter.routes';
 import somethingElseRoutes from './routes/something-else.routes';
 import uploadRoutes from './routes/upload.routes';
 import imageRoutes from './routes/image.routes';
+import chatRoutes from './routes/chat.routes';
+import chapterVersionRoutes from './routes/chapter-versions.routes';
 
 const app = express();
 const PORT = process.env['PORT'] || 3200;
@@ -28,6 +30,8 @@ app.use('/api/chapters', chapterRoutes);
 app.use('/api/something-else', somethingElseRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/image', imageRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/chapter-versions', chapterVersionRoutes);
 
 // Serve Angular static files
 app.use(express.static(path.join(__dirname, '../client/dist/client/browser')));

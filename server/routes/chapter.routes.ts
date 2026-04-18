@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getContainer } from '../cosmos';
+import { generateEmbedding } from '../embeddings';
 import { Chapter } from '../../shared/models/chapter.model';
 
 const router = Router();
@@ -63,6 +64,13 @@ router.post('/', async (req: Request, res: Response) => {
       res.status(400).json({ error: 'Book is required' });
       return;
     }
+    if (chapter.content) {
+      try {
+        chapter.contentVector = await generateEmbedding(chapter.content);
+      } catch (embErr) {
+        console.error('Failed to generate embedding for new chapter:', embErr);
+      }
+    }
     const { resource } = await container.items.create<Chapter>(chapter);
     res.status(201).json(resource);
   } catch (err) {
@@ -76,6 +84,15 @@ router.put('/:id', async (req: Request, res: Response) => {
   try {
     const id = req.params['id'] as string;
     const chapter: Chapter = { ...req.body, id };
+    if (chapter.content) {
+      try {
+        chapter.contentVector = await generateEmbedding(chapter.content);
+      } catch (embErr) {
+        console.error('Failed to generate embedding for chapter update:', embErr);
+      }
+    } else {
+      delete chapter.contentVector;
+    }
     const { resource } = await container.item(id, id).replace<Chapter>(chapter);
     res.json(resource);
   } catch (err) {
