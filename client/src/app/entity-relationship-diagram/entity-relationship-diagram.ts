@@ -9,6 +9,8 @@ import { Entity } from '@shared/models/entity.model';
 import { EntityRelationship, DiagramLayout, DiagramNodePosition, RELATIONSHIP_TYPES } from '@shared/models/entity-relationship.model';
 import { EntityService } from '../services/entity.service';
 import { EntityRelationshipService } from '../services/entity-relationship.service';
+import { HeaderService } from '../services/header.service';
+import { SeriesService } from '../series/series.service';
 import { RelationshipDialogComponent, RelationshipDialogResult } from './relationship-dialog';
 
 interface ConnectionLine {
@@ -34,6 +36,8 @@ export class EntityRelationshipDiagramComponent implements OnInit, OnDestroy {
   private router = inject(Router);
   private entityService = inject(EntityService);
   private relationshipService = inject(EntityRelationshipService);
+  private headerService = inject(HeaderService);
+  private seriesService = inject(SeriesService);
   private dialog = inject(MatDialog);
 
   canvas = viewChild<ElementRef<HTMLDivElement>>('canvas');
@@ -87,11 +91,19 @@ export class EntityRelationshipDiagramComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.seriesId = this.route.snapshot.params['seriesId'];
     this.loadData();
+    this.seriesService.getById(this.seriesId).subscribe({
+      next: (series) => {
+        this.headerService.set(
+          [{ label: series.title, link: '/series/' + series.id }, { label: 'Relationships' }]
+        );
+      },
+    });
     document.addEventListener('mousemove', this.boundOnMouseMove);
     document.addEventListener('mouseup', this.boundOnMouseUp);
   }
 
   ngOnDestroy(): void {
+    this.headerService.clear();
     document.removeEventListener('mousemove', this.boundOnMouseMove);
     document.removeEventListener('mouseup', this.boundOnMouseUp);
   }

@@ -17,3 +17,9 @@
 .note-indicator.note-highlighted {
     background: color-mix(in srgb, #ffa000 35%, transparent);
 }
+
+.container {
+  padding: 16px;
+  max-width: 800px;
+  margin: 0 auto;
+}

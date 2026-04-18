@@ -1,15 +1,18 @@
 import { Router, Request, Response } from 'express';
 import { getContainer } from '../cosmos';
 import { Book } from '../../shared/models/book.model';
+import { withOwnerFilter, readOwnedItem, readAccessibleItem } from '../owner-guard';
+import { Series } from '../../shared/models/series.model';
 
 const router = Router();
 const container = getContainer('books');
+const seriesContainer = getContainer('series');
 
 // GET all books
-router.get('/', async (_req: Request, res: Response) => {
+router.get('/', async (req: Request, res: Response) => {
   try {
     const { resources } = await container.items
-      .query('SELECT * FROM c')
+      .query(withOwnerFilter(req, 'SELECT * FROM c'))
       .fetchAll();
     res.json(resources as Book[]);
   } catch (err) {
@@ -22,6 +25,12 @@ router.get('/', async (_req: Request, res: Response) => {
 router.get('/series/:seriesId', async (req: Request, res: Response) => {
   try {
     const seriesId = req.params['seriesId'] as string;
+    // Allow access if the user owns or is a collaborator on the series
+    const series = await readAccessibleItem<Series>(seriesContainer, seriesId, seriesId, req);
+    if (!series) {
+      res.status(403).json({ error: 'Access denied' });
+      return;
+    }
     const { resources } = await container.items
       .query({
         query: 'SELECT * FROM c WHERE c.seriesId = @seriesId',
@@ -39,7 +48,7 @@ router.get('/series/:seriesId', async (req: Request, res: Response) => {
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const id = req.params['id'] as string;
-    const { resource } = await container.item(id, id).read<Book>();
+    const resource = await readAccessibleItem<Book>(container, id, id, req);
     if (!resource) {
       res.status(404).json({ error: 'Book not found' });
       return;
@@ -64,6 +73,7 @@ router.post('/', async (req: Request, res: Response) => {
       return;
     }
     const now = new Date().toISOString();
+    book.owner = book.owner || req.user!.email;
     book.createdBy = req.user!.email;
     book.createdAt = now;
     book.modifiedBy = req.user!.email;
@@ -99,7 +109,7 @@ router.patch('/reorder', async (req: Request, res: Response) => {
 router.put('/:id', async (req: Request, res: Response) => {
   try {
     const id = req.params['id'] as string;
-    const book: Book = { ...req.body, id, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };
+    const book: Book = { ...req.body, id, owner: req.body.owner || req.user!.email, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };
     const { resource } = await container.item(id, id).replace<Book>(book);
     res.json(resource);
   } catch (err) {

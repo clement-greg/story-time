@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { getContainer } from '../cosmos';
 import { EntityRelationship, DiagramLayout } from '../../shared/models/entity-relationship.model';
+import { withOwnerFilter } from '../owner-guard';
 
 const router = Router();
 const relationshipContainer = getContainer('entity-relationships');
@@ -13,10 +14,10 @@ router.get('/series/:seriesId', async (req: Request, res: Response) => {
   try {
     const seriesId = req.params['seriesId'] as string;
     const { resources } = await relationshipContainer.items
-      .query({
+      .query(withOwnerFilter(req, {
         query: 'SELECT * FROM c WHERE c.seriesId = @seriesId',
         parameters: [{ name: '@seriesId', value: seriesId }],
-      })
+      }))
       .fetchAll();
     res.json(resources as EntityRelationship[]);
   } catch (err) {
@@ -34,6 +35,7 @@ router.post('/', async (req: Request, res: Response) => {
       return;
     }
     const now = new Date().toISOString();
+    rel.owner = rel.owner || req.user!.email;
     rel.createdBy = req.user!.email;
     rel.createdAt = now;
     rel.modifiedBy = req.user!.email;
@@ -53,6 +55,7 @@ router.put('/:id', async (req: Request, res: Response) => {
     const rel: EntityRelationship = {
       ...req.body,
       id,
+      owner: req.body.owner || req.user!.email,
       modifiedBy: req.user!.email,
       modifiedAt: new Date().toISOString(),
     };
@@ -83,10 +86,10 @@ router.get('/layout/:seriesId', async (req: Request, res: Response) => {
   try {
     const seriesId = req.params['seriesId'] as string;
     const { resources } = await layoutContainer.items
-      .query({
+      .query(withOwnerFilter(req, {
         query: 'SELECT * FROM c WHERE c.seriesId = @seriesId',
         parameters: [{ name: '@seriesId', value: seriesId }],
-      })
+      }))
       .fetchAll();
     res.json(resources[0] ?? null);
   } catch (err) {
@@ -108,6 +111,9 @@ router.put('/layout/:seriesId', async (req: Request, res: Response) => {
     if (!layout.createdBy) {
       layout.createdBy = req.user!.email;
       layout.createdAt = new Date().toISOString();
+    }
+    if (!layout.owner) {
+      layout.owner = req.user!.email;
     }
     const { resource } = await layoutContainer.items.upsert<DiagramLayout>(layout);
     res.json(resource);

@@ -1,168 +1,193 @@
-<app-slide-out-panel-container
-  [showRightPanel]="showPanel()"
-  [rightPanelWidth]="rightPanelWidth"
+<app-slide-out-panel-container [showRightPanel]="showPanel()" [rightPanelWidth]="rightPanelWidth"
   (showRightPanelChange)="onPanelChanged($event)">
 
   <div main-content>
     <!-- Hero Section -->
     @if (series()) {
-      <div class="hero">
-        @if (series()!.thumnailUrl) {
-          <img class="hero-image" [src]="proxyUrl(series()!.originalUrl)!" [alt]="series()!.title" />
-        } @else {
-          <div class="hero-placeholder">
-            <mat-icon>menu_book</mat-icon>
-          </div>
-        }
-        <div class="hero-overlay">
-          <h1 class="hero-title">{{ series()!.title }}</h1>
-          <button mat-icon-button class="edit-button" (click)="openSeriesEdit()">
-            <mat-icon>edit</mat-icon>
-          </button>
-        </div>
+    <div class="hero">
+      @if (series()!.thumnailUrl) {
+      <img class="hero-image" [src]="proxyUrl(series()!.originalUrl)!" [alt]="series()!.title" />
+      } @else {
+      <div class="hero-placeholder">
+        <mat-icon>menu_book</mat-icon>
       </div>
-    }
-
-    <div class="books-header">
-      <h2>Books</h2>
-      <div class="books-header-actions">
-        <button mat-flat-button (click)="openNew()">
-          <mat-icon>add</mat-icon> Add Book
+      }
+      <div class="hero-overlay">
+        <h1 class="hero-title">{{ series()!.title }}</h1>
+        <button mat-icon-button class="edit-button" (click)="openSeriesEdit()">
+          <mat-icon>edit</mat-icon>
         </button>
       </div>
     </div>
-
-    @if (loading()) {
-      <p class="loading">Loading...</p>
     }
 
-    <div class="books-grid" cdkDropList cdkDropListOrientation="mixed" (cdkDropListDropped)="onDrop($event)">
-      @for (book of bookList(); track book.id) {
+    <div class="container">
+      <div class="books-header">
+        <h2>Books</h2>
+        <div class="books-header-actions">
+          <button mat-flat-button (click)="openNew()">
+            <mat-icon>add</mat-icon> Add Book
+          </button>
+        </div>
+      </div>
+
+      @if (loading()) {
+      <p class="loading">Loading...</p>
+      }
+
+      <div class="books-grid" cdkDropList cdkDropListOrientation="mixed" (cdkDropListDropped)="onDrop($event)">
+        @for (book of bookList(); track book.id) {
         <mat-card class="book-card" cdkDrag (click)="openBook(book)">
           <div class="book-card-drag-placeholder" *cdkDragPlaceholder></div>
           @if (book.thumnailUrl) {
-            <img mat-card-image [src]="proxyUrl(book.thumnailUrl)!" [alt]="book.title" />
+          <img mat-card-image [src]="proxyUrl(book.thumnailUrl)!" [alt]="book.title" />
           } @else {
-            <div class="book-card-placeholder">
-              <mat-icon>book</mat-icon>
-            </div>
+          <div class="book-card-placeholder">
+            <mat-icon>book</mat-icon>
+          </div>
           }
           <mat-card-header>
             <mat-card-title>{{ book.title }}</mat-card-title>
           </mat-card-header>
         </mat-card>
-      }
+        }
+      </div>
     </div>
   </div>
 
   <div right-panel>
     @if (panelMode() === 'book' && editingBook()) {
-      <div class="editor-content">
-        <h3>{{ isNew() ? 'Add Book' : 'Edit Book' }}</h3>
-        <mat-form-field appearance="outline">
-          <mat-label>Title</mat-label>
-          <input matInput
-                 [ngModel]="editingBook()!.title"
-                 (ngModelChange)="updateTitle($event)" />
-        </mat-form-field>
+    <div class="editor-content">
+      <h3>{{ isNew() ? 'Add Book' : 'Edit Book' }}</h3>
+      <mat-form-field appearance="outline">
+        <mat-label>Title</mat-label>
+        <input matInput [ngModel]="editingBook()!.title" (ngModelChange)="updateTitle($event)" />
+      </mat-form-field>
 
-        <div class="thumbnail-section">
-          <div class="thumbnail-preview">
-            @if (thumbnailPreview()) {
-              <img [src]="thumbnailPreview()!" alt="Thumbnail preview" />
-            } @else {
-              <mat-icon class="thumbnail-placeholder-icon">image</mat-icon>
-            }
-            @if (uploading()) {
-              <div class="upload-overlay">
-                <mat-spinner diameter="36" />
-              </div>
-            }
+      <div class="thumbnail-section">
+        <div class="thumbnail-preview">
+          @if (thumbnailPreview()) {
+          <img [src]="thumbnailPreview()!" alt="Thumbnail preview" />
+          } @else {
+          <mat-icon class="thumbnail-placeholder-icon">image</mat-icon>
+          }
+          @if (uploading()) {
+          <div class="upload-overlay">
+            <mat-spinner diameter="36" />
           </div>
-          <button mat-stroked-button type="button" (click)="fileInput.click()" [disabled]="uploading()">
-            <mat-icon>upload</mat-icon>
-            {{ thumbnailPreview() ? 'Change Image' : 'Upload Thumbnail' }}
-          </button>
-          <input #fileInput type="file" accept="image/*" hidden (change)="onFileSelected($event)" />
+          }
         </div>
-
-        <div class="editor-actions">
-          <button mat-flat-button (click)="saveEdit()" [disabled]="uploading()">Save</button>
-          <button mat-button (click)="closePanel()">Cancel</button>
-        </div>
+        <button mat-stroked-button type="button" (click)="fileInput.click()" [disabled]="uploading()">
+          <mat-icon>upload</mat-icon>
+          {{ thumbnailPreview() ? 'Change Image' : 'Upload Thumbnail' }}
+        </button>
+        <input #fileInput type="file" accept="image/*" hidden (change)="onFileSelected($event)" />
       </div>
+
+      <div class="editor-actions">
+        <button mat-flat-button (click)="saveEdit()" [disabled]="uploading()">Save</button>
+        <button mat-button (click)="closePanel()">Cancel</button>
+      </div>
+    </div>
     }
 
     @if (panelMode() === 'series-edit' && editingSeries()) {
-      <div class="editor-content">
-        <h3>Edit Series</h3>
-        <mat-form-field appearance="outline">
-          <mat-label>Title</mat-label>
-          <input matInput
-                 [ngModel]="editingSeries()!.title"
-                 (ngModelChange)="updateSeriesTitle($event)" />
-        </mat-form-field>
+    <div class="editor-content">
+      <h3>Edit Series</h3>
+      <mat-form-field appearance="outline">
+        <mat-label>Title</mat-label>
+        <input matInput [ngModel]="editingSeries()!.title" (ngModelChange)="updateSeriesTitle($event)" />
+      </mat-form-field>
 
-        <div class="thumbnail-section">
-          <div class="thumbnail-preview">
-            @if (thumbnailPreview()) {
-              <img [src]="thumbnailPreview()!" alt="Thumbnail preview" />
-            } @else {
-              <mat-icon class="thumbnail-placeholder-icon">image</mat-icon>
-            }
-            @if (uploading()) {
-              <div class="upload-overlay">
-                <mat-spinner diameter="36" />
-              </div>
-            }
+      <div class="thumbnail-section">
+        <div class="thumbnail-preview">
+          @if (thumbnailPreview()) {
+          <img [src]="thumbnailPreview()!" alt="Thumbnail preview" />
+          } @else {
+          <mat-icon class="thumbnail-placeholder-icon">image</mat-icon>
+          }
+          @if (uploading()) {
+          <div class="upload-overlay">
+            <mat-spinner diameter="36" />
           </div>
-          <button mat-stroked-button type="button" (click)="seriesFileInput.click()" [disabled]="uploading()">
-            <mat-icon>upload</mat-icon>
-            {{ thumbnailPreview() ? 'Change Image' : 'Upload Thumbnail' }}
+          }
+        </div>
+        <button mat-stroked-button type="button" (click)="seriesFileInput.click()" [disabled]="uploading()">
+          <mat-icon>upload</mat-icon>
+          {{ thumbnailPreview() ? 'Change Image' : 'Upload Thumbnail' }}
+        </button>
+        <input #seriesFileInput type="file" accept="image/*" hidden (change)="onSeriesFileSelected($event)" />
+      </div>
+
+      <div class="editor-actions">
+        <button mat-flat-button (click)="saveSeriesEdit()" [disabled]="uploading()">Save</button>
+        <button mat-button (click)="closePanel()">Cancel</button>
+      </div>
+
+      <mat-divider></mat-divider>
+
+      <div class="collaborators-section">
+        <h4>Collaborators</h4>
+
+        @if ((editingSeries()?.collaborators ?? []).length > 0) {
+        <mat-chip-set>
+          @for (email of editingSeries()!.collaborators!; track email) {
+          <mat-chip>
+            {{ email }}
+            <button matChipRemove (click)="removeCollaborator(email)" aria-label="Remove collaborator">
+              <mat-icon>cancel</mat-icon>
+            </button>
+          </mat-chip>
+          }
+        </mat-chip-set>
+        } @else {
+        <p class="no-collaborators">No collaborators yet.</p>
+        }
+
+        <div class="add-collaborator-row">
+          <mat-form-field appearance="outline" class="collaborator-input">
+            <mat-label>Add by email</mat-label>
+            <input matInput type="email" [ngModel]="newCollaboratorEmail()" (ngModelChange)="newCollaboratorEmail.set($event)"
+              (keydown.enter)="addCollaborator()" placeholder="user@example.com" />
+          </mat-form-field>
+          <button mat-icon-button (click)="addCollaborator()" [disabled]="!newCollaboratorEmail().trim()" aria-label="Add collaborator">
+            <mat-icon>person_add</mat-icon>
           </button>
-          <input #seriesFileInput type="file" accept="image/*" hidden (change)="onSeriesFileSelected($event)" />
         </div>
 
-        <div class="editor-actions">
-          <button mat-flat-button (click)="saveSeriesEdit()" [disabled]="uploading()">Save</button>
-          <button mat-button (click)="closePanel()">Cancel</button>
-        </div>
+        @if (collaboratorError()) {
+        <p class="collaborator-error">{{ collaboratorError() }}</p>
+        }
       </div>
+    </div>
     }
 
     @if (panelMode() === 'series') {
-      <div class="editor-content">
-        <h3>Series Settings</h3>
+    <div class="editor-content">
+      <h3>Series Settings</h3>
 
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>AI System Prompt</mat-label>
-          <textarea matInput
-                    cdkTextareaAutosize
-                    cdkAutosizeMinRows="6"
-                    cdkAutosizeMaxRows="20"
-                    [ngModel]="editingSystemPrompt()"
-                    (ngModelChange)="editingSystemPrompt.set($event)"
-                    placeholder="Describe the tone, style, setting, and rules for AI responses in this series…"></textarea>
-          <mat-hint>This prompt guides all AI responses within this series.</mat-hint>
-        </mat-form-field>
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>AI System Prompt</mat-label>
+        <textarea matInput cdkTextareaAutosize cdkAutosizeMinRows="6" cdkAutosizeMaxRows="20"
+          [ngModel]="editingSystemPrompt()" (ngModelChange)="editingSystemPrompt.set($event)"
+          placeholder="Describe the tone, style, setting, and rules for AI responses in this series…"></textarea>
+        <mat-hint>This prompt guides all AI responses within this series.</mat-hint>
+      </mat-form-field>
 
-        <button mat-stroked-button
-                class="generate-btn"
-                (click)="generateSystemPrompt()"
-                [disabled]="generatingPrompt()">
-          @if (generatingPrompt()) {
-            <mat-spinner diameter="18" />
-          } @else {
-            <mat-icon>auto_awesome</mat-icon>
-          }
-          {{ generatingPrompt() ? 'Generating…' : 'Enhance with AI' }}
-        </button>
+      <button mat-stroked-button class="generate-btn" (click)="generateSystemPrompt()" [disabled]="generatingPrompt()">
+        @if (generatingPrompt()) {
+        <mat-spinner diameter="18" />
+        } @else {
+        <mat-icon>auto_awesome</mat-icon>
+        }
+        {{ generatingPrompt() ? 'Generating…' : 'Enhance with AI' }}
+      </button>
 
-        <div class="editor-actions">
-          <button mat-flat-button (click)="saveSeriesSettings()">Save</button>
-          <button mat-button (click)="closePanel()">Cancel</button>
-        </div>
+      <div class="editor-actions">
+        <button mat-flat-button (click)="saveSeriesSettings()">Save</button>
+        <button mat-button (click)="closePanel()">Cancel</button>
       </div>
+    </div>
     }
   </div>
 

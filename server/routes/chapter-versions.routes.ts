@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getContainer } from '../cosmos';
 import { ChapterVersion } from '../../shared/models/chapter.model';
+import { withOwnerFilter } from '../owner-guard';
 
 const router = Router();
 const container = getContainer('chapter-versions');
@@ -11,10 +12,10 @@ router.get('/chapter/:chapterId', async (req: Request, res: Response) => {
   try {
     const chapterId = req.params['chapterId'] as string;
     const { resources } = await container.items
-      .query({
+      .query(withOwnerFilter(req, {
         query: 'SELECT * FROM c WHERE c.chapterId = @chapterId ORDER BY c.savedAt DESC',
         parameters: [{ name: '@chapterId', value: chapterId }],
-      })
+      }))
       .fetchAll();
     res.json(resources as ChapterVersion[]);
   } catch (err) {
@@ -40,6 +41,7 @@ router.post('/', async (req: Request, res: Response) => {
       chapterId: body.chapterId,
       savedAt: new Date().toISOString(),
       content: body.content,
+      owner: req.user!.email,
       createdBy: req.user!.email,
     };
     const { resource } = await container.items.create<ChapterVersion>(version);

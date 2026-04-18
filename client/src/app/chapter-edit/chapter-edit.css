@@ -9,6 +9,7 @@
   /* 64px toolbar + 48px main padding (24px top + 24px bottom) */
   height: calc(100vh - 64px - 48px);
   overflow: hidden;
+  padding: 20px;
 }
 
 .top-bar {

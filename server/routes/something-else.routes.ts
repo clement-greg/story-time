@@ -1,15 +1,16 @@
 import { Router, Request, Response } from 'express';
 import { getContainer } from '../cosmos';
 import { SomethingElse } from '../../shared/models/something-else';
+import { withOwnerFilter, readOwnedItem } from '../owner-guard';
 
 const router = Router();
 const container = getContainer('something-else');
 
 // GET all
-router.get('/', async (_req: Request, res: Response) => {
+router.get('/', async (req: Request, res: Response) => {
   try {
     const { resources } = await container.items
-      .query('SELECT * FROM c')
+      .query(withOwnerFilter(req, 'SELECT * FROM c'))
       .fetchAll();
     res.json(resources as SomethingElse[]);
   } catch (err) {
@@ -22,7 +23,7 @@ router.get('/', async (_req: Request, res: Response) => {
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const id = req.params['id'] as string;
-    const { resource } = await container.item(id, id).read<SomethingElse>();
+    const resource = await readOwnedItem<SomethingElse>(container, id, id, req);
     if (!resource) {
       res.status(404).json({ error: 'Item not found' });
       return;
@@ -43,6 +44,7 @@ router.post('/', async (req: Request, res: Response) => {
       return;
     }
     const now = new Date().toISOString();
+    item.owner = item.owner || req.user!.email;
     item.createdBy = req.user!.email;
     item.createdAt = now;
     item.modifiedBy = req.user!.email;
@@ -59,7 +61,7 @@ router.post('/', async (req: Request, res: Response) => {
 router.put('/:id', async (req: Request, res: Response) => {
   try {
     const id = req.params['id'] as string;
-    const item: SomethingElse = { ...req.body, id, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };
+    const item: SomethingElse = { ...req.body, id, owner: req.body.owner || req.user!.email, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };
     const { resource } = await container.item(id, id).replace<SomethingElse>(item);
     res.json(resource);
   } catch (err) {

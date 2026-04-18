@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, inject, signal, OnInit, computed } from '@angular/core';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -10,8 +10,10 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatListModule } from '@angular/material/list';
 import { MatSelectModule } from '@angular/material/select';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatChipsModule } from '@angular/material/chips';
 import { TextFieldModule } from '@angular/cdk/text-field';
 import { SeriesService } from './series.service';
+import { AuthService } from '../auth/auth.service';
 import { Series } from '@shared/models/series.model';
 import { v4 as uuidv4 } from 'uuid';
 import { SlideOutPanelContainer } from '../shared/slide-out-panel-container/slide-out-panel-container';
@@ -29,6 +31,7 @@ import { SlideOutPanelContainer } from '../shared/slide-out-panel-container/slid
     MatListModule,
     MatSelectModule,
     MatDividerModule,
+    MatChipsModule,
     TextFieldModule,
     SlideOutPanelContainer,
   ],
@@ -37,6 +40,7 @@ import { SlideOutPanelContainer } from '../shared/slide-out-panel-container/slid
 })
 export class SeriesComponent implements OnInit {
   private seriesService = inject(SeriesService);
+  private authService = inject(AuthService);
   private router = inject(Router);
 
   seriesList = signal<Series[]>([]);
@@ -48,6 +52,19 @@ export class SeriesComponent implements OnInit {
   thumbnailPreview = signal<string | null>(null);
 
   generatingPrompt = signal(false);
+
+  newCollaboratorEmail = signal('');
+  collaboratorError = signal<string | null>(null);
+
+  ownedSeries = computed(() => {
+    const email = this.authService.currentUser()?.email;
+    return this.seriesList().filter(s => s.owner === email);
+  });
+
+  sharedSeries = computed(() => {
+    const email = this.authService.currentUser()?.email;
+    return this.seriesList().filter(s => s.owner !== email);
+  });
 
   ngOnInit(): void {
     this.loadSeries();
@@ -83,6 +100,8 @@ export class SeriesComponent implements OnInit {
     if (!open) {
       this.editingSeries.set(null);
       this.thumbnailPreview.set(null);
+      this.newCollaboratorEmail.set('');
+      this.collaboratorError.set(null);
     }
   }
 
@@ -90,6 +109,8 @@ export class SeriesComponent implements OnInit {
     this.showPanel.set(false);
     this.editingSeries.set(null);
     this.thumbnailPreview.set(null);
+    this.newCollaboratorEmail.set('');
+    this.collaboratorError.set(null);
   }
 
   updateTitle(value: string): void {
@@ -174,6 +195,34 @@ export class SeriesComponent implements OnInit {
     const filename = azureUrl.split('/').pop();
     return filename ? `/api/image/${filename}` : null;
   }
+
+  addCollaborator(): void {
+    const s = this.editingSeries();
+    const email = this.newCollaboratorEmail().trim();
+    if (!s || !email) return;
+    this.collaboratorError.set(null);
+    this.seriesService.addCollaborator(s.id, email).subscribe({
+      next: (updated) => {
+        this.editingSeries.set(updated);
+        this.seriesList.update(list => list.map(x => x.id === updated.id ? updated : x));
+        this.newCollaboratorEmail.set('');
+      },
+      error: (err) => {
+        this.collaboratorError.set(err?.error?.error ?? 'Failed to add collaborator');
+      },
+    });
+  }
+
+  removeCollaborator(email: string): void {
+    const s = this.editingSeries();
+    if (!s) return;
+    this.seriesService.removeCollaborator(s.id, email).subscribe({
+      next: (updated) => {
+        this.editingSeries.set(updated);
+        this.seriesList.update(list => list.map(x => x.id === updated.id ? updated : x));
+      },
+    });
+ }
 
   navigateToDetail(seriesId: string): void {
     this.router.navigate(['/series', seriesId]);

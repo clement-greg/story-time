@@ -14,9 +14,7 @@
           </div>
         }
         <div class="hero-overlay">
-          <button mat-icon-button class="back-button" (click)="goBack()">
-            <mat-icon>arrow_back</mat-icon>
-          </button>
+
           <h1 class="hero-title">{{ book()!.title }}</h1>
           <button mat-icon-button class="edit-button" (click)="openEditBook()">
             <mat-icon>edit</mat-icon>
@@ -28,9 +26,27 @@
     <div class="container">
       <div class="chapters-header">
         <h2>Chapters</h2>
-        <button mat-flat-button (click)="addChapter()">
-          <mat-icon>add</mat-icon> Add Chapter
-        </button>
+        <div class="chapters-header-actions">
+          <button mat-stroked-button [matMenuTriggerFor]="exportMenu" [disabled]="exporting()">
+            <mat-icon>download</mat-icon>
+            {{ exporting() ? 'Exporting...' : 'Export' }}
+            <mat-icon>arrow_drop_down</mat-icon>
+          </button>
+          <mat-menu #exportMenu="matMenu">
+            <button mat-menu-item (click)="exportAs('docx')">
+              <mat-icon>description</mat-icon> Word Document (.docx)
+            </button>
+            <button mat-menu-item (click)="exportAs('pdf')">
+              <mat-icon>picture_as_pdf</mat-icon> PDF (.pdf)
+            </button>
+            <button mat-menu-item (click)="exportAs('html')">
+              <mat-icon>code</mat-icon> HTML (.html)
+            </button>
+          </mat-menu>
+          <button mat-flat-button (click)="addChapter()">
+            <mat-icon>add</mat-icon> Add Chapter
+          </button>
+        </div>
       </div>
 
       @if (loading()) {

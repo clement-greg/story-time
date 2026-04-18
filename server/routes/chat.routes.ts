@@ -14,13 +14,13 @@ const client = new AzureOpenAI({
   apiVersion: '2024-10-21',
 });
 
-// GET chat history for a chapter (returns empty if soft-deleted)
+// GET chat history for a chapter (returns empty if soft-deleted or not owned)
 router.get('/:chapterId/history', async (req: Request, res: Response) => {
   const chapterId = req.params['chapterId'] as string;
   try {
     const container = getContainer('chat-history');
-    const { resource } = await container.item(chapterId, chapterId).read<{ id: string; deleted?: boolean; messages: { role: string; text: string }[] }>();
-    if (!resource || resource.deleted) {
+    const { resource } = await container.item(chapterId, chapterId).read<{ id: string; owner?: string; deleted?: boolean; messages: { role: string; text: string }[] }>();
+    if (!resource || resource.deleted || resource.owner !== req.user!.email) {
       res.json({ messages: [] });
       return;
     }
@@ -40,7 +40,7 @@ router.put('/:chapterId/history', async (req: Request, res: Response) => {
   }
   try {
     const container = getContainer('chat-history');
-    await container.items.upsert({ id: chapterId, messages, deleted: false });
+    await container.items.upsert({ id: chapterId, owner: req.user!.email, messages, deleted: false });
     res.json({ ok: true });
   } catch (err) {
     console.error('Error saving chat history:', err);
@@ -53,7 +53,7 @@ router.delete('/:chapterId/history', async (req: Request, res: Response) => {
   const chapterId = req.params['chapterId'] as string;
   try {
     const container = getContainer('chat-history');
-    await container.items.upsert({ id: chapterId, messages: [], deleted: true, deletedAt: new Date().toISOString() });
+    await container.items.upsert({ id: chapterId, owner: req.user!.email, messages: [], deleted: true, deletedAt: new Date().toISOString() });
     res.json({ ok: true });
   } catch (err) {
     console.error('Error soft-deleting chat history:', err);

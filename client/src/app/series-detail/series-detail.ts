@@ -8,6 +8,8 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatChipsModule } from '@angular/material/chips';
+import { MatDividerModule } from '@angular/material/divider';
 import { CdkTextareaAutosize } from '@angular/cdk/text-field';
 import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
 import { SeriesService } from '../series/series.service';
@@ -30,6 +32,8 @@ import { EntityPanelService } from '../services/entity-panel.service';
     MatCardModule,
     MatProgressSpinnerModule,
     MatTooltipModule,
+    MatChipsModule,
+    MatDividerModule,
     CdkTextareaAutosize,
     DragDropModule,
     SlideOutPanelContainer,
@@ -65,6 +69,9 @@ export class SeriesDetailComponent implements OnInit, OnDestroy {
   editingSystemPrompt = signal('');
   generatingPrompt = signal(false);
 
+  newCollaboratorEmail = signal('');
+  collaboratorError = signal<string | null>(null);
+
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id')!;
     this.loadSeries(id);
@@ -83,6 +90,7 @@ export class SeriesDetailComponent implements OnInit, OnDestroy {
           [{ label: data.title }],
           [
             { icon: 'people', label: 'Entities', action: () => this.entityPanel.open(data.id) },
+            { icon: 'account_tree', label: 'Relationships', action: () => this.router.navigate(['/series', data.id, 'relationships']) },
             { icon: 'settings', label: 'Series Settings', action: () => this.openSeriesSettings() },
           ]
         );
@@ -132,6 +140,8 @@ export class SeriesDetailComponent implements OnInit, OnDestroy {
       this.thumbnailPreview.set(null);
       this.panelMode.set(null);
       this.editingSystemPrompt.set('');
+      this.newCollaboratorEmail.set('');
+      this.collaboratorError.set(null);
     }
   }
 
@@ -142,6 +152,8 @@ export class SeriesDetailComponent implements OnInit, OnDestroy {
     this.thumbnailPreview.set(null);
     this.panelMode.set(null);
     this.editingSystemPrompt.set('');
+    this.newCollaboratorEmail.set('');
+    this.collaboratorError.set(null);
   }
 
   updateTitle(value: string): void {
@@ -251,6 +263,34 @@ export class SeriesDetailComponent implements OnInit, OnDestroy {
       next: (saved) => {
         this.series.set(saved);
         this.closePanel();
+      },
+    });
+  }
+
+  addCollaborator(): void {
+    const s = this.editingSeries();
+    const email = this.newCollaboratorEmail().trim();
+    if (!s || !email) return;
+    this.collaboratorError.set(null);
+    this.seriesService.addCollaborator(s.id, email).subscribe({
+      next: (updated) => {
+        this.editingSeries.set(updated);
+        this.series.set(updated);
+        this.newCollaboratorEmail.set('');
+      },
+      error: (err) => {
+        this.collaboratorError.set(err?.error?.error ?? 'Failed to add collaborator');
+      },
+    });
+  }
+
+  removeCollaborator(email: string): void {
+    const s = this.editingSeries();
+    if (!s) return;
+    this.seriesService.removeCollaborator(s.id, email).subscribe({
+      next: (updated) => {
+        this.editingSeries.set(updated);
+        this.series.set(updated);
       },
     });
   }

@@ -37,4 +37,12 @@ export class SeriesService {
   generateSystemPrompt(seriesId: string, basicPrompt: string): Observable<{ systemPrompt: string }> {
     return this.http.post<{ systemPrompt: string }>(`${this.apiUrl}/${seriesId}/generate-system-prompt`, { basicPrompt });
   }
+
+  addCollaborator(seriesId: string, email: string): Observable<Series> {
+    return this.http.post<Series>(`${this.apiUrl}/${seriesId}/collaborators`, { email });
+  }
+
+  removeCollaborator(seriesId: string, email: string): Observable<Series> {
+    return this.http.delete<Series>(`${this.apiUrl}/${seriesId}/collaborators/${encodeURIComponent(email)}`);
+  }
 }

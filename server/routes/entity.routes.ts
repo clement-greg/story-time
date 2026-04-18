@@ -3,6 +3,7 @@ import { AzureOpenAI } from 'openai';
 import config from '../config';
 import { getContainer } from '../cosmos';
 import { Entity } from '../../shared/models/entity.model';
+import { withOwnerFilter, readOwnedItem } from '../owner-guard';
 
 const aiClient = new AzureOpenAI({
   endpoint: config.foundry.endpoint,
@@ -14,10 +15,10 @@ const router = Router();
 const container = getContainer('entities');
 
 // GET all entities
-router.get('/', async (_req: Request, res: Response) => {
+router.get('/', async (req: Request, res: Response) => {
   try {
     const { resources } = await container.items
-      .query('SELECT * FROM c')
+      .query(withOwnerFilter(req, 'SELECT * FROM c'))
       .fetchAll();
     res.json(resources as Entity[]);
   } catch (err) {
@@ -31,10 +32,10 @@ router.get('/series/:seriesId', async (req: Request, res: Response) => {
   try {
     const seriesId = req.params['seriesId'] as string;
     const { resources } = await container.items
-      .query({
+      .query(withOwnerFilter(req, {
         query: 'SELECT * FROM c WHERE c.seriesId = @seriesId',
         parameters: [{ name: '@seriesId', value: seriesId }],
-      })
+      }))
       .fetchAll();
     res.json(resources as Entity[]);
   } catch (err) {
@@ -47,7 +48,7 @@ router.get('/series/:seriesId', async (req: Request, res: Response) => {
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const id = req.params['id'] as string;
-    const { resource } = await container.item(id, id).read<Entity>();
+    const resource = await readOwnedItem<Entity>(container, id, id, req);
     if (!resource) {
       res.status(404).json({ error: 'Entity not found' });
       return;
@@ -76,6 +77,7 @@ router.post('/', async (req: Request, res: Response) => {
       return;
     }
     const now = new Date().toISOString();
+    entity.owner = entity.owner || req.user!.email;
     entity.createdBy = req.user!.email;
     entity.createdAt = now;
     entity.modifiedBy = req.user!.email;
@@ -92,7 +94,7 @@ router.post('/', async (req: Request, res: Response) => {
 router.put('/:id', async (req: Request, res: Response) => {
   try {
     const id = req.params['id'] as string;
-    const entity: Entity = { ...req.body, id, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };
+    const entity: Entity = { ...req.body, id, owner: req.body.owner || req.user!.email, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };
     const { resource } = await container.item(id, id).replace<Entity>(entity);
     res.json(resource);
   } catch (err) {
@@ -119,9 +121,13 @@ router.post('/:id/generate-personality', async (req: Request, res: Response) => 
     const id = req.params['id'] as string;
     const basicDescription: string = req.body.basicDescription ?? '';
 
-    const { resource } = await container.item(id, id).read<Entity>();
-    const name = resource?.name ?? 'this character';
-    const biography = resource?.biography ?? '';
+    const resource = await readOwnedItem<Entity>(container, id, id, req);
+    if (!resource) {
+      res.status(404).json({ error: 'Entity not found' });
+      return;
+    }
+    const name = resource.name ?? 'this character';
+    const biography = resource.biography ?? '';
 
     const metaPrompt =
       `You are an expert creative writing consultant. A user is writing a story featuring a character named "${name}"` +

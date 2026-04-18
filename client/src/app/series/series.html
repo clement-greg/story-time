@@ -1,33 +1,56 @@
-<app-slide-out-panel-container
-  [showRightPanel]="showPanel()"
-  (showRightPanelChange)="onPanelChanged($event)">
+<app-slide-out-panel-container [showRightPanel]="showPanel()" (showRightPanelChange)="onPanelChanged($event)">
 
   <div main-content>
-    <div class="series-header">
-      <h2>Series</h2>
-      <button mat-flat-button (click)="openNew()">
-        <mat-icon>add</mat-icon> New Series
-      </button>
-    </div>
+    <div class="container">
+      <div class="series-header">
+        <h2>Series</h2>
+        <button mat-flat-button (click)="openNew()">
+          <mat-icon>add</mat-icon> New Series
+        </button>
+      </div>
 
-    @if (loading()) {
+      @if (loading()) {
       <p class="loading">Loading...</p>
-    }
+      }
 
-    <div class="series-grid">
-      @for (series of seriesList(); track series.id) {
+      <div class="series-grid">
+        @for (series of ownedSeries(); track series.id) {
         <mat-card class="series-card" (click)="navigateToDetail(series.id)">
           @if (series.thumnailUrl) {
-            <img mat-card-image [src]="proxyUrl(series.thumnailUrl)!" [alt]="series.title" />
+          <img mat-card-image [src]="proxyUrl(series.thumnailUrl)!" [alt]="series.title" />
           } @else {
-            <div class="series-card-placeholder">
-              <mat-icon>menu_book</mat-icon>
-            </div>
+          <div class="series-card-placeholder">
+            <mat-icon>menu_book</mat-icon>
+          </div>
           }
           <mat-card-header>
             <mat-card-title>{{ series.title }}</mat-card-title>
           </mat-card-header>
         </mat-card>
+        }
+      </div>
+
+      @if (sharedSeries().length > 0) {
+      <div class="series-section-header">
+        <h3>Shared with me</h3>
+      </div>
+      <div class="series-grid">
+        @for (series of sharedSeries(); track series.id) {
+        <mat-card class="series-card" (click)="navigateToDetail(series.id)">
+          @if (series.thumnailUrl) {
+          <img mat-card-image [src]="proxyUrl(series.thumnailUrl)!" [alt]="series.title" />
+          } @else {
+          <div class="series-card-placeholder">
+            <mat-icon>menu_book</mat-icon>
+          </div>
+          }
+          <mat-card-header>
+            <mat-card-title>{{ series.title }}</mat-card-title>
+            <mat-card-subtitle>by {{ series.owner }}</mat-card-subtitle>
+          </mat-card-header>
+        </mat-card>
+        }
+      </div>
       }
     </div>
   </div>
@@ -37,71 +60,102 @@
 
       <!-- Column 1: Series edit -->
       @if (editingSeries()) {
-        <div class="panel-col">
-          <h3>{{ isNew() ? 'New Series' : 'Edit Series' }}</h3>
-          <mat-form-field appearance="outline">
-            <mat-label>Title</mat-label>
-            <input matInput
-                   [ngModel]="editingSeries()!.title"
-                   (ngModelChange)="updateTitle($event)" />
-          </mat-form-field>
+      <div class="panel-col">
+        <h3>{{ isNew() ? 'New Series' : 'Edit Series' }}</h3>
+        <mat-form-field appearance="outline">
+          <mat-label>Title</mat-label>
+          <input matInput [ngModel]="editingSeries()!.title" (ngModelChange)="updateTitle($event)" />
+        </mat-form-field>
 
-          <div class="thumbnail-section">
-            <div class="thumbnail-preview">
-              @if (thumbnailPreview()) {
-                <img [src]="thumbnailPreview()!" alt="Thumbnail preview" />
-              } @else {
-                <mat-icon class="thumbnail-placeholder-icon">image</mat-icon>
-              }
-              @if (uploading()) {
-                <div class="upload-overlay">
-                  <mat-spinner diameter="36" />
-                </div>
-              }
+        <div class="thumbnail-section">
+          <div class="thumbnail-preview">
+            @if (thumbnailPreview()) {
+            <img [src]="thumbnailPreview()!" alt="Thumbnail preview" />
+            } @else {
+            <mat-icon class="thumbnail-placeholder-icon">image</mat-icon>
+            }
+            @if (uploading()) {
+            <div class="upload-overlay">
+              <mat-spinner diameter="36" />
             </div>
-            <button mat-stroked-button type="button" (click)="fileInput.click()" [disabled]="uploading()">
-              <mat-icon>upload</mat-icon>
-              {{ thumbnailPreview() ? 'Change Image' : 'Upload Thumbnail' }}
-            </button>
-            <input #fileInput type="file" accept="image/*" hidden (change)="onFileSelected($event)" />
+            }
           </div>
+          <button mat-stroked-button type="button" (click)="fileInput.click()" [disabled]="uploading()">
+            <mat-icon>upload</mat-icon>
+            {{ thumbnailPreview() ? 'Change Image' : 'Upload Thumbnail' }}
+          </button>
+          <input #fileInput type="file" accept="image/*" hidden (change)="onFileSelected($event)" />
+        </div>
 
-          <mat-divider></mat-divider>
+        <mat-divider></mat-divider>
 
-          <mat-form-field appearance="outline">
-            <mat-label>AI System Prompt</mat-label>
-            <textarea matInput
-                      cdkTextareaAutosize
-                      cdkAutosizeMinRows="4"
-                      cdkAutosizeMaxRows="14"
-                      [ngModel]="editingSeries()!.systemPrompt ?? ''"
-                      (ngModelChange)="updateSystemPrompt($event)"
-                      placeholder="Describe the tone, style, setting, and rules for AI responses in this series…"></textarea>
-            <mat-hint>Guides all AI responses within this series.</mat-hint>
-          </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>AI System Prompt</mat-label>
+          <textarea matInput cdkTextareaAutosize cdkAutosizeMinRows="4" cdkAutosizeMaxRows="14"
+            [ngModel]="editingSeries()!.systemPrompt ?? ''" (ngModelChange)="updateSystemPrompt($event)"
+            placeholder="Describe the tone, style, setting, and rules for AI responses in this series…"></textarea>
+          <mat-hint>Guides all AI responses within this series.</mat-hint>
+        </mat-form-field>
 
-          @if (!isNew()) {
-            <button mat-stroked-button (click)="generateSystemPrompt()" [disabled]="generatingPrompt()">
-              @if (generatingPrompt()) {
-                <mat-spinner diameter="18" />
-              } @else {
-                <mat-icon>auto_awesome</mat-icon>
-              }
-              {{ generatingPrompt() ? 'Generating…' : 'Enhance with AI' }}
-            </button>
+        @if (!isNew()) {
+        <button mat-stroked-button (click)="generateSystemPrompt()" [disabled]="generatingPrompt()">
+          @if (generatingPrompt()) {
+          <mat-spinner diameter="18" />
+          } @else {
+          <mat-icon>auto_awesome</mat-icon>
+          }
+          {{ generatingPrompt() ? 'Generating…' : 'Enhance with AI' }}
+        </button>
+        }
+
+        <mat-divider></mat-divider>
+
+        <div class="editor-actions">
+          <button mat-flat-button (click)="saveEdit()" [disabled]="uploading()">Save</button>
+          <button mat-button (click)="closePanel()">Cancel</button>
+        </div>
+
+        @if (!isNew()) {
+        <mat-divider></mat-divider>
+
+        <div class="collaborators-section">
+          <h4>Collaborators</h4>
+
+          @if ((editingSeries()?.collaborators ?? []).length > 0) {
+          <mat-chip-set>
+            @for (email of editingSeries()!.collaborators!; track email) {
+            <mat-chip>
+              {{ email }}
+              <button matChipRemove (click)="removeCollaborator(email)" aria-label="Remove collaborator">
+                <mat-icon>cancel</mat-icon>
+              </button>
+            </mat-chip>
+            }
+          </mat-chip-set>
+          } @else {
+          <p class="no-collaborators">No collaborators yet.</p>
           }
 
-          <mat-divider></mat-divider>
-
-          <div class="editor-actions">
-            <button mat-flat-button (click)="saveEdit()" [disabled]="uploading()">Save</button>
-            <button mat-button (click)="closePanel()">Cancel</button>
+          <div class="add-collaborator-row">
+            <mat-form-field appearance="outline" class="collaborator-input">
+              <mat-label>Add by email</mat-label>
+              <input matInput type="email" [ngModel]="newCollaboratorEmail()" (ngModelChange)="newCollaboratorEmail.set($event)"
+                (keydown.enter)="addCollaborator()" placeholder="user@example.com" />
+            </mat-form-field>
+            <button mat-icon-button (click)="addCollaborator()" [disabled]="!newCollaboratorEmail().trim()" aria-label="Add collaborator">
+              <mat-icon>person_add</mat-icon>
+            </button>
           </div>
+
+          @if (collaboratorError()) {
+          <p class="collaborator-error">{{ collaboratorError() }}</p>
+          }
         </div>
+        }
+      </div>
       }
 
     </div>
   </div>
 
 </app-slide-out-panel-container>
-

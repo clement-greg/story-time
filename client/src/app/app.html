@@ -27,7 +27,7 @@
   }
 
   @if (auth.currentUser(); as user) {
-    <button mat-button [matMenuTriggerFor]="userMenu">
+    <button mat-button [matMenuTriggerFor]="userMenu" style="color: #fff;">
       <mat-icon>account_circle</mat-icon>
       {{ user.name }}
     </button>

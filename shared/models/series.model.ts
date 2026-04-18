@@ -6,4 +6,5 @@ export interface Series extends AuditedRecord {
     thumnailUrl?: string;
     originalUrl?: string;
     systemPrompt?: string;
+    collaborators?: string[];
 }

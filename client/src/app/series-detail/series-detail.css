@@ -3,7 +3,6 @@
   width: 100%;
   height: 280px;
   overflow: hidden;
-  border-radius: 8px;
   margin-bottom: 24px;
 }
 
@@ -350,4 +349,38 @@
 
 .generate-btn mat-spinner {
   display: inline-flex;
+}
+
+.collaborators-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.collaborators-section h4 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.add-collaborator-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.add-collaborator-row .collaborator-input {
+  flex: 1;
+}
+
+.no-collaborators {
+  margin: 0;
+  font-size: 0.85rem;
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.collaborator-error {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #d32f2f;
 }

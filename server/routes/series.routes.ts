@@ -3,6 +3,7 @@ import { AzureOpenAI } from 'openai';
 import config from '../config';
 import { getContainer } from '../cosmos';
 import { Series } from '../../shared/models/series.model';
+import { readOwnedItem, readAccessibleItem } from '../owner-guard';
 
 const aiClient = new AzureOpenAI({
   endpoint: config.foundry.endpoint,
@@ -13,11 +14,18 @@ const aiClient = new AzureOpenAI({
 const router = Router();
 const container = getContainer('series');
 
-// GET all series
-router.get('/', async (_req: Request, res: Response) => {
+// GET all series (owned and shared with the current user)
+router.get('/', async (req: Request, res: Response) => {
   try {
+    const email = req.user!.email;
     const { resources } = await container.items
-      .query('SELECT * FROM c')
+      .query({
+        query: 'SELECT * FROM c WHERE c.owner = @owner OR ARRAY_CONTAINS(c.collaborators, @email)',
+        parameters: [
+          { name: '@owner', value: email },
+          { name: '@email', value: email },
+        ],
+      })
       .fetchAll();
     res.json(resources as Series[]);
   } catch (err) {
@@ -26,11 +34,11 @@ router.get('/', async (_req: Request, res: Response) => {
   }
 });
 
-// GET single series by id
+// GET single series by id (owner or collaborator)
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const id = req.params['id'] as string;
-    const { resource } = await container.item(id, id).read<Series>();
+    const resource = await readAccessibleItem<Series>(container, id, id, req);
     if (!resource) {
       res.status(404).json({ error: 'Series not found' });
       return;
@@ -51,6 +59,7 @@ router.post('/', async (req: Request, res: Response) => {
       return;
     }
     const now = new Date().toISOString();
+    series.owner = series.owner || req.user!.email;
     series.createdBy = req.user!.email;
     series.createdAt = now;
     series.modifiedBy = req.user!.email;
@@ -67,7 +76,7 @@ router.post('/', async (req: Request, res: Response) => {
 router.put('/:id', async (req: Request, res: Response) => {
   try {
     const id = req.params['id'] as string;
-    const series: Series = { ...req.body, id, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };
+    const series: Series = { ...req.body, id, owner: req.body.owner || req.user!.email, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };
     const { resource } = await container.item(id, id).replace<Series>(series);
     res.json(resource);
   } catch (err) {
@@ -88,14 +97,74 @@ router.delete('/:id', async (req: Request, res: Response) => {
   }
 });
 
+// POST add a collaborator to a series (owner only)
+router.post('/:id/collaborators', async (req: Request, res: Response) => {
+  try {
+    const id = req.params['id'] as string;
+    const resource = await readOwnedItem<Series>(container, id, id, req);
+    if (!resource) {
+      res.status(404).json({ error: 'Series not found' });
+      return;
+    }
+    const { email } = req.body as { email?: string };
+    if (!email) {
+      res.status(400).json({ error: 'Email is required' });
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      res.status(400).json({ error: 'Invalid email format' });
+      return;
+    }
+    if (email === resource.owner) {
+      res.status(400).json({ error: 'Owner cannot be added as a collaborator' });
+      return;
+    }
+    const collaborators = [...(resource.collaborators ?? [])];
+    if (!collaborators.includes(email)) {
+      collaborators.push(email);
+    }
+    const updated: Series = { ...resource, collaborators, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };
+    const { resource: saved } = await container.item(id, id).replace<Series>(updated);
+    res.json(saved);
+  } catch (err) {
+    console.error('Error adding collaborator:', err);
+    res.status(500).json({ error: 'Failed to add collaborator' });
+  }
+});
+
+// DELETE remove a collaborator from a series (owner only)
+router.delete('/:id/collaborators/:email', async (req: Request, res: Response) => {
+  try {
+    const id = req.params['id'] as string;
+    const emailToRemove = decodeURIComponent(req.params['email'] as string);
+    const resource = await readOwnedItem<Series>(container, id, id, req);
+    if (!resource) {
+      res.status(404).json({ error: 'Series not found' });
+      return;
+    }
+    const collaborators = (resource.collaborators ?? []).filter(e => e !== emailToRemove);
+    const updated: Series = { ...resource, collaborators, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };
+    const { resource: saved } = await container.item(id, id).replace<Series>(updated);
+    res.json(saved);
+  } catch (err) {
+    console.error('Error removing collaborator:', err);
+    res.status(500).json({ error: 'Failed to remove collaborator' });
+  }
+});
+
 // POST generate a robust system prompt from basic series info
 router.post('/:id/generate-system-prompt', async (req: Request, res: Response) => {
   try {
     const id = req.params['id'] as string;
     const basicPrompt: string = req.body.basicPrompt ?? '';
 
-    const { resource } = await container.item(id, id).read<Series>();
-    const seriesTitle = resource?.title ?? 'this series';
+    const resource = await readOwnedItem<Series>(container, id, id, req);
+    if (!resource) {
+      res.status(404).json({ error: 'Series not found' });
+      return;
+    }
+    const seriesTitle = resource.title ?? 'this series';
 
     const metaPrompt =
       `You are an expert prompt engineer. A user is writing a story series titled "${seriesTitle}". ` +

@@ -2,15 +2,28 @@ import { Router, Request, Response } from 'express';
 import { getContainer } from '../cosmos';
 import { generateEmbedding } from '../embeddings';
 import { Chapter } from '../../shared/models/chapter.model';
+import { Book } from '../../shared/models/book.model';
+import { Series } from '../../shared/models/series.model';
+import { withOwnerFilter, readOwnedItem, readAccessibleItem } from '../owner-guard';
 
 const router = Router();
 const container = getContainer('chapters');
+const booksContainer = getContainer('books');
+const seriesContainer = getContainer('series');
+
+/** Returns true if the user has owner or collaborator access to the series containing the given book. */
+async function canAccessBook(bookId: string, req: import('express').Request): Promise<boolean> {
+  const { resource: book } = await booksContainer.item(bookId, bookId).read<Book>();
+  if (!book) return false;
+  const series = await readAccessibleItem<Series>(seriesContainer, book.seriesId, book.seriesId, req);
+  return series !== null;
+}
 
 // GET all chapters
-router.get('/', async (_req: Request, res: Response) => {
+router.get('/', async (req: Request, res: Response) => {
   try {
     const { resources } = await container.items
-      .query('SELECT * FROM c')
+      .query(withOwnerFilter(req, 'SELECT * FROM c'))
       .fetchAll();
     res.json(resources as Chapter[]);
   } catch (err) {
@@ -23,6 +36,11 @@ router.get('/', async (_req: Request, res: Response) => {
 router.get('/book/:bookId', async (req: Request, res: Response) => {
   try {
     const bookId = req.params['bookId'] as string;
+    const hasAccess = await canAccessBook(bookId, req);
+    if (!hasAccess) {
+      res.status(403).json({ error: 'Access denied' });
+      return;
+    }
     const { resources } = await container.items
       .query({
         query: 'SELECT * FROM c WHERE c.bookId = @bookId',
@@ -40,8 +58,13 @@ router.get('/book/:bookId', async (req: Request, res: Response) => {
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const id = req.params['id'] as string;
-    const { resource } = await container.item(id, id).read<Chapter>();
+    const resource = await container.item(id, id).read<Chapter>().then(r => r.resource);
     if (!resource) {
+      res.status(404).json({ error: 'Chapter not found' });
+      return;
+    }
+    const hasAccess = await canAccessBook(resource.bookId, req);
+    if (!hasAccess) {
       res.status(404).json({ error: 'Chapter not found' });
       return;
     }
@@ -72,6 +95,7 @@ router.post('/', async (req: Request, res: Response) => {
       }
     }
     const now = new Date().toISOString();
+    chapter.owner = chapter.owner || req.user!.email;
     chapter.createdBy = req.user!.email;
     chapter.createdAt = now;
     chapter.modifiedBy = req.user!.email;
@@ -107,7 +131,7 @@ router.patch('/reorder', async (req: Request, res: Response) => {
 router.put('/:id', async (req: Request, res: Response) => {
   try {
     const id = req.params['id'] as string;
-    const chapter: Chapter = { ...req.body, id, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };
+    const chapter: Chapter = { ...req.body, id, owner: req.body.owner || req.user!.email, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };
     if (chapter.content) {
       try {
         chapter.contentVector = await generateEmbedding(chapter.content);

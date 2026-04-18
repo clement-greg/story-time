@@ -13,6 +13,7 @@ import imageRoutes from './routes/image.routes';
 import chatRoutes from './routes/chat.routes';
 import chapterVersionRoutes from './routes/chapter-versions.routes';
 import entityRelationshipRoutes from './routes/entity-relationship.routes';
+import exportRoutes from './routes/export.routes';
 
 const app = express();
 const PORT = process.env['PORT'] || 3200;
@@ -40,6 +41,7 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/chapter-versions', chapterVersionRoutes);
 app.use('/api/entity-relationships', entityRelationshipRoutes);
+app.use('/api/export', exportRoutes);
 
 // Serve Angular static files
 app.use(express.static(path.join(__dirname, '../../client/dist/client/browser')));

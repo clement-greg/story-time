@@ -9,6 +9,19 @@
   margin: 0;
 }
 
+.series-section-header {
+  padding: 24px 0 0;
+}
+
+.series-section-header h3 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.6);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
 .loading {
   padding: 16px;
 }
@@ -183,6 +196,40 @@
 .entity-actions {
   display: flex;
   flex-shrink: 0;
+}
+
+.collaborators-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.collaborators-section h4 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.add-collaborator-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.add-collaborator-row .collaborator-input {
+  flex: 1;
+}
+
+.no-collaborators {
+  margin: 0;
+  font-size: 0.85rem;
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.collaborator-error {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #d32f2f;
 }
 
 .selected-entity {

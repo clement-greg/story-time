@@ -22,5 +22,6 @@ export interface ChapterVersion {
     chapterId: string;
     savedAt: string;  // ISO timestamp
     content: string;  // HTML snapshot of chapter content
+    owner?: string;
     createdBy?: string;
 }

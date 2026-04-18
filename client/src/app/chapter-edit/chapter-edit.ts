@@ -155,7 +155,10 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
                     { label: book.title, link: '/books/' + book.id },
                     { label: data.title || 'Chapter' },
                   ],
-                  [{ icon: 'people', label: 'Entities', action: () => this.entityPanel.open(series.id) }]
+                  [
+                    { icon: 'people', label: 'Entities', action: () => this.entityPanel.open(series.id) },
+                    { icon: 'account_tree', label: 'Relationships', action: () => this.router.navigate(['/series', series.id, 'relationships']) },
+                  ]
                 );
               },
             });
