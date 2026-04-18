@@ -1,5 +1,5 @@
 import { BlobServiceClient, StorageSharedKeyCredential } from '@azure/storage-blob';
-import config from '../_private/config.json';
+import config from './config';
 
 const credential = new StorageSharedKeyCredential(
   config.storageAccountName,

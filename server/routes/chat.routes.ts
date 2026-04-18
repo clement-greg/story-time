@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { AzureOpenAI } from 'openai';
-import config from '../../_private/config.json';
+import config from '../config';
 import { getContainer } from '../cosmos';
 import { Chapter } from '../../shared/models/chapter.model';
 import { Book } from '../../shared/models/book.model';

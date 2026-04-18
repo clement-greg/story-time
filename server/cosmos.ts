@@ -1,5 +1,5 @@
 import { CosmosClient, Database, Container } from '@azure/cosmos';
-import config from '../_private/config.json';
+import config from './config';
 
 const client = new CosmosClient({
   endpoint: config.cosmosEndpoint,

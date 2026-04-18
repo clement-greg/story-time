@@ -1,5 +1,5 @@
 import { AzureOpenAI } from 'openai';
-import config from '../_private/config.json';
+import config from './config';
 
 const client = new AzureOpenAI({
   endpoint: config.foundry.endpoint,

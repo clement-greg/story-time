@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import sharp from 'sharp';
 import { v4 as uuidv4 } from 'uuid';
 import { downloadBlob, uploadFileToBlob } from '../storage';
-import config from '../../_private/config.json';
+import config from '../config';
 
 const router = Router();
 
