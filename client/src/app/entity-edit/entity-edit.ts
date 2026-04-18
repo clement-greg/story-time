@@ -6,9 +6,11 @@ import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatDialog } from '@angular/material/dialog';
 import { TextFieldModule } from '@angular/cdk/text-field';
 import { Entity, EntityReference } from '@shared/models/entity.model';
 import { EntityService } from '../services/entity.service';
+import { ImageGenDialogComponent } from './image-gen-dialog';
 
 @Component({
   selector: 'app-entity-edit',
@@ -27,6 +29,7 @@ import { EntityService } from '../services/entity.service';
 })
 export class EntityEditComponent implements OnInit {
   private entityService = inject(EntityService);
+  private dialog = inject(MatDialog);
 
   entity = input.required<Entity>();
   save = output<Entity>();
@@ -43,6 +46,7 @@ export class EntityEditComponent implements OnInit {
   draft = signal<Entity | null>(null);
   thumbnailPreview = signal<string | null>(null);
   uploading = signal(false);
+  generatingImage = signal(false);
   generatingPersonality = signal(false);
 
   ngOnInit(): void {
@@ -107,6 +111,25 @@ export class EntityEditComponent implements OnInit {
     } else if (parts.length === 1 && parts[0]) {
       this.draft.set({ ...d, firstName: parts[0], lastName: '' });
     }
+  }
+
+  openGenerateImageDialog(): void {
+    const dialogRef = this.dialog.open(ImageGenDialogComponent, { width: '500px' });
+    dialogRef.afterClosed().subscribe((prompt: string | undefined) => {
+      if (!prompt) return;
+      this.generatingImage.set(true);
+      this.entityService.generateImage(prompt).subscribe({
+        next: ({ url, thumbnailUrl }) => {
+          const current = this.draft();
+          if (current) {
+            this.draft.set({ ...current, thumbnailUrl, originalUrl: url });
+          }
+          this.thumbnailPreview.set(this.proxyUrl(thumbnailUrl));
+          this.generatingImage.set(false);
+        },
+        error: () => this.generatingImage.set(false),
+      });
+    });
   }
 
   onSave(): void {

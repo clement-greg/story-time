@@ -86,21 +86,27 @@
       } @else {
         <mat-icon class="thumbnail-placeholder-icon">image</mat-icon>
       }
-      @if (uploading()) {
+      @if (uploading() || generatingImage()) {
         <div class="upload-overlay">
           <mat-spinner diameter="36" />
         </div>
       }
     </div>
-    <button mat-stroked-button type="button" (click)="fileInput.click()" [disabled]="uploading()">
-      <mat-icon>upload</mat-icon>
-      {{ thumbnailPreview() ? 'Change Image' : 'Upload Image' }}
-    </button>
-    <input #fileInput type="file" accept="image/*" hidden (change)="onFileSelected($event)" />
+    <div class="thumbnail-actions">
+      <button mat-stroked-button type="button" (click)="fileInput.click()" [disabled]="uploading() || generatingImage()" title="Upload image">
+        <mat-icon>upload</mat-icon>
+        Upload
+      </button>
+      <button mat-stroked-button type="button" (click)="openGenerateImageDialog()" [disabled]="uploading() || generatingImage()" title="Generate image with AI">
+        <mat-icon>auto_awesome</mat-icon>
+        Generate
+      </button>
+      <input #fileInput type="file" accept="image/*" hidden (change)="onFileSelected($event)" />
+    </div>
   </div>
 
   <div class="entity-edit-actions">
-    <button mat-flat-button color="primary" (click)="onSave()" [disabled]="uploading()">Save</button>
+    <button mat-flat-button color="primary" (click)="onSave()" [disabled]="uploading() || generatingImage()">Save</button>
     <button mat-button (click)="onCancel()">Cancel</button>
   </div>
 </div>

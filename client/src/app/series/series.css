@@ -190,3 +190,53 @@
   border-radius: 4px;
 }
 
+.entity-drag-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 40px;
+}
+
+.entity-drag-item {
+  border-radius: 4px;
+  cursor: default;
+}
+
+.entity-drag-item:hover {
+  background-color: rgba(0, 0, 0, 0.03);
+}
+
+.entity-drag-item.cdk-drag-dragging {
+  opacity: 0.9;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  background: white;
+}
+
+.entity-drag-placeholder {
+  height: 44px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.06);
+  border: 1px dashed #bbb;
+  margin: 2px 0;
+}
+
+.cdk-drag-animating {
+  transition: transform 200ms ease;
+}
+
+.entity-drag-list.cdk-drop-list-dragging .entity-drag-item:not(.cdk-drag-placeholder) {
+  transition: transform 200ms ease;
+}
+
+.drag-handle {
+  cursor: grab;
+  color: #bbb;
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+

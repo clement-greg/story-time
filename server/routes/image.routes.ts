@@ -1,7 +1,74 @@
 import { Router, Request, Response } from 'express';
-import { downloadBlob } from '../storage';
+import sharp from 'sharp';
+import { v4 as uuidv4 } from 'uuid';
+import { downloadBlob, uploadFileToBlob } from '../storage';
+import config from '../../_private/config.json';
 
 const router = Router();
+
+// POST /api/image/generate  — { prompt: string } → { url, thumbnailUrl }
+router.post('/generate', async (req: Request, res: Response) => {
+  const { prompt } = req.body as { prompt?: string };
+  if (!prompt?.trim()) {
+    res.status(400).json({ error: 'prompt is required' });
+    return;
+  }
+
+  try {
+    const genRes = await fetch(config.foundry.imageGenerationEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': config.foundry.imageGenerationKey,
+      },
+      body: JSON.stringify({
+        prompt: prompt.trim(),
+        n: 1,
+        size: '1024x1024',
+      }),
+    });
+
+    if (!genRes.ok) {
+      const errText = await genRes.text();
+      console.error('Image generation API error:', errText);
+      res.status(502).json({ error: 'Image generation failed' });
+      return;
+    }
+
+    const genData = await genRes.json() as { data: { b64_json?: string; url?: string }[] };
+    const item = genData.data?.[0];
+    let imageBuffer: Buffer;
+
+    if (item?.b64_json) {
+      imageBuffer = Buffer.from(item.b64_json, 'base64');
+    } else if (item?.url) {
+      const imgRes = await fetch(item.url);
+      imageBuffer = Buffer.from(await imgRes.arrayBuffer());
+    } else {
+      res.status(502).json({ error: 'No image returned from generation API' });
+      return;
+    }
+
+    const id = uuidv4();
+    const originalFilename = `${id}.png`;
+    const thumbnailFilename = `${id}_thumb.webp`;
+
+    const thumbnailBuffer = await sharp(imageBuffer)
+      .resize(400, 400, { fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 85 })
+      .toBuffer();
+
+    const [originalUrl, thumbnailUrl] = await Promise.all([
+      uploadFileToBlob(imageBuffer, originalFilename, 'image/png'),
+      uploadFileToBlob(thumbnailBuffer, thumbnailFilename, 'image/webp'),
+    ]);
+
+    res.json({ url: originalUrl, thumbnailUrl });
+  } catch (err) {
+    console.error('Image generate error:', err);
+    res.status(500).json({ error: 'Image generation failed' });
+  }
+});
 
 // GET /api/image/:filename
 router.get('/:filename', async (req: Request, res: Response) => {

@@ -5,6 +5,7 @@ export interface Entity {
     name: string;
     type: 'PERSON' | 'PLACE' | 'THING';
     seriesId: string;
+    sortOrder?: number;
     thumbnailUrl?: string;
     originalUrl?: string;
     biography?: string;

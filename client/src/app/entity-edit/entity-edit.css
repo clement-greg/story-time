@@ -53,3 +53,12 @@
   align-items: center;
   justify-content: center;
 }
+
+.thumbnail-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.thumbnail-actions button {
+  flex: 1;
+}

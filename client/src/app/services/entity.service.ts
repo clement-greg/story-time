@@ -41,4 +41,8 @@ export class EntityService {
   generatePersonality(entityId: string, basicDescription: string): Observable<{ personality: string }> {
     return this.http.post<{ personality: string }>(`${this.apiUrl}/${entityId}/generate-personality`, { basicDescription });
   }
+
+  generateImage(prompt: string): Observable<{ url: string; thumbnailUrl: string }> {
+    return this.http.post<{ url: string; thumbnailUrl: string }>('/api/image/generate', { prompt });
+  }
 }

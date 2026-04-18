@@ -1,5 +1,7 @@
 import { Component, inject, signal, OnInit, OnDestroy, ElementRef, ViewChild, HostListener } from '@angular/core';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { ActivatedRoute, Router } from '@angular/router';
+import { parse as parseMarkdown } from 'marked';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -38,6 +40,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
 
   private route = inject(ActivatedRoute);
   private router = inject(Router);
+  private sanitizer = inject(DomSanitizer);
   private chapterService = inject(ChapterService);
   private draftService = inject(ChapterDraftService);
   private chapterVersionService = inject(ChapterVersionService);
@@ -229,6 +232,40 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
       event.preventDefault();
       this.openInlineAiPrompt();
       return;
+    }
+
+    // Eject cursor from entity-reference span when typing a printable character
+    if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0 && sel.isCollapsed) {
+        const { startContainer } = sel.getRangeAt(0);
+        const node = startContainer.nodeType === Node.TEXT_NODE
+          ? startContainer.parentElement
+          : startContainer as HTMLElement;
+        if (node?.classList.contains('entity-reference')) {
+          event.preventDefault();
+          const textNode = document.createTextNode(event.key);
+          node.after(textNode);
+          const newRange = document.createRange();
+          newRange.setStartAfter(textNode);
+          newRange.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(newRange);
+          if (this.contentEditorRef) {
+            this.editorContent = this.contentEditorRef.nativeElement.innerHTML;
+            const current = this.chapter();
+            if (current) {
+              if (this.autoSaveTimer) clearTimeout(this.autoSaveTimer);
+              this.autoSaveTimer = setTimeout(() => {
+                this.draftService.saveDraft(current.id, this.editorContent, this.notes());
+                this.hasDraft.set(true);
+              }, 800);
+            }
+          }
+          this.checkAutocomplete();
+          return;
+        }
+      }
     }
 
     // Delete entire entity-reference span on Backspace
@@ -1085,6 +1122,11 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     if (!azureUrl) return null;
     const filename = azureUrl.split('/').pop();
     return filename ? `/api/image/${filename}` : null;
+  }
+
+  markdownToHtml(text: string): SafeHtml {
+    const html = parseMarkdown(text) as string;
+    return this.sanitizer.sanitize(1 /* SecurityContext.HTML */, html) ?? '';
   }
 
   // ── Notes ──────────────────────────────────────────────────────────────────

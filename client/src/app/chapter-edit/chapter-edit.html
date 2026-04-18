@@ -150,7 +150,11 @@
             <div class="chat-message" [class.user]="msg.role === 'user'" [class.assistant]="msg.role === 'assistant'"
                  [class.streaming]="last && msg.role === 'assistant' && chatStreaming()">
               <span class="chat-role">{{ msg.role === 'user' ? 'You' : 'AI' }}</span>
-              <p>{{ msg.text }}</p>
+              @if (msg.role === 'assistant') {
+                <div class="chat-markdown" [innerHTML]="markdownToHtml(msg.text)"></div>
+              } @else {
+                <p>{{ msg.text }}</p>
+              }
             </div>
           }
         </div>

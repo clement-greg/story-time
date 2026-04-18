@@ -122,39 +122,22 @@
             </button>
           </div>
 
-          <div class="add-entity-form">
-            <mat-form-field appearance="outline">
-              <mat-label>Type</mat-label>
-              <mat-select [ngModel]="newEntityType()" (ngModelChange)="newEntityType.set($event)">
-                @for (type of entityTypes; track type) {
-                  <mat-option [value]="type">{{ type }}</mat-option>
-                }
-              </mat-select>
-            </mat-form-field>
-
-            <mat-form-field appearance="outline">
-              <mat-label>Name</mat-label>
-              <input matInput
-                     [ngModel]="newEntityName()"
-                     (ngModelChange)="newEntityName.set($event)"
-                     (keyup.enter)="addEntity()"
-                     placeholder="Enter name" />
-            </mat-form-field>
-
-            <button mat-flat-button (click)="addEntity()">
-              <mat-icon>add</mat-icon> Add
-            </button>
-          </div>
+          <button mat-flat-button (click)="addNewEntity()">
+            <mat-icon>add</mat-icon> Add
+          </button>
 
           @if (entityLoading()) {
             <p class="loading">Loading...</p>
           }
 
-          <mat-list>
+          <div cdkDropList (cdkDropListDropped)="dropEntity($event)" class="entity-drag-list">
             @for (entity of entityList(); track entity.id) {
-              <mat-list-item [class.selected-entity]="editingEntity()?.id === entity.id"
-                             (click)="startEditEntity(entity)">
+              <div class="entity-drag-item"
+                   cdkDrag
+                   [class.selected-entity]="editingEntity()?.id === entity.id"
+                   (click)="startEditEntity(entity)">
                 <div class="entity-list-row">
+                  <mat-icon cdkDragHandle class="drag-handle">drag_indicator</mat-icon>
                   @if (entity.thumbnailUrl) {
                     <img class="entity-thumb" [src]="proxyUrl(entity.thumbnailUrl)!" [alt]="entity.name" />
                   }
@@ -167,9 +150,10 @@
                     </button>
                   </div>
                 </div>
-              </mat-list-item>
+                <div *cdkDragPlaceholder class="entity-drag-placeholder"></div>
+              </div>
             }
-          </mat-list>
+          </div>
         </div>
       }
 
