@@ -42,11 +42,11 @@ app.use('/api/chapter-versions', chapterVersionRoutes);
 app.use('/api/entity-relationships', entityRelationshipRoutes);
 
 // Serve Angular static files
-app.use(express.static(path.join(__dirname, '../client/dist/client/browser')));
+app.use(express.static(path.join(__dirname, '../../client/dist/client/browser')));
 
 // Fallback to Angular index.html for client-side routing
 app.get('*path', (_req: Request, res: Response) => {
-  res.sendFile(path.join(__dirname, '../client/dist/client/browser/index.html'));
+  res.sendFile(path.join(__dirname, '../../client/dist/client/browser/index.html'));
 });
 
 initDatabase()
