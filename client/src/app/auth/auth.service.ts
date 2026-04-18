@@ -1,0 +1,95 @@
+import { Injectable, signal } from '@angular/core';
+
+export interface GoogleUser {
+  email: string;
+  name: string;
+  picture: string;
+  idToken: string;
+}
+
+// Declare the google namespace provided by the GIS SDK script
+declare const google: {
+  accounts: {
+    id: {
+      initialize(config: object): void;
+      renderButton(parent: HTMLElement, config: object): void;
+      prompt(): void;
+      disableAutoSelect(): void;
+      revoke(email: string, done: () => void): void;
+    };
+  };
+};
+
+const TOKEN_KEY = 'google_id_token';
+const USER_KEY = 'google_user';
+
+@Injectable({ providedIn: 'root' })
+export class AuthService {
+  readonly currentUser = signal<GoogleUser | null>(this.loadStoredUser());
+
+  get idToken(): string | null {
+    return localStorage.getItem(TOKEN_KEY);
+  }
+
+  get isLoggedIn(): boolean {
+    return this.currentUser() !== null;
+  }
+
+  /** Called by the login component after Google returns a credential. */
+  handleCredentialResponse(credential: string): void {
+    const payload = this.parseJwtPayload(credential);
+    const user: GoogleUser = {
+      email: payload['email'] as string,
+      name: payload['name'] as string,
+      picture: payload['picture'] as string,
+      idToken: credential,
+    };
+    localStorage.setItem(TOKEN_KEY, credential);
+    localStorage.setItem(USER_KEY, JSON.stringify({ email: user.email, name: user.name, picture: user.picture }));
+    this.currentUser.set(user);
+  }
+
+  signOut(): void {
+    const user = this.currentUser();
+    if (user && typeof google !== 'undefined') {
+      google.accounts.id.disableAutoSelect();
+      google.accounts.id.revoke(user.email, () => {});
+    }
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+    this.currentUser.set(null);
+  }
+
+  private loadStoredUser(): GoogleUser | null {
+    try {
+      const token = localStorage.getItem(TOKEN_KEY);
+      const raw = localStorage.getItem(USER_KEY);
+      if (!token || !raw) return null;
+
+      // Check token expiry before trusting the stored session
+      const payload = this.parseJwtPayload(token);
+      const exp = (payload['exp'] as number | undefined) ?? 0;
+      if (Date.now() / 1000 > exp) {
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(USER_KEY);
+        return null;
+      }
+
+      const stored = JSON.parse(raw);
+      return { ...stored, idToken: token };
+    } catch {
+      return null;
+    }
+  }
+
+  private parseJwtPayload(token: string): Record<string, unknown> {
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const json = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(json);
+  }
+}

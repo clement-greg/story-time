@@ -40,6 +40,7 @@ router.post('/', async (req: Request, res: Response) => {
       chapterId: body.chapterId,
       savedAt: new Date().toISOString(),
       content: body.content,
+      createdBy: req.user!.email,
     };
     const { resource } = await container.items.create<ChapterVersion>(version);
     res.status(201).json(resource);

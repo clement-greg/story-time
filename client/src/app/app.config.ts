@@ -1,5 +1,5 @@
 import { ApplicationConfig, provideBrowserGlobalErrorListeners, provideEnvironmentInitializer, inject } from '@angular/core';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { provideRouter, Routes } from '@angular/router';
 import { MatIconRegistry } from '@angular/material/icon';
 import { SeriesComponent } from './series/series';
@@ -9,22 +9,28 @@ import { BookDetailComponent } from './book-detail/book-detail';
 import { ChapterComponent } from './chapter/chapter';
 import { ChapterEditComponent } from './chapter-edit/chapter-edit';
 import { SomethingElseComponent } from './something-else/something-else';
+import { EntityRelationshipDiagramComponent } from './entity-relationship-diagram/entity-relationship-diagram';
+import { LoginComponent } from './login/login';
+import { authGuard } from './auth/auth.guard';
+import { authInterceptor } from './auth/auth.interceptor';
 
 const routes: Routes = [
-  { path: 'series', component: SeriesComponent },
-  { path: 'series/:id', component: SeriesDetailComponent },
-  { path: 'books', component: BookComponent },
-  { path: 'books/:id', component: BookDetailComponent },
-  { path: 'chapters', component: ChapterComponent },
-  { path: 'chapters/:id/edit', component: ChapterEditComponent },
-  { path: 'something-else', component: SomethingElseComponent },
+  { path: 'login', component: LoginComponent },
+  { path: 'series', component: SeriesComponent, canActivate: [authGuard] },
+  { path: 'series/:id', component: SeriesDetailComponent, canActivate: [authGuard] },
+  { path: 'books', component: BookComponent, canActivate: [authGuard] },
+  { path: 'books/:id', component: BookDetailComponent, canActivate: [authGuard] },
+  { path: 'chapters', component: ChapterComponent, canActivate: [authGuard] },
+  { path: 'chapters/:id/edit', component: ChapterEditComponent, canActivate: [authGuard] },
+  { path: 'something-else', component: SomethingElseComponent, canActivate: [authGuard] },
+  { path: 'series/:seriesId/relationships', component: EntityRelationshipDiagramComponent, canActivate: [authGuard] },
   { path: '', redirectTo: 'series', pathMatch: 'full' },
 ];
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
-    provideHttpClient(),
+    provideHttpClient(withInterceptors([authInterceptor])),
     provideRouter(routes),
     provideEnvironmentInitializer(() => {
       inject(MatIconRegistry).setDefaultFontSetClass('material-symbols-outlined');

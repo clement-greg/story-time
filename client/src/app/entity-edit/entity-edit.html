@@ -108,5 +108,10 @@
   <div class="entity-edit-actions">
     <button mat-flat-button color="primary" (click)="onSave()" [disabled]="uploading() || generatingImage()">Save</button>
     <button mat-button (click)="onCancel()">Cancel</button>
+    <span class="action-spacer"></span>
+    <button mat-stroked-button (click)="openRelationshipDiagram()" title="Open relationship diagram">
+      <mat-icon>account_tree</mat-icon>
+      Relationships
+    </button>
   </div>
 </div>

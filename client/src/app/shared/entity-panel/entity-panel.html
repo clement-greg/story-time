@@ -1,0 +1,65 @@
+@if (panel.isOpen()) {
+  <div class="entity-panel-backdrop" (click)="panel.close()"></div>
+
+  <div class="entity-panel-container" [style.width.px]="panel.panelWidth">
+    <button mat-icon-button class="entity-panel-close" (click)="panel.close()">
+      <mat-icon>close</mat-icon>
+    </button>
+
+    <div class="entity-panel-inner">
+
+      <!-- Icon rail / full list -->
+      <div class="entity-list-col" [class.entity-list-col-narrow]="panel.editingEntity()">
+        <div class="entity-col-header">
+          @if (!panel.editingEntity()) { <h3>Entities</h3> }
+          <button mat-icon-button (click)="panel.addEntity()" matTooltip="Add entity">
+            <mat-icon>add</mat-icon>
+          </button>
+        </div>
+
+        @if (panel.entityLoading()) {
+          <p class="loading">Loading...</p>
+        }
+
+        <div class="entity-list">
+          @for (entity of panel.entityList(); track entity.id) {
+            <div class="entity-list-item"
+                 [class.entity-selected]="panel.editingEntity()?.id === entity.id"
+                 (click)="panel.startEditEntity(entity)"
+                 [matTooltip]="panel.editingEntity() ? (entity.name || '(unnamed)') : ''"
+                 matTooltipPosition="right">
+
+              <div class="entity-avatar">
+                @if (entity.thumbnailUrl) {
+                  <img [src]="panel.proxyUrl(entity.thumbnailUrl)!" [alt]="entity.name" />
+                } @else {
+                  <mat-icon class="entity-avatar-icon">person</mat-icon>
+                }
+              </div>
+
+              @if (!panel.editingEntity()) {
+                <span class="entity-type-badge">{{ entity.type }}</span>
+                <span class="entity-name">{{ entity.name || '(unnamed)' }}</span>
+                <button mat-icon-button color="warn" class="entity-delete-btn"
+                        (click)="panel.deleteEntity(entity.id); $event.stopPropagation()">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              }
+            </div>
+          }
+        </div>
+      </div>
+
+      <!-- Edit column -->
+      @if (panel.editingEntity()) {
+        <div class="entity-edit-col">
+          <app-entity-edit
+            [entity]="panel.editingEntity()!"
+            (save)="panel.saveEntityEdit($event)"
+            (cancel)="panel.cancelEditEntity()" />
+        </div>
+      }
+
+    </div>
+  </div>
+}

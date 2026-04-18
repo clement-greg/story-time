@@ -1,6 +1,5 @@
 <app-slide-out-panel-container
   [showRightPanel]="showPanel()"
-  [rightPanelWidth]="panelWidth"
   (showRightPanelChange)="onPanelChanged($event)">
 
   <div main-content>
@@ -28,11 +27,6 @@
           <mat-card-header>
             <mat-card-title>{{ series.title }}</mat-card-title>
           </mat-card-header>
-          <mat-card-actions align="end">
-            <button mat-icon-button (click)="openEdit(series); $event.stopPropagation()">
-              <mat-icon>edit</mat-icon>
-            </button>
-          </mat-card-actions>
         </mat-card>
       }
     </div>
@@ -99,78 +93,10 @@
 
           <mat-divider></mat-divider>
 
-          @if (!isNew()) {
-            <button mat-stroked-button (click)="openEntityPanel()" [class.active-col-btn]="showEntityPanel()">
-              <mat-icon>people</mat-icon> Entities
-            </button>
-          }
-
           <div class="editor-actions">
             <button mat-flat-button (click)="saveEdit()" [disabled]="uploading()">Save</button>
             <button mat-button (click)="closePanel()">Cancel</button>
           </div>
-        </div>
-      }
-
-      <!-- Column 2: Entities list -->
-      @if (showEntityPanel()) {
-        <div class="panel-col panel-col-divider">
-          <div class="col-header">
-            <h3>Entities</h3>
-            <button mat-icon-button (click)="closeEntityPanel()">
-              <mat-icon>chevron_right</mat-icon>
-            </button>
-          </div>
-
-          <button mat-flat-button (click)="addNewEntity()">
-            <mat-icon>add</mat-icon> Add
-          </button>
-
-          @if (entityLoading()) {
-            <p class="loading">Loading...</p>
-          }
-
-          <div cdkDropList (cdkDropListDropped)="dropEntity($event)" class="entity-drag-list">
-            @for (entity of entityList(); track entity.id) {
-              <div class="entity-drag-item"
-                   cdkDrag
-                   [class.selected-entity]="editingEntity()?.id === entity.id"
-                   (click)="startEditEntity(entity)">
-                <div class="entity-list-row">
-                  <mat-icon cdkDragHandle class="drag-handle">drag_indicator</mat-icon>
-                  @if (entity.thumbnailUrl) {
-                    <img class="entity-thumb" [src]="proxyUrl(entity.thumbnailUrl)!" [alt]="entity.name" />
-                  }
-                  <span class="entity-type-badge">{{ entity.type }}</span>
-                  <span class="entity-name">{{ entity.name }}</span>
-                  <div class="entity-actions">
-                    <button mat-icon-button color="warn"
-                            (click)="deleteEntity(entity.id); $event.stopPropagation()">
-                      <mat-icon>delete</mat-icon>
-                    </button>
-                  </div>
-                </div>
-                <div *cdkDragPlaceholder class="entity-drag-placeholder"></div>
-              </div>
-            }
-          </div>
-        </div>
-      }
-
-      <!-- Column 3: Entity edit -->
-      @if (editingEntity()) {
-        <div class="panel-col panel-col-divider">
-          <div class="col-header">
-            <h3>Edit Entity</h3>
-            <button mat-icon-button (click)="cancelEditEntity()">
-              <mat-icon>chevron_right</mat-icon>
-            </button>
-          </div>
-
-          <app-entity-edit
-            [entity]="editingEntity()!"
-            (save)="saveEntityEdit($event)"
-            (cancel)="cancelEditEntity()" />
         </div>
       }
 

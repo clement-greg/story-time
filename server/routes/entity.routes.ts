@@ -75,6 +75,11 @@ router.post('/', async (req: Request, res: Response) => {
       res.status(400).json({ error: 'Type must be PERSON, PLACE, or THING' });
       return;
     }
+    const now = new Date().toISOString();
+    entity.createdBy = req.user!.email;
+    entity.createdAt = now;
+    entity.modifiedBy = req.user!.email;
+    entity.modifiedAt = now;
     const { resource } = await container.items.create<Entity>(entity);
     res.status(201).json(resource);
   } catch (err) {
@@ -87,7 +92,7 @@ router.post('/', async (req: Request, res: Response) => {
 router.put('/:id', async (req: Request, res: Response) => {
   try {
     const id = req.params['id'] as string;
-    const entity: Entity = { ...req.body, id };
+    const entity: Entity = { ...req.body, id, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };
     const { resource } = await container.item(id, id).replace<Entity>(entity);
     res.json(resource);
   } catch (err) {

@@ -1,44 +1,96 @@
-<div class="container">
-  @if (book()) {
-    <div class="hero">
-      @if (book()!.thumnailUrl) {
-        <img class="hero-image" [src]="proxyUrl(book()!.originalUrl)!" [alt]="book()!.title" />
-      } @else {
-        <div class="hero-placeholder">
-          <mat-icon>book</mat-icon>
+<app-slide-out-panel-container
+  [showRightPanel]="showPanel()"
+  [rightPanelWidth]="rightPanelWidth"
+  (showRightPanelChange)="onPanelChanged($event)">
+
+  <div main-content>
+    @if (book()) {
+      <div class="hero">
+        @if (book()!.thumnailUrl) {
+          <img class="hero-image" [src]="proxyUrl(book()!.originalUrl)!" [alt]="book()!.title" />
+        } @else {
+          <div class="hero-placeholder">
+            <mat-icon>book</mat-icon>
+          </div>
+        }
+        <div class="hero-overlay">
+          <button mat-icon-button class="back-button" (click)="goBack()">
+            <mat-icon>arrow_back</mat-icon>
+          </button>
+          <h1 class="hero-title">{{ book()!.title }}</h1>
+          <button mat-icon-button class="edit-button" (click)="openEditBook()">
+            <mat-icon>edit</mat-icon>
+          </button>
         </div>
-      }
-      <div class="hero-overlay">
-        <button mat-icon-button class="back-button" (click)="goBack()">
-          <mat-icon>arrow_back</mat-icon>
+      </div>
+    }
+
+    <div class="container">
+      <div class="chapters-header">
+        <h2>Chapters</h2>
+        <button mat-flat-button (click)="addChapter()">
+          <mat-icon>add</mat-icon> Add Chapter
         </button>
-        <h1 class="hero-title">{{ book()!.title }}</h1>
+      </div>
+
+      @if (loading()) {
+        <p class="loading">Loading...</p>
+      }
+
+      <div class="chapter-list" cdkDropList (cdkDropListDropped)="onDrop($event)">
+        @for (chapter of chapterList(); track chapter.id) {
+          <div class="chapter-item" cdkDrag (click)="openChapter(chapter)">
+            <mat-icon class="drag-handle" cdkDragHandle>drag_indicator</mat-icon>
+            <span class="chapter-title">{{ chapter.title }}</span>
+            <mat-icon class="chevron">chevron_right</mat-icon>
+            <div class="chapter-drag-placeholder" *cdkDragPlaceholder></div>
+          </div>
+        }
+        @if (!loading() && chapterList().length === 0) {
+          <p class="empty">No chapters yet.</p>
+        }
       </div>
     </div>
-  }
-
-  <div class="chapters-header">
-    <h2>Chapters</h2>
-    <button mat-flat-button (click)="addChapter()">
-      <mat-icon>add</mat-icon> Add Chapter
-    </button>
   </div>
 
-  @if (loading()) {
-    <p class="loading">Loading...</p>
-  }
+  <div right-panel>
+    @if (editingBook()) {
+      <div class="editor-content">
+        <h3>Edit Book</h3>
+        <mat-form-field appearance="outline">
+          <mat-label>Title</mat-label>
+          <input matInput
+                 [ngModel]="editingBook()!.title"
+                 (ngModelChange)="updateTitle($event)" />
+        </mat-form-field>
 
-  <mat-nav-list>
-    @for (chapter of chapterList(); track chapter.id) {
-      <mat-list-item (click)="openChapter(chapter)">
-        <span matListItemTitle>{{ chapter.title }}</span>
-        <button mat-icon-button matListItemMeta>
-          <mat-icon>chevron_right</mat-icon>
-        </button>
-      </mat-list-item>
+        <div class="thumbnail-section">
+          <div class="thumbnail-preview">
+            @if (thumbnailPreview()) {
+              <img [src]="thumbnailPreview()!" alt="Thumbnail preview" />
+            } @else {
+              <mat-icon class="thumbnail-placeholder-icon">image</mat-icon>
+            }
+            @if (uploading()) {
+              <div class="upload-overlay">
+                <mat-spinner diameter="36" />
+              </div>
+            }
+          </div>
+          <button mat-stroked-button type="button" (click)="fileInput.click()" [disabled]="uploading()">
+            <mat-icon>upload</mat-icon>
+            {{ thumbnailPreview() ? 'Change Image' : 'Upload Thumbnail' }}
+          </button>
+          <input #fileInput type="file" accept="image/*" hidden (change)="onFileSelected($event)" />
+        </div>
+
+        <div class="editor-actions">
+          <button mat-flat-button (click)="saveEdit()" [disabled]="uploading()">Save</button>
+          <button mat-button (click)="closePanel()">Cancel</button>
+        </div>
+      </div>
     }
-    @if (!loading() && chapterList().length === 0) {
-      <p class="empty">No chapters yet.</p>
-    }
-  </mat-nav-list>
-</div>
+  </div>
+
+</app-slide-out-panel-container>
+

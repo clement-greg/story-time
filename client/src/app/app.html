@@ -1,7 +1,48 @@
-<mat-toolbar color="primary">
-  <a routerLink="/">Story Time</a>
+<mat-toolbar color="primary" class="app-toolbar">
+  <a routerLink="/" class="toolbar-brand">
+    <img src="/quill-ai-logo-white.svg" style="height: 53px;">
+  </a>
+  @for (crumb of header.breadcrumbs(); track crumb.label) {
+    <mat-icon class="breadcrumb-sep">chevron_right</mat-icon>
+    @if (crumb.link) {
+      <a [routerLink]="crumb.link" class="breadcrumb-link">{{ crumb.label }}</a>
+    } @else {
+      <span class="breadcrumb-current">{{ crumb.label }}</span>
+    }
+  }
+  <span class="toolbar-spacer"></span>
+
+  @if (header.menuActions().length > 0) {
+    <button mat-icon-button [matMenuTriggerFor]="contextMenu">
+      <mat-icon>more_vert</mat-icon>
+    </button>
+    <mat-menu #contextMenu="matMenu">
+      @for (item of header.menuActions(); track item.label) {
+        <button mat-menu-item (click)="item.action()">
+          <mat-icon>{{ item.icon }}</mat-icon>
+          <span>{{ item.label }}</span>
+        </button>
+      }
+    </mat-menu>
+  }
+
+  @if (auth.currentUser(); as user) {
+    <button mat-button [matMenuTriggerFor]="userMenu">
+      <mat-icon>account_circle</mat-icon>
+      {{ user.name }}
+    </button>
+    <mat-menu #userMenu="matMenu">
+      <div class="user-email-item">{{ user.email }}</div>
+      <button mat-menu-item (click)="signOut()">
+        <mat-icon>logout</mat-icon>
+        Sign out
+      </button>
+    </mat-menu>
+  }
 </mat-toolbar>
 
 <main>
   <router-outlet />
 </main>
+
+<app-entity-panel />

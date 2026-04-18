@@ -1,5 +1,6 @@
 <app-slide-out-panel-container
   [showRightPanel]="showPanel()"
+  [rightPanelWidth]="rightPanelWidth"
   (showRightPanelChange)="onPanelChanged($event)">
 
   <div main-content>
@@ -14,12 +15,9 @@
           </div>
         }
         <div class="hero-overlay">
-          <button mat-icon-button class="back-button" (click)="goBack()">
-            <mat-icon>arrow_back</mat-icon>
-          </button>
           <h1 class="hero-title">{{ series()!.title }}</h1>
-          <button mat-icon-button class="settings-button" (click)="openSeriesSettings()" matTooltip="Series Settings">
-            <mat-icon>settings</mat-icon>
+          <button mat-icon-button class="edit-button" (click)="openSeriesEdit()">
+            <mat-icon>edit</mat-icon>
           </button>
         </div>
       </div>
@@ -31,9 +29,6 @@
         <button mat-flat-button (click)="openNew()">
           <mat-icon>add</mat-icon> Add Book
         </button>
-        <button mat-stroked-button (click)="openEntities()">
-          <mat-icon>people</mat-icon> Entities
-        </button>
       </div>
     </div>
 
@@ -41,9 +36,10 @@
       <p class="loading">Loading...</p>
     }
 
-    <div class="books-grid">
+    <div class="books-grid" cdkDropList cdkDropListOrientation="mixed" (cdkDropListDropped)="onDrop($event)">
       @for (book of bookList(); track book.id) {
-        <mat-card class="book-card" style="cursor:pointer" (click)="openBook(book)">
+        <mat-card class="book-card" cdkDrag (click)="openBook(book)">
+          <div class="book-card-drag-placeholder" *cdkDragPlaceholder></div>
           @if (book.thumnailUrl) {
             <img mat-card-image [src]="proxyUrl(book.thumnailUrl)!" [alt]="book.title" />
           } @else {
@@ -54,11 +50,6 @@
           <mat-card-header>
             <mat-card-title>{{ book.title }}</mat-card-title>
           </mat-card-header>
-          <mat-card-actions align="end">
-            <button mat-icon-button (click)="openEdit(book); $event.stopPropagation()">
-              <mat-icon>edit</mat-icon>
-            </button>
-          </mat-card-actions>
         </mat-card>
       }
     </div>
@@ -102,62 +93,40 @@
       </div>
     }
 
-    @if (panelMode() === 'entity') {      <div class="editor-content">
-        <h3>Entities</h3>
+    @if (panelMode() === 'series-edit' && editingSeries()) {
+      <div class="editor-content">
+        <h3>Edit Series</h3>
+        <mat-form-field appearance="outline">
+          <mat-label>Title</mat-label>
+          <input matInput
+                 [ngModel]="editingSeries()!.title"
+                 (ngModelChange)="updateSeriesTitle($event)" />
+        </mat-form-field>
 
-        <div class="add-entity-form">
-          <mat-form-field appearance="outline">
-            <mat-label>Type</mat-label>
-            <mat-select [ngModel]="newEntityType()" (ngModelChange)="newEntityType.set($event)">
-              @for (type of entityTypes; track type) {
-                <mat-option [value]="type">{{ type }}</mat-option>
-              }
-            </mat-select>
-          </mat-form-field>
-
-          <mat-form-field appearance="outline">
-            <mat-label>Name</mat-label>
-            <input matInput
-                   [ngModel]="newEntityName()"
-                   (ngModelChange)="newEntityName.set($event)"
-                   (keyup.enter)="addEntity()"
-                   placeholder="Enter name" />
-          </mat-form-field>
-
-          <button mat-flat-button (click)="addEntity()">
-            <mat-icon>add</mat-icon> Add
+        <div class="thumbnail-section">
+          <div class="thumbnail-preview">
+            @if (thumbnailPreview()) {
+              <img [src]="thumbnailPreview()!" alt="Thumbnail preview" />
+            } @else {
+              <mat-icon class="thumbnail-placeholder-icon">image</mat-icon>
+            }
+            @if (uploading()) {
+              <div class="upload-overlay">
+                <mat-spinner diameter="36" />
+              </div>
+            }
+          </div>
+          <button mat-stroked-button type="button" (click)="seriesFileInput.click()" [disabled]="uploading()">
+            <mat-icon>upload</mat-icon>
+            {{ thumbnailPreview() ? 'Change Image' : 'Upload Thumbnail' }}
           </button>
+          <input #seriesFileInput type="file" accept="image/*" hidden (change)="onSeriesFileSelected($event)" />
         </div>
 
-        @if (entityLoading()) {
-          <p class="loading">Loading...</p>
-        }
-
-        <mat-list>
-          @for (entity of entityList(); track entity.id) {
-            <mat-list-item>
-              @if (editingEntityId() === entity.id) {
-                <app-entity-edit
-                  [entity]="entity"
-                  (save)="saveEntityEdit($event)"
-                  (cancel)="cancelEditEntity()" />
-              } @else {
-                <div class="entity-list-row">
-                  <span class="entity-type-badge">{{ entity.type }}</span>
-                  <span class="entity-name">{{ entity.name }}</span>
-                  <div class="entity-actions">
-                    <button mat-icon-button (click)="startEditEntity(entity)">
-                      <mat-icon>edit</mat-icon>
-                    </button>
-                    <button mat-icon-button color="warn" (click)="deleteEntity(entity.id)">
-                      <mat-icon>delete</mat-icon>
-                    </button>
-                  </div>
-                </div>
-              }
-            </mat-list-item>
-          }
-        </mat-list>
+        <div class="editor-actions">
+          <button mat-flat-button (click)="saveSeriesEdit()" [disabled]="uploading()">Save</button>
+          <button mat-button (click)="closePanel()">Cancel</button>
+        </div>
       </div>
     }
 

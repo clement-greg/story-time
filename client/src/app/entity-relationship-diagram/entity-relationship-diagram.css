@@ -1,0 +1,308 @@
+.diagram-container {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Sidebar ── */
+.diagram-sidebar {
+  width: 260px;
+  min-width: 260px;
+  border-right: 1px solid #e0e0e0;
+  background: #fafafa;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.diagram-sidebar h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+
+.sidebar-hint {
+  font-size: 12px;
+  color: #888;
+  margin: 0 0 12px;
+}
+
+.entity-palette {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.palette-entity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  cursor: grab;
+  transition: box-shadow 0.15s;
+}
+
+.palette-entity:hover {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+
+.palette-entity:active {
+  cursor: grabbing;
+}
+
+.palette-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #e8e8e8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.palette-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.palette-avatar mat-icon {
+  color: #999;
+}
+
+.palette-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.palette-name {
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.palette-type {
+  font-size: 11px;
+  color: #888;
+}
+
+.empty-message {
+  font-size: 12px;
+  color: #aaa;
+  text-align: center;
+  padding: 12px 0;
+}
+
+/* ── Canvas ── */
+.diagram-canvas {
+  flex: 1;
+  position: relative;
+  overflow: auto;
+  background:
+    linear-gradient(to right, #f0f0f0 1px, transparent 1px),
+    linear-gradient(to bottom, #f0f0f0 1px, transparent 1px);
+  background-size: 24px 24px;
+  min-height: 100%;
+}
+
+.connections-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.connection-group {
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+.connection-line-hit {
+  stroke: transparent;
+  stroke-width: 16;
+  fill: none;
+}
+
+.connection-line {
+  stroke: #78909c;
+  stroke-width: 2;
+  fill: none;
+  transition: stroke 0.15s;
+}
+
+.connection-line.connection-selected {
+  stroke: #1976d2;
+  stroke-width: 3;
+}
+
+.connection-line-temp {
+  stroke: #1976d2;
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+  fill: none;
+}
+
+.connection-label {
+  font-size: 11px;
+  fill: #555;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ── Diagram Nodes ── */
+.diagram-node {
+  position: absolute;
+  width: 120px;
+  background: #fff;
+  border: 2px solid #ccc;
+  border-radius: 10px;
+  padding: 12px 8px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: move;
+  z-index: 2;
+  user-select: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.diagram-node:hover {
+  border-color: #90a4ae;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.diagram-node.node-selected {
+  border-color: #1976d2;
+  box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.2);
+}
+
+.diagram-node.node-connecting {
+  border-color: #ff9800;
+  box-shadow: 0 0 0 3px rgba(255, 152, 0, 0.25);
+}
+
+.node-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #e8e8e8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.node-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.node-avatar mat-icon {
+  font-size: 28px;
+  width: 28px;
+  height: 28px;
+  color: #999;
+}
+
+.node-name {
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.node-remove {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: #e53935;
+  color: #fff;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.node-remove mat-icon {
+  font-size: 14px;
+  width: 14px;
+  height: 14px;
+}
+
+.diagram-node:hover .node-remove {
+  display: flex;
+}
+
+/* ── Canvas empty state ── */
+.canvas-empty {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: #aaa;
+}
+
+.canvas-empty mat-icon {
+  font-size: 64px;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 8px;
+}
+
+.canvas-empty p {
+  font-size: 14px;
+  max-width: 280px;
+}
+
+/* ── Toolbar ── */
+.diagram-toolbar {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 4px 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+}
+
+.diagram-toolbar .active {
+  color: #ff9800;
+}
+
+.toolbar-spacer {
+  flex: 1;
+}
+
+.toolbar-hint {
+  font-size: 12px;
+  color: #888;
+  margin: 0 8px;
+}

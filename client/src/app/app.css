@@ -1,3 +1,69 @@
 main {
   padding: 24px;
 }
+
+.toolbar-spacer {
+  flex: 1 1 auto;
+}
+
+.app-toolbar,
+.app-toolbar a,
+.app-toolbar span,
+.app-toolbar mat-icon {
+  color: white !important;
+}
+
+.app-toolbar {
+  background-color: #1565c0 !important;
+}
+
+.toolbar-brand {
+  color: var(--mat-toolbar-container-text-color, white);
+  text-decoration: none;
+  font-size: 1.1rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.breadcrumb-sep {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  line-height: 18px;
+  color: var(--mat-toolbar-container-text-color, white);
+  opacity: 0.6;
+  margin: 0 2px;
+}
+
+.breadcrumb-link {
+  color: var(--mat-toolbar-container-text-color, white);
+  opacity: 0.85;
+  text-decoration: none;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+
+.breadcrumb-link:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+.breadcrumb-current {
+  color: var(--mat-toolbar-container-text-color, white);
+  font-size: 0.95rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+.user-email-item {
+  padding: 8px 16px;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.54);
+  pointer-events: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+  margin-bottom: 4px;
+}

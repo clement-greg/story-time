@@ -1,4 +1,5 @@
-import { Component, input, output, signal, OnInit, inject } from '@angular/core';
+import { Component, input, output, signal, inject, effect } from '@angular/core';
+import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -27,9 +28,10 @@ import { ImageGenDialogComponent } from './image-gen-dialog';
   templateUrl: './entity-edit.html',
   styleUrl: './entity-edit.css',
 })
-export class EntityEditComponent implements OnInit {
+export class EntityEditComponent {
   private entityService = inject(EntityService);
   private dialog = inject(MatDialog);
+  private router = inject(Router);
 
   entity = input.required<Entity>();
   save = output<Entity>();
@@ -49,14 +51,16 @@ export class EntityEditComponent implements OnInit {
   generatingImage = signal(false);
   generatingPersonality = signal(false);
 
-  ngOnInit(): void {
-    const e = this.entity();
-    const draft = { ...e };
-    if (e.type === 'PERSON' && !e.preferredReference) {
-      draft.preferredReference = 'first-name';
-    }
-    this.draft.set(draft);
-    this.thumbnailPreview.set(this.proxyUrl(e.thumbnailUrl));
+  constructor() {
+    effect(() => {
+      const e = this.entity();
+      const draft = { ...e };
+      if (e.type === 'PERSON' && !e.preferredReference) {
+        draft.preferredReference = 'first-name';
+      }
+      this.draft.set(draft);
+      this.thumbnailPreview.set(this.proxyUrl(e.thumbnailUrl));
+    });
   }
 
   update<K extends keyof Entity>(field: K, value: Entity[K]): void {
@@ -153,5 +157,12 @@ export class EntityEditComponent implements OnInit {
 
   onCancel(): void {
     this.cancel.emit();
+  }
+
+  openRelationshipDiagram(): void {
+    const d = this.draft();
+    if (d?.seriesId) {
+      this.router.navigate(['/series', d.seriesId, 'relationships']);
+    }
   }
 }

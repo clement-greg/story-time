@@ -15,8 +15,11 @@ import { Chapter, ChapterNote, ChapterVersion } from '@shared/models/chapter.mod
 import { Entity } from '@shared/models/entity.model';
 import { BookService } from '../book/book.service';
 import { EntityService } from '../services/entity.service';
+import { SeriesService } from '../series/series.service';
 import { SlideOutPanelContainer } from '../shared/slide-out-panel-container/slide-out-panel-container';
 import { EntityEditComponent } from '../entity-edit/entity-edit';
+import { HeaderService } from '../services/header.service';
+import { EntityPanelService } from '../services/entity-panel.service';
 
 @Component({
   selector: 'app-chapter-edit',
@@ -46,7 +49,10 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   private chapterVersionService = inject(ChapterVersionService);
   private entityService = inject(EntityService);
   private bookService = inject(BookService);
+  private seriesService = inject(SeriesService);
   private snackBar = inject(MatSnackBar);
+  private headerService = inject(HeaderService);
+  private entityPanel = inject(EntityPanelService);
 
   chapter = signal<Chapter | null>(null);
   saving = signal(false);
@@ -138,9 +144,21 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
         // Load chat history
         this.loadChatHistory(data.id);
 
-        // Load entities for this book's series
+        // Load entities + register header breadcrumbs
         this.bookService.getById(data.bookId).subscribe({
           next: (book) => {
+            this.seriesService.getById(book.seriesId).subscribe({
+              next: (series) => {
+                this.headerService.set(
+                  [
+                    { label: series.title, link: '/series/' + series.id },
+                    { label: book.title, link: '/books/' + book.id },
+                    { label: data.title || 'Chapter' },
+                  ],
+                  [{ icon: 'people', label: 'Entities', action: () => this.entityPanel.open(series.id) }]
+                );
+              },
+            });
             this.entityService.getBySeries(book.seriesId).subscribe({
               next: (entities) => this.entities.set(entities),
             });
@@ -151,6 +169,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.headerService.clear();
     if (this.autoSaveTimer) clearTimeout(this.autoSaveTimer);
     if (this.popupHideTimer) clearTimeout(this.popupHideTimer);
     this.chatAbortController?.abort();

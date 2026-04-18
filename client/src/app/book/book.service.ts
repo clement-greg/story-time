@@ -37,4 +37,8 @@ export class BookService {
     formData.append('file', file);
     return this.http.post<{ url: string; thumbnailUrl: string }>('/api/upload', formData);
   }
+
+  reorder(items: { id: string; sortOrder: number }[]): Observable<void> {
+    return this.http.patch<void>(`${this.apiUrl}/reorder`, items);
+  }
 }

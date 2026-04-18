@@ -1,6 +1,8 @@
+import { AuditedRecord } from './audited-record';
+
 export type EntityReference = 'full-name' | 'first-name' | 'last-name' | 'nickname';
 
-export interface Entity {
+export interface Entity extends AuditedRecord {
     id: string;
     name: string;
     type: 'PERSON' | 'PLACE' | 'THING';

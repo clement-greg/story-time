@@ -1,0 +1,116 @@
+<div class="diagram-container">
+  <!-- Sidebar: entity palette -->
+  <div class="diagram-sidebar">
+    <h3>Entities</h3>
+    <p class="sidebar-hint">Drag entities onto the canvas to add them to the diagram.</p>
+    <div class="entity-palette">
+      @for (entity of availableEntities(); track entity.id) {
+        <div class="palette-entity"
+             draggable="true"
+             (dragstart)="onPaletteDragStart($event, entity)">
+          <div class="palette-avatar">
+            @if (entity.thumbnailUrl) {
+              <img [src]="proxyUrl(entity.thumbnailUrl)" [alt]="entity.name" />
+            } @else {
+              <mat-icon>person</mat-icon>
+            }
+          </div>
+          <div class="palette-info">
+            <span class="palette-name">{{ entity.name }}</span>
+            <span class="palette-type">{{ entity.type }}</span>
+          </div>
+        </div>
+      }
+      @if (availableEntities().length === 0) {
+        <p class="empty-message">All entities are on the canvas.</p>
+      }
+    </div>
+  </div>
+
+  <!-- Main canvas -->
+  <div class="diagram-canvas"
+       #canvas
+       (dragover)="onCanvasDragOver($event)"
+       (drop)="onCanvasDrop($event)"
+       (click)="onCanvasClick()">
+
+    <!-- SVG layer for connection lines -->
+    <svg class="connections-layer">
+      @for (conn of connectionLines(); track conn.id) {
+        <g class="connection-group" (click)="onConnectionClick($event, conn.id)">
+          <line [attr.x1]="conn.x1" [attr.y1]="conn.y1"
+                [attr.x2]="conn.x2" [attr.y2]="conn.y2"
+                class="connection-line-hit" />
+          <line [attr.x1]="conn.x1" [attr.y1]="conn.y1"
+                [attr.x2]="conn.x2" [attr.y2]="conn.y2"
+                class="connection-line"
+                [class.connection-selected]="selectedRelationshipId() === conn.id" />
+          <text [attr.x]="(conn.x1 + conn.x2) / 2"
+                [attr.y]="(conn.y1 + conn.y2) / 2 - 6"
+                class="connection-label"
+                text-anchor="middle">{{ conn.label }}</text>
+        </g>
+      }
+
+      <!-- Temporary line while connecting -->
+      @if (connectingFrom() && tempLineEnd()) {
+        <line [attr.x1]="getNodeCenter(connectingFrom()!.entityId).x"
+              [attr.y1]="getNodeCenter(connectingFrom()!.entityId).y"
+              [attr.x2]="tempLineEnd()!.x"
+              [attr.y2]="tempLineEnd()!.y"
+              class="connection-line-temp" />
+      }
+    </svg>
+
+    <!-- Entity nodes on canvas -->
+    @for (node of diagramNodes(); track node.entityId) {
+      <div class="diagram-node"
+           [class.node-selected]="selectedNodeId() === node.entityId"
+           [class.node-connecting]="connectingFrom()?.entityId === node.entityId"
+           [style.left.px]="node.x"
+           [style.top.px]="node.y"
+           (mousedown)="onNodeMouseDown($event, node)"
+           (click)="onNodeClick($event, node)">
+        <div class="node-avatar">
+          @if (getEntity(node.entityId)?.thumbnailUrl; as url) {
+            <img [src]="proxyUrl(url)" [alt]="getEntity(node.entityId)?.name" />
+          } @else {
+            <mat-icon>person</mat-icon>
+          }
+        </div>
+        <span class="node-name">{{ getEntity(node.entityId)?.name }}</span>
+        <button class="node-remove" (click)="removeNodeFromCanvas($event, node.entityId)" title="Remove from canvas">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+    }
+
+    @if (diagramNodes().length === 0) {
+      <div class="canvas-empty">
+        <mat-icon>account_tree</mat-icon>
+        <p>Drag entities from the sidebar to start building your relationship diagram.</p>
+      </div>
+    }
+  </div>
+
+  <!-- Toolbar -->
+  <div class="diagram-toolbar">
+    <button mat-icon-button (click)="startConnecting()" [disabled]="!selectedNodeId()"
+            title="Connect to another entity" [class.active]="connectingFrom()">
+      <mat-icon>timeline</mat-icon>
+    </button>
+    <button mat-icon-button (click)="editSelectedRelationship()" [disabled]="!selectedRelationshipId()"
+            title="Edit relationship">
+      <mat-icon>edit</mat-icon>
+    </button>
+    <button mat-icon-button (click)="deleteSelectedRelationship()" [disabled]="!selectedRelationshipId()"
+            title="Delete relationship" color="warn">
+      <mat-icon>delete</mat-icon>
+    </button>
+    <span class="toolbar-spacer"></span>
+    @if (connectingFrom()) {
+      <span class="toolbar-hint">Click a target entity to create a relationship…</span>
+      <button mat-button (click)="cancelConnecting()">Cancel</button>
+    }
+  </div>
+</div>

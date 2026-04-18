@@ -50,6 +50,11 @@ router.post('/', async (req: Request, res: Response) => {
       res.status(400).json({ error: 'Title is required' });
       return;
     }
+    const now = new Date().toISOString();
+    series.createdBy = req.user!.email;
+    series.createdAt = now;
+    series.modifiedBy = req.user!.email;
+    series.modifiedAt = now;
     const { resource } = await container.items.create<Series>(series);
     res.status(201).json(resource);
   } catch (err) {
@@ -62,7 +67,7 @@ router.post('/', async (req: Request, res: Response) => {
 router.put('/:id', async (req: Request, res: Response) => {
   try {
     const id = req.params['id'] as string;
-    const series: Series = { ...req.body, id };
+    const series: Series = { ...req.body, id, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };
     const { resource } = await container.item(id, id).replace<Series>(series);
     res.json(resource);
   } catch (err) {

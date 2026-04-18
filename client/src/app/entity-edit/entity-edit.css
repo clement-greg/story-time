@@ -12,6 +12,11 @@
 .entity-edit-actions {
   display: flex;
   gap: 8px;
+  align-items: center;
+}
+
+.action-spacer {
+  flex: 1;
 }
 
 .thumbnail-section {

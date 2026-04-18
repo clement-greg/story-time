@@ -31,4 +31,8 @@ export class ChapterService {
   delete(id: string): Observable<void> {
     return this.http.delete<void>(`${this.apiUrl}/${id}`);
   }
+
+  reorder(items: { id: string; sortOrder: number }[]): Observable<void> {
+    return this.http.patch<void>(`${this.apiUrl}/reorder`, items);
+  }
 }
