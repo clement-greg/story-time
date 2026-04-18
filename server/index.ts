@@ -3,11 +3,11 @@ import path from 'path';
 import { HelloResponse } from '../shared/models';
 import { initDatabase } from './cosmos';
 import { requireAuth } from './auth.middleware';
+import authRoutes from './routes/auth.routes';
 import seriesRoutes from './routes/series.routes';
 import bookRoutes from './routes/book.routes';
 import entityRoutes from './routes/entity.routes';
 import chapterRoutes from './routes/chapter.routes';
-import somethingElseRoutes from './routes/something-else.routes';
 import uploadRoutes from './routes/upload.routes';
 import imageRoutes from './routes/image.routes';
 import chatRoutes from './routes/chat.routes';
@@ -26,6 +26,9 @@ app.get('/api/hello', (_req: Request, res: Response) => {
   res.json(response);
 });
 
+// Public auth route — exchanges a Google ID token for a custom 48-hour JWT
+app.use('/api/auth', authRoutes);
+
 // Public image proxy — no auth required (UUID filenames are unguessable)
 app.use('/api/image', imageRoutes);
 
@@ -36,7 +39,6 @@ app.use('/api/series', seriesRoutes);
 app.use('/api/books', bookRoutes);
 app.use('/api/entities', entityRoutes);
 app.use('/api/chapters', chapterRoutes);
-app.use('/api/something-else', somethingElseRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/chapter-versions', chapterVersionRoutes);

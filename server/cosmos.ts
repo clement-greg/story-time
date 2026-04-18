@@ -12,7 +12,6 @@ const standardContainerDefs = [
   { id: 'series', partitionKey: { paths: ['/id'] } },
   { id: 'books', partitionKey: { paths: ['/id'] } },
   { id: 'entities', partitionKey: { paths: ['/id'] } },
-  { id: 'something-else', partitionKey: { paths: ['/id'] } },
   { id: 'chat-history', partitionKey: { paths: ['/id'] } },
   { id: 'chapter-versions', partitionKey: { paths: ['/chapterId'] } },
   { id: 'entity-relationships', partitionKey: { paths: ['/id'] } },
@@ -67,5 +66,4 @@ export async function initDatabase(): Promise<void> {
   // Create chapters container with vector embedding policy if it doesn't exist.
   // Note: vector embedding policies cannot be changed on existing containers.
   await database.containers.createIfNotExists(chaptersContainerDef as any);
-  console.log('Chapters container ready.');
 }

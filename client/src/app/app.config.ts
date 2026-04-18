@@ -8,7 +8,6 @@ import { BookComponent } from './book/book';
 import { BookDetailComponent } from './book-detail/book-detail';
 import { ChapterComponent } from './chapter/chapter';
 import { ChapterEditComponent } from './chapter-edit/chapter-edit';
-import { SomethingElseComponent } from './something-else/something-else';
 import { EntityRelationshipDiagramComponent } from './entity-relationship-diagram/entity-relationship-diagram';
 import { LoginComponent } from './login/login';
 import { authGuard } from './auth/auth.guard';
@@ -22,7 +21,6 @@ const routes: Routes = [
   { path: 'books/:id', component: BookDetailComponent, canActivate: [authGuard] },
   { path: 'chapters', component: ChapterComponent, canActivate: [authGuard] },
   { path: 'chapters/:id/edit', component: ChapterEditComponent, canActivate: [authGuard] },
-  { path: 'something-else', component: SomethingElseComponent, canActivate: [authGuard] },
   { path: 'series/:seriesId/relationships', component: EntityRelationshipDiagramComponent, canActivate: [authGuard] },
   { path: '', redirectTo: 'series', pathMatch: 'full' },
 ];

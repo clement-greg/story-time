@@ -1,0 +1,7 @@
+{
+    "typescript.tsdk": "node_modules/typescript/lib",
+    "json.schemas": [],
+    "typescript.preferences.excludedFiles": [
+        "**/node_modules/**"
+    ]
+}

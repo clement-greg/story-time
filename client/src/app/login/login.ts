@@ -35,8 +35,8 @@ export class LoginComponent implements AfterViewInit {
       if (typeof google !== 'undefined') {
         google.accounts.id.initialize({
           client_id: environment.googleClientId,
-          callback: (response: { credential: string }) => {
-            this.auth.handleCredentialResponse(response.credential);
+          callback: async (response: { credential: string }) => {
+            await this.auth.handleCredentialResponse(response.credential);
             this.router.navigate(['/']);
           },
           auto_select: false,

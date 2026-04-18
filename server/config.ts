@@ -3,6 +3,7 @@ import path from 'path';
 
 interface AppConfig {
   googleClientId: string;
+  jwtSecret: string;
   cosmosEndpoint: string;
   cosmosKey: string;
   cosmosDatabase: string;
@@ -30,6 +31,7 @@ function loadConfig(): AppConfig {
 
   return {
     googleClientId: process.env['GOOGLE_CLIENT_ID']!,
+    jwtSecret: process.env['JWT_SECRET']!,
     cosmosEndpoint: process.env['COSMOS_ENDPOINT']!,
     cosmosKey: process.env['COSMOS_KEY']!,
     cosmosDatabase: process.env['COSMOS_DATABASE']!,

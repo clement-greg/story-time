@@ -1,4 +1,7 @@
 import { Injectable, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { inject } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 
 export interface GoogleUser {
   email: string;
@@ -20,11 +23,12 @@ declare const google: {
   };
 };
 
-const TOKEN_KEY = 'google_id_token';
+const TOKEN_KEY = 'app_auth_token';
 const USER_KEY = 'google_user';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
+  private http = inject(HttpClient);
   readonly currentUser = signal<GoogleUser | null>(this.loadStoredUser());
 
   get idToken(): string | null {
@@ -36,15 +40,19 @@ export class AuthService {
   }
 
   /** Called by the login component after Google returns a credential. */
-  handleCredentialResponse(credential: string): void {
+  async handleCredentialResponse(credential: string): Promise<void> {
+    const { token } = await firstValueFrom(
+      this.http.post<{ token: string }>('/api/auth/login', { credential })
+    );
+
     const payload = this.parseJwtPayload(credential);
     const user: GoogleUser = {
       email: payload['email'] as string,
       name: payload['name'] as string,
       picture: payload['picture'] as string,
-      idToken: credential,
+      idToken: token,
     };
-    localStorage.setItem(TOKEN_KEY, credential);
+    localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem(USER_KEY, JSON.stringify({ email: user.email, name: user.name, picture: user.picture }));
     this.currentUser.set(user);
   }

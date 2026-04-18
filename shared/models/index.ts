@@ -5,4 +5,3 @@ export * from './book.model';
 export * from './chapter.model';
 export * from './entity.model';
 export * from './entity-relationship.model';
-export * from './something-else';

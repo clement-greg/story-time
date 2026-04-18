@@ -1,8 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { OAuth2Client } from 'google-auth-library';
+import jwt from 'jsonwebtoken';
 import config from './config';
-
-const client = new OAuth2Client(config.googleClientId);
 
 export interface AuthenticatedUser {
   email: string;
@@ -27,22 +25,18 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     return;
   }
 
-  const idToken = authHeader.slice(7);
+  const token = authHeader.slice(7);
   try {
-    const ticket = await client.verifyIdToken({
-      idToken,
-      audience: config.googleClientId,
-    });
-    const payload = ticket.getPayload();
-    if (!payload || !payload.email) {
+    const payload = jwt.verify(token, config.jwtSecret) as jwt.JwtPayload;
+    if (!payload || !payload['email']) {
       res.status(401).json({ error: 'Invalid token payload' });
       return;
     }
     req.user = {
-      email: payload.email,
-      sub: payload.sub,
-      name: payload.name,
-      picture: payload.picture,
+      email: payload['email'] as string,
+      sub: payload['sub'] as string,
+      name: payload['name'] as string | undefined,
+      picture: payload['picture'] as string | undefined,
     };
     next();
   } catch {
