@@ -19,10 +19,6 @@
               <mat-icon>add</mat-icon>
             </button>
           }
-          <button mat-icon-button (click)="panel.toggleArchived()"
-                  [matTooltip]="panel.showingArchived() ? 'Show active entities' : 'Show archived entities'">
-            <mat-icon>{{ panel.showingArchived() ? 'inventory_2' : 'archive' }}</mat-icon>
-          </button>
         </div>
 
         @if (panel.entityLoading()) {

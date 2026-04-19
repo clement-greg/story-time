@@ -73,7 +73,7 @@
            (click)="onNodeClick($event, node)">
         <div class="node-avatar">
           @if (getEntity(node.entityId)?.thumbnailUrl; as url) {
-            <img [src]="proxyUrl(url)" [alt]="getEntity(node.entityId)?.name" />
+            <img [src]="proxyUrl(url)" [alt]="getEntity(node.entityId)?.name" draggable="false" />
           } @else {
             <mat-icon>person</mat-icon>
           }

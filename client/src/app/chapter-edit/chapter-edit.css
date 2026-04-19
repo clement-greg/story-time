@@ -911,6 +911,7 @@
 
 /* ── Mobile floating title ───────────────────────────── */
 .mobile-title-bar {
+  display: none;
   position: absolute;
   bottom: 0;
   left: 0;
@@ -919,7 +920,6 @@
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(6px);
   border-top: 1px solid var(--mat-sys-outline-variant, #e0e0e0);
-  display: flex;
   align-items: center;
   padding: 0 8px 0 16px;
   gap: 8px;
@@ -990,6 +990,10 @@
 
   .mobile-only {
     display: inline-flex;
+  }
+
+  .mobile-title-bar {
+    display: flex;
   }
 
   .page {

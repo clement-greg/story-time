@@ -10,7 +10,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
 import { BookNote } from '@shared/models/book-note.model';
-import { Entity } from '@shared/models/entity.model';
+import { Entity, EntityReference } from '@shared/models/entity.model';
 import { EntityService } from '../services/entity.service';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -71,7 +71,19 @@ export class BookNotesComponent implements OnInit, OnDestroy {
       const sid = this.seriesId();
       if (sid) {
         this.entityService.getBySeries(sid).subscribe({
-          next: (e) => this.entities.set(e),
+          next: (e) => {
+            this.entities.set(e);
+            const currentNotes = this.notes();
+            if (currentNotes.length > 0) {
+              const synced = currentNotes.map(note => ({
+                ...note,
+                content: this.syncEntityReferences(note.content, e),
+              }));
+              if (synced.some((n, i) => n.content !== currentNotes[i].content)) {
+                this.notes.set(synced);
+              }
+            }
+          },
         });
       }
     });
@@ -94,7 +106,11 @@ export class BookNotesComponent implements OnInit, OnDestroy {
     this.http.get<BookNote[]>(`/api/book-notes/book/${id}`).subscribe({
       next: (data) => {
         const sorted = [...data].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-        this.notes.set(sorted);
+        const entities = this.entities();
+        const synced = entities.length > 0
+          ? sorted.map(note => ({ ...note, content: this.syncEntityReferences(note.content, entities) }))
+          : sorted;
+        this.notes.set(synced);
         this.loading.set(false);
       },
       error: () => this.loading.set(false),
@@ -436,6 +452,7 @@ export class BookNotesComponent implements OnInit, OnDestroy {
     range.deleteContents();
     const span = document.createElement('span');
     span.setAttribute('data-id', entity.id);
+    span.setAttribute('data-reference-type', this.getReferenceType(entity, text));
     span.className = 'entity-reference';
     span.textContent = text;
     range.insertNode(span);
@@ -522,6 +539,39 @@ export class BookNotesComponent implements OnInit, OnDestroy {
 
   private entityMatchesWord(entity: Entity, lower: string): boolean {
     return this.allRefsFor(entity).some((v) => v.toLowerCase().includes(lower));
+  }
+
+  private getReferenceType(entity: Entity, text: string): EntityReference {
+    if (text === entity.name) return 'full-name';
+    const refs = this.resolvedRefs(entity);
+    if (refs.firstName && text === refs.firstName) return 'first-name';
+    if (refs.lastName && text === refs.lastName) return 'last-name';
+    if (refs.nickname && text === refs.nickname) return 'nickname';
+    return 'full-name';
+  }
+
+  private getTextForReferenceType(entity: Entity, refType: EntityReference): string {
+    const refs = this.resolvedRefs(entity);
+    switch (refType) {
+      case 'first-name': return refs.firstName || entity.name;
+      case 'last-name': return refs.lastName || entity.name;
+      case 'nickname': return refs.nickname || entity.name;
+      default: return entity.name;
+    }
+  }
+
+  private syncEntityReferences(html: string, entities: Entity[]): string {
+    if (!html) return html;
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    div.querySelectorAll<HTMLElement>('span[data-id][data-reference-type]').forEach(span => {
+      const entity = entities.find(e => e.id === span.getAttribute('data-id'));
+      if (!entity) return;
+      const refType = span.getAttribute('data-reference-type') as EntityReference;
+      const expected = this.getTextForReferenceType(entity, refType);
+      if (span.textContent !== expected) span.textContent = expected;
+    });
+    return div.innerHTML;
   }
 
   private getPreferredText(entity: Entity): string {

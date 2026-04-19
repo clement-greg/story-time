@@ -14,6 +14,7 @@ export class EntityPanelService {
   isNewEntity = signal(false);
   entityLoading = signal(false);
   showingArchived = signal(false);
+  lastUpdatedEntity = signal<Entity | null>(null);
 
   get panelWidth(): number {
     return this.editingEntity() ? 572 : 340;
@@ -66,6 +67,11 @@ export class EntityPanelService {
   }
 
   startEditEntity(entity: Entity): void {
+    if (this.editingEntity()?.id === entity.id) {
+      this.editingEntity.set(null);
+      this.isNewEntity.set(false);
+      return;
+    }
     this.isNewEntity.set(false);
     this.editingEntity.set({ ...entity });
   }
@@ -82,6 +88,7 @@ export class EntityPanelService {
           this.entityList.update((list) => [...list, created]);
           this.isNewEntity.set(false);
           this.editingEntity.set(created);
+          this.lastUpdatedEntity.set(created);
         },
       });
     } else {
@@ -91,6 +98,7 @@ export class EntityPanelService {
             list.map((e) => (e.id === updated.id ? updated : e))
           );
           this.editingEntity.set(null);
+          this.lastUpdatedEntity.set(updated);
         },
       });
     }

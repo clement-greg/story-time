@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit, OnDestroy, ElementRef, ViewChild, HostListener } from '@angular/core';
+import { Component, inject, signal, OnInit, OnDestroy, ElementRef, ViewChild, HostListener, effect } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { ActivatedRoute, Router } from '@angular/router';
 import { parse as parseMarkdown } from 'marked';
@@ -12,7 +12,7 @@ import { ChapterService } from '../chapter/chapter.service';
 import { ChapterDraftService } from './chapter-draft.service';
 import { ChapterVersionService } from './chapter-version.service';
 import { Chapter, ChapterNote, ChapterVersion } from '@shared/models/chapter.model';
-import { Entity } from '@shared/models/entity.model';
+import { Entity, EntityReference } from '@shared/models/entity.model';
 import { BookService } from '../book/book.service';
 import { EntityService } from '../services/entity.service';
 import { SeriesService } from '../series/series.service';
@@ -127,6 +127,21 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   private autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
   private chatAbortController: AbortController | null = null;
 
+  constructor() {
+    effect(() => {
+      const updated = this.entityPanel.lastUpdatedEntity();
+      if (!updated) return;
+      this.entities.update(list => list.map(e => e.id === updated.id ? updated : e));
+      const synced = this.syncEntityReferences(this.editorContent, this.entities());
+      if (synced !== this.editorContent) {
+        this.editorContent = synced;
+        if (this.contentEditorRef) {
+          this.contentEditorRef.nativeElement.innerHTML = synced;
+        }
+      }
+    });
+  }
+
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id')!;
     this.chapterService.getById(id).subscribe({
@@ -170,7 +185,16 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
               },
             });
             this.entityService.getBySeries(book.seriesId).subscribe({
-              next: (entities) => this.entities.set(entities),
+              next: (entities) => {
+                this.entities.set(entities);
+                const synced = this.syncEntityReferences(this.editorContent, entities);
+                if (synced !== this.editorContent) {
+                  this.editorContent = synced;
+                  if (this.contentEditorRef) {
+                    this.contentEditorRef.nativeElement.innerHTML = synced;
+                  }
+                }
+              },
             });
           },
         });
@@ -380,6 +404,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
 
     const span = document.createElement('span');
     span.setAttribute('data-id', entity.id);
+    span.setAttribute('data-reference-type', this.getReferenceType(entity, text));
     span.className = 'entity-reference';
     span.textContent = text;
     range.insertNode(span);
@@ -577,6 +602,39 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
 
   private entityMatchesWord(entity: Entity, lower: string): boolean {
     return this.allRefsFor(entity).some(v => v.toLowerCase().includes(lower));
+  }
+
+  private getReferenceType(entity: Entity, text: string): EntityReference {
+    if (text === entity.name) return 'full-name';
+    const refs = this.resolvedRefs(entity);
+    if (refs.firstName && text === refs.firstName) return 'first-name';
+    if (refs.lastName && text === refs.lastName) return 'last-name';
+    if (refs.nickname && text === refs.nickname) return 'nickname';
+    return 'full-name';
+  }
+
+  private getTextForReferenceType(entity: Entity, refType: EntityReference): string {
+    const refs = this.resolvedRefs(entity);
+    switch (refType) {
+      case 'first-name': return refs.firstName || entity.name;
+      case 'last-name': return refs.lastName || entity.name;
+      case 'nickname': return refs.nickname || entity.name;
+      default: return entity.name;
+    }
+  }
+
+  private syncEntityReferences(html: string, entities: Entity[]): string {
+    if (!html) return html;
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    div.querySelectorAll<HTMLElement>('span[data-id][data-reference-type]').forEach(span => {
+      const entity = entities.find(e => e.id === span.getAttribute('data-id'));
+      if (!entity) return;
+      const refType = span.getAttribute('data-reference-type') as EntityReference;
+      const expected = this.getTextForReferenceType(entity, refType);
+      if (span.textContent !== expected) span.textContent = expected;
+    });
+    return div.innerHTML;
   }
 
   private getPreferredText(entity: Entity): string {
