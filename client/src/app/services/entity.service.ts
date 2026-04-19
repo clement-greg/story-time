@@ -16,6 +16,10 @@ export class EntityService {
     return this.http.get<Entity[]>(`${this.apiUrl}/series/${seriesId}`);
   }
 
+  getArchivedBySeries(seriesId: string): Observable<Entity[]> {
+    return this.http.get<Entity[]>(`${this.apiUrl}/series/${seriesId}/archived`);
+  }
+
   getById(id: string): Observable<Entity> {
     return this.http.get<Entity>(`${this.apiUrl}/${id}`);
   }
@@ -38,6 +42,10 @@ export class EntityService {
 
   unarchive(id: string): Observable<Entity> {
     return this.http.patch<Entity>(`${this.apiUrl}/${id}/unarchive`, {});
+  }
+
+  getAllArchived(): Observable<Entity[]> {
+    return this.http.get<Entity[]>(`${this.apiUrl}/archived`);
   }
 
   uploadThumbnail(file: File): Observable<{ url: string; thumbnailUrl: string }> {

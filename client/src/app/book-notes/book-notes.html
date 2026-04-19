@@ -1,0 +1,83 @@
+<div class="book-notes-container">
+
+  <!-- Notes feed -->
+  <div class="notes-feed" cdkDropList (cdkDropListDropped)="onDrop($event)">
+    @if (loading()) {
+      <p class="notes-loading">Loading…</p>
+    }
+    @if (!loading() && notes().length === 0) {
+      <p class="notes-empty">No notes yet. Add your first note below.</p>
+    }
+    @for (note of notes(); track note.id) {
+      <div class="note-item" cdkDrag>
+        <mat-icon class="drag-handle" cdkDragHandle>drag_indicator</mat-icon>
+        <div class="note-drag-placeholder" *cdkDragPlaceholder></div>
+
+        @if (editingNoteId() === note.id) {
+          <!-- Edit mode -->
+          <div class="note-edit-area">
+            <div class="note-edit-editor entity-editor"
+                 contenteditable="true"
+                 (input)="onEditorInput($event, true)"
+                 (keydown)="onEditorKeyDown($event, true)"></div>
+            <div class="note-edit-actions">
+              <button mat-flat-button (click)="saveEdit(note)" [disabled]="saving()">Save</button>
+              <button mat-button (click)="cancelEdit()">Cancel</button>
+            </div>
+          </div>
+        } @else {
+          <!-- View mode -->
+          <div class="note-content" [innerHTML]="safeHtml(note.content)"></div>
+          <div class="note-actions">
+            <button mat-icon-button class="note-action-btn" title="Edit" (click)="startEdit(note)">
+              <mat-icon>edit</mat-icon>
+            </button>
+            <button mat-icon-button class="note-action-btn" title="Delete" (click)="deleteNote(note)">
+              <mat-icon>delete</mat-icon>
+            </button>
+          </div>
+        }
+      </div>
+    }
+  </div>
+
+  <!-- Entry box -->
+  <div class="note-entry">
+    <div class="note-entry-wrapper">
+      <div class="note-entry-editor entity-editor"
+           #noteEditorEl
+           contenteditable="true"
+           (input)="onEditorInput($event, false)"
+           (keydown)="onEditorKeyDown($event, false)"
+           data-placeholder="Add a note… (Ctrl+Enter to submit)"></div>
+      <button mat-icon-button class="send-btn" (click)="addNote()" [disabled]="saving()" title="Add note">
+        <mat-icon>send</mat-icon>
+      </button>
+    </div>
+  </div>
+
+  <!-- Entity autocomplete dropdown -->
+  @if (autocompleteItems().length > 0) {
+    <div class="autocomplete-dropdown"
+         [style.top.px]="autocompleteTop()"
+         [style.left.px]="autocompleteLeft()">
+      @for (item of autocompleteItems(); track $index; let i = $index) {
+        <div class="autocomplete-item"
+             [class.active]="i === autocompleteIndex()"
+             [class.is-preferred]="item.isPreferred"
+             (mousedown)="selectAutocomplete(item.entity, item.text)">
+          @if (item.isPreferred && item.entity.thumbnailUrl) {
+            <img [src]="proxyUrl(item.entity.thumbnailUrl)!" class="autocomplete-thumb" alt="" />
+          } @else if (item.isPreferred) {
+            <span class="autocomplete-thumb-placeholder"></span>
+          } @else {
+            <span class="autocomplete-alt-indent"></span>
+          }
+          <span [class.autocomplete-preferred]="item.isPreferred"
+                [class.autocomplete-alt]="!item.isPreferred">{{ item.text }}</span>
+        </div>
+      }
+    </div>
+  }
+
+</div>

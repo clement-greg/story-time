@@ -7,4 +7,5 @@ export interface Series extends AuditedRecord {
     originalUrl?: string;
     systemPrompt?: string;
     collaborators?: string[];
+    archived?: boolean;
 }

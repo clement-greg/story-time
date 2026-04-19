@@ -10,6 +10,7 @@ import { ChapterComponent } from './chapter/chapter';
 import { ChapterEditComponent } from './chapter-edit/chapter-edit';
 import { EntityRelationshipDiagramComponent } from './entity-relationship-diagram/entity-relationship-diagram';
 import { LoginComponent } from './login/login';
+import { ArchivedComponent } from './archived/archived';
 import { authGuard } from './auth/auth.guard';
 import { authInterceptor } from './auth/auth.interceptor';
 
@@ -22,6 +23,7 @@ const routes: Routes = [
   { path: 'chapters', component: ChapterComponent, canActivate: [authGuard] },
   { path: 'chapters/:id/edit', component: ChapterEditComponent, canActivate: [authGuard] },
   { path: 'series/:seriesId/relationships', component: EntityRelationshipDiagramComponent, canActivate: [authGuard] },
+  { path: 'archived', component: ArchivedComponent, canActivate: [authGuard] },
   { path: '', redirectTo: 'series', pathMatch: 'full' },
 ];
 

@@ -1,0 +1,96 @@
+<div class="archived-container">
+  <div class="archived-header">
+    <h2>Archived Items</h2>
+  </div>
+
+  @if (loading()) {
+    <p class="loading">Loading...</p>
+  }
+
+  <!-- Archived Series -->
+  <section class="archived-section">
+    <h3 class="section-title">Series</h3>
+    @if (!loading() && archivedSeries().length === 0) {
+      <p class="empty">No archived series.</p>
+    }
+    <div class="archived-list">
+      @for (series of archivedSeries(); track series.id) {
+        <div class="archived-item">
+          <div class="item-thumb">
+            @if (series.thumnailUrl) {
+              <img [src]="proxyUrl(series.thumnailUrl)!" [alt]="series.title" />
+            } @else {
+              <mat-icon>menu_book</mat-icon>
+            }
+          </div>
+          <div class="item-info">
+            <span class="item-title">{{ series.title }}</span>
+            <span class="item-type">Series</span>
+          </div>
+          <button mat-stroked-button (click)="unarchiveSeries(series.id)" matTooltip="Restore this series">
+            <mat-icon>unarchive</mat-icon>
+            Restore
+          </button>
+        </div>
+      }
+    </div>
+  </section>
+
+  <!-- Archived Books -->
+  <section class="archived-section">
+    <h3 class="section-title">Books</h3>
+    @if (!loading() && archivedBooks().length === 0) {
+      <p class="empty">No archived books.</p>
+    }
+    <div class="archived-list">
+      @for (book of archivedBooks(); track book.id) {
+        <div class="archived-item">
+          <div class="item-thumb">
+            @if (book.thumnailUrl) {
+              <img [src]="proxyUrl(book.thumnailUrl)!" [alt]="book.title" />
+            } @else {
+              <mat-icon>book</mat-icon>
+            }
+          </div>
+          <div class="item-info">
+            <span class="item-title">{{ book.title }}</span>
+            <span class="item-type">Book</span>
+          </div>
+          <button mat-stroked-button (click)="unarchiveBook(book.id)" matTooltip="Restore this book">
+            <mat-icon>unarchive</mat-icon>
+            Restore
+          </button>
+        </div>
+      }
+    </div>
+  </section>
+
+  <!-- Archived Entities -->
+  <section class="archived-section">
+    <h3 class="section-title">Entities</h3>
+    @if (!loading() && archivedEntities().length === 0) {
+      <p class="empty">No archived entities.</p>
+    }
+    <div class="archived-list">
+      @for (entity of archivedEntities(); track entity.id) {
+        <div class="archived-item">
+          <div class="item-thumb">
+            @if (entity.thumbnailUrl) {
+              <img [src]="proxyUrl(entity.thumbnailUrl)!" [alt]="entity.name" />
+            } @else {
+              <mat-icon>person</mat-icon>
+            }
+          </div>
+          <div class="item-info">
+            <span class="item-title">{{ entity.name || '(unnamed)' }}</span>
+            <span class="item-type">{{ entity.type }}</span>
+          </div>
+          <button mat-stroked-button (click)="unarchiveEntity(entity.id)" matTooltip="Restore this entity">
+            <mat-icon>unarchive</mat-icon>
+            Restore
+          </button>
+        </div>
+      }
+    </div>
+  </section>
+</div>

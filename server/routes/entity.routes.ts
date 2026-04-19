@@ -44,6 +44,36 @@ router.get('/series/:seriesId', async (req: Request, res: Response) => {
   }
 });
 
+// GET archived entities by series
+router.get('/series/:seriesId/archived', async (req: Request, res: Response) => {
+  try {
+    const seriesId = req.params['seriesId'] as string;
+    const { resources } = await container.items
+      .query(withOwnerFilter(req, {
+        query: 'SELECT * FROM c WHERE c.seriesId = @seriesId AND c.archived = true',
+        parameters: [{ name: '@seriesId', value: seriesId }],
+      }))
+      .fetchAll();
+    res.json(resources as Entity[]);
+  } catch (err) {
+    console.error('Error fetching archived entities by series:', err);
+    res.status(500).json({ error: 'Failed to fetch archived entities' });
+  }
+});
+
+// GET all archived entities (cross-series)
+router.get('/archived', async (req: Request, res: Response) => {
+  try {
+    const { resources } = await container.items
+      .query(withOwnerFilter(req, 'SELECT * FROM c WHERE c.archived = true'))
+      .fetchAll();
+    res.json(resources as Entity[]);
+  } catch (err) {
+    console.error('Error fetching archived entities:', err);
+    res.status(500).json({ error: 'Failed to fetch archived entities' });
+  }
+});
+
 // GET single entity by id
 router.get('/:id', async (req: Request, res: Response) => {
   try {

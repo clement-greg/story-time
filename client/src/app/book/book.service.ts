@@ -32,6 +32,18 @@ export class BookService {
     return this.http.delete<void>(`${this.apiUrl}/${id}`);
   }
 
+  archive(id: string): Observable<Book> {
+    return this.http.patch<Book>(`${this.apiUrl}/${id}/archive`, {});
+  }
+
+  unarchive(id: string): Observable<Book> {
+    return this.http.patch<Book>(`${this.apiUrl}/${id}/unarchive`, {});
+  }
+
+  getArchived(): Observable<Book[]> {
+    return this.http.get<Book[]>(`${this.apiUrl}/archived`);
+  }
+
   uploadThumbnail(file: File): Observable<{ url: string; thumbnailUrl: string }> {
     const formData = new FormData();
     formData.append('file', file);

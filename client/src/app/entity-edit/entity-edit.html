@@ -111,10 +111,17 @@
     <button mat-button (click)="onCancel()">Cancel</button>
     <span class="action-spacer"></span>
     @if (entity().id) {
-      <button mat-button color="warn" (click)="onArchive()" [disabled]="uploading() || generatingImage()" matTooltip="Hide this entity from the entity list and chapter autocomplete">
-        <mat-icon>archive</mat-icon>
-        Archive
-      </button>
+      @if (entity().archived) {
+        <button mat-button (click)="onUnarchive()" [disabled]="uploading() || generatingImage()" matTooltip="Restore this entity to the active list">
+          <mat-icon>unarchive</mat-icon>
+          Unarchive
+        </button>
+      } @else {
+        <button mat-button color="warn" (click)="onArchive()" [disabled]="uploading() || generatingImage()" matTooltip="Hide this entity from the entity list and chapter autocomplete">
+          <mat-icon>archive</mat-icon>
+          Archive
+        </button>
+      }
     }
   </div>
 </div>

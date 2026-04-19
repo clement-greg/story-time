@@ -124,6 +124,13 @@
         <button mat-button (click)="closePanel()">Cancel</button>
       </div>
 
+      <div style="margin-top: 24px;">
+        <button mat-button color="warn" (click)="archiveSeries()" [disabled]="uploading()">
+          <mat-icon>archive</mat-icon>
+          Archive Series
+        </button>
+      </div>
+
       <mat-divider></mat-divider>
 
       <div class="collaborators-section">

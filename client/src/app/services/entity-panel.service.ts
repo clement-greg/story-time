@@ -13,6 +13,7 @@ export class EntityPanelService {
   editingEntity = signal<Entity | null>(null);
   isNewEntity = signal(false);
   entityLoading = signal(false);
+  showingArchived = signal(false);
 
   get panelWidth(): number {
     return this.editingEntity() ? 572 : 340;
@@ -22,6 +23,7 @@ export class EntityPanelService {
     this.seriesId.set(seriesId);
     this.editingEntity.set(null);
     this.isNewEntity.set(false);
+    this.showingArchived.set(false);
     this.isOpen.set(true);
     this.loadEntities(seriesId);
   }
@@ -34,13 +36,25 @@ export class EntityPanelService {
 
   loadEntities(seriesId: string): void {
     this.entityLoading.set(true);
-    this.entityService.getBySeries(seriesId).subscribe({
+    const fetch = this.showingArchived()
+      ? this.entityService.getArchivedBySeries(seriesId)
+      : this.entityService.getBySeries(seriesId);
+    fetch.subscribe({
       next: (data) => {
         this.entityList.set(data);
         this.entityLoading.set(false);
       },
       error: () => this.entityLoading.set(false),
     });
+  }
+
+  toggleArchived(): void {
+    const seriesId = this.seriesId();
+    if (!seriesId) return;
+    this.editingEntity.set(null);
+    this.isNewEntity.set(false);
+    this.showingArchived.update(v => !v);
+    this.loadEntities(seriesId);
   }
 
   addEntity(): void {
@@ -95,6 +109,17 @@ export class EntityPanelService {
 
   archiveEntity(id: string): void {
     this.entityService.archive(id).subscribe({
+      next: () => {
+        this.entityList.update((list) => list.filter((e) => e.id !== id));
+        if (this.editingEntity()?.id === id) {
+          this.editingEntity.set(null);
+        }
+      },
+    });
+  }
+
+  unarchiveEntity(id: string): void {
+    this.entityService.unarchive(id).subscribe({
       next: () => {
         this.entityList.update((list) => list.filter((e) => e.id !== id));
         if (this.editingEntity()?.id === id) {

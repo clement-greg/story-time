@@ -33,6 +33,10 @@
     </button>
     <mat-menu #userMenu="matMenu">
       <div class="user-email-item">{{ user.email }}</div>
+      <button mat-menu-item routerLink="/archived">
+        <mat-icon>archive</mat-icon>
+        Archived Items
+      </button>
       <button mat-menu-item (click)="signOut()">
         <mat-icon>logout</mat-icon>
         Sign out

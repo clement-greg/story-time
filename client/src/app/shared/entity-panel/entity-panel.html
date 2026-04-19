@@ -11,9 +11,17 @@
       <!-- Icon rail / full list -->
       <div class="entity-list-col" [class.entity-list-col-narrow]="panel.editingEntity()">
         <div class="entity-col-header">
-          @if (!panel.editingEntity()) { <h3>Entities</h3> }
-          <button mat-icon-button (click)="panel.addEntity()" matTooltip="Add entity">
-            <mat-icon>add</mat-icon>
+          @if (!panel.editingEntity()) {
+            <h3>{{ panel.showingArchived() ? 'Archived' : 'Entities' }}</h3>
+          }
+          @if (!panel.showingArchived()) {
+            <button mat-icon-button (click)="panel.addEntity()" matTooltip="Add entity">
+              <mat-icon>add</mat-icon>
+            </button>
+          }
+          <button mat-icon-button (click)="panel.toggleArchived()"
+                  [matTooltip]="panel.showingArchived() ? 'Show active entities' : 'Show archived entities'">
+            <mat-icon>{{ panel.showingArchived() ? 'inventory_2' : 'archive' }}</mat-icon>
           </button>
         </div>
 
@@ -40,10 +48,6 @@
               @if (!panel.editingEntity()) {
                 <span class="entity-type-badge">{{ entity.type }}</span>
                 <span class="entity-name">{{ entity.name || '(unnamed)' }}</span>
-                <button mat-icon-button color="warn" class="entity-delete-btn"
-                        (click)="panel.deleteEntity(entity.id); $event.stopPropagation()">
-                  <mat-icon>delete</mat-icon>
-                </button>
               }
             </div>
           }
@@ -57,7 +61,8 @@
             [entity]="panel.editingEntity()!"
             (save)="panel.saveEntityEdit($event)"
             (cancel)="panel.cancelEditEntity()"
-            (archive)="panel.archiveEntity($event)" />
+            (archive)="panel.archiveEntity($event)"
+            (unarchive)="panel.unarchiveEntity($event)" />
         </div>
       }
 

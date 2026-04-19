@@ -267,6 +267,14 @@ export class SeriesDetailComponent implements OnInit, OnDestroy {
     });
   }
 
+  archiveSeries(): void {
+    const s = this.series();
+    if (!s) return;
+    this.seriesService.archive(s.id).subscribe({
+      next: () => this.router.navigate(['/series']),
+    });
+  }
+
   addCollaborator(): void {
     const s = this.editingSeries();
     const email = this.newCollaboratorEmail().trim();

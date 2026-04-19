@@ -27,6 +27,9 @@
       <div class="chapters-header">
         <h2>Chapters</h2>
         <div class="chapters-header-actions">
+          <button mat-stroked-button (click)="openNotes()">
+            <mat-icon>notes</mat-icon> Notes
+          </button>
           <button mat-stroked-button [matMenuTriggerFor]="exportMenu" [disabled]="exporting()">
             <mat-icon>download</mat-icon>
             {{ exporting() ? 'Exporting...' : 'Export' }}
@@ -70,7 +73,17 @@
   </div>
 
   <div right-panel>
-    @if (editingBook()) {
+    @if (panelMode() === 'notes') {
+      <div class="editor-content notes-panel-content">
+        <div class="notes-panel-header">
+          <h3>Book Notes</h3>
+        </div>
+        @if (book() && seriesId()) {
+          <app-book-notes [bookId]="book()!.id" [seriesId]="seriesId()" />
+        }
+      </div>
+    }
+    @if (panelMode() === 'edit') {
       <div class="editor-content">
         <h3>Edit Book</h3>
         <mat-form-field appearance="outline">
@@ -103,6 +116,12 @@
         <div class="editor-actions">
           <button mat-flat-button (click)="saveEdit()" [disabled]="uploading()">Save</button>
           <button mat-button (click)="closePanel()">Cancel</button>
+        </div>
+        <div style="margin-top: 24px;">
+          <button mat-button color="warn" (click)="archiveBook()" [disabled]="uploading()">
+            <mat-icon>archive</mat-icon>
+            Archive Book
+          </button>
         </div>
       </div>
     }

@@ -40,7 +40,8 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
     );
 
     res.json({ token: customToken });
-  } catch {
+  } catch (err) {
+    console.error('[auth/login] verifyIdToken failed:', err);
     res.status(401).json({ error: 'Invalid Google credential' });
   }
 });

@@ -39,6 +39,7 @@ export class EntityEditComponent {
   save = output<Entity>();
   cancel = output<void>();
   archive = output<string>();
+  unarchive = output<string>();
 
   readonly entityTypes: Entity['type'][] = ['PERSON', 'PLACE', 'THING'];
   readonly referenceOptions: { value: EntityReference; label: string }[] = [
@@ -166,6 +167,13 @@ export class EntityEditComponent {
     const d = this.draft();
     if (d?.id) {
       this.archive.emit(d.id);
+    }
+  }
+
+  onUnarchive(): void {
+    const d = this.draft();
+    if (d?.id) {
+      this.unarchive.emit(d.id);
     }
   }
 

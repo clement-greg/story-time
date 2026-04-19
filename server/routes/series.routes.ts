@@ -20,7 +20,7 @@ router.get('/', async (req: Request, res: Response) => {
     const email = req.user!.email;
     const { resources } = await container.items
       .query({
-        query: 'SELECT * FROM c WHERE c.owner = @owner OR ARRAY_CONTAINS(c.collaborators, @email)',
+        query: 'SELECT * FROM c WHERE (c.owner = @owner OR ARRAY_CONTAINS(c.collaborators, @email)) AND (NOT IS_DEFINED(c.archived) OR c.archived = false)',
         parameters: [
           { name: '@owner', value: email },
           { name: '@email', value: email },
@@ -31,6 +31,23 @@ router.get('/', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('Error fetching series:', err);
     res.status(500).json({ error: 'Failed to fetch series' });
+  }
+});
+
+// GET all archived series (owned only)
+router.get('/archived', async (req: Request, res: Response) => {
+  try {
+    const email = req.user!.email;
+    const { resources } = await container.items
+      .query({
+        query: 'SELECT * FROM c WHERE c.owner = @owner AND c.archived = true',
+        parameters: [{ name: '@owner', value: email }],
+      })
+      .fetchAll();
+    res.json(resources as Series[]);
+  } catch (err) {
+    console.error('Error fetching archived series:', err);
+    res.status(500).json({ error: 'Failed to fetch archived series' });
   }
 });
 
@@ -82,6 +99,42 @@ router.put('/:id', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('Error updating series:', err);
     res.status(500).json({ error: 'Failed to update series' });
+  }
+});
+
+// PATCH archive series
+router.patch('/:id/archive', async (req: Request, res: Response) => {
+  try {
+    const id = req.params['id'] as string;
+    const existing = await readOwnedItem<Series>(container, id, id, req);
+    if (!existing) {
+      res.status(404).json({ error: 'Series not found' });
+      return;
+    }
+    const updated: Series = { ...existing, archived: true, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };
+    const { resource } = await container.item(id, id).replace<Series>(updated);
+    res.json(resource);
+  } catch (err) {
+    console.error('Error archiving series:', err);
+    res.status(500).json({ error: 'Failed to archive series' });
+  }
+});
+
+// PATCH unarchive series
+router.patch('/:id/unarchive', async (req: Request, res: Response) => {
+  try {
+    const id = req.params['id'] as string;
+    const existing = await readOwnedItem<Series>(container, id, id, req);
+    if (!existing) {
+      res.status(404).json({ error: 'Series not found' });
+      return;
+    }
+    const updated: Series = { ...existing, archived: false, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };
+    const { resource } = await container.item(id, id).replace<Series>(updated);
+    res.json(resource);
+  } catch (err) {
+    console.error('Error unarchiving series:', err);
+    res.status(500).json({ error: 'Failed to unarchive series' });
   }
 });
 

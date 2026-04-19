@@ -7,4 +7,6 @@ export interface Book extends AuditedRecord {
     thumnailUrl?: string;
     originalUrl?: string;
     sortOrder?: number;
+    archived?: boolean;
+    notes?: string;
 }

@@ -12,12 +12,25 @@ const seriesContainer = getContainer('series');
 router.get('/', async (req: Request, res: Response) => {
   try {
     const { resources } = await container.items
-      .query(withOwnerFilter(req, 'SELECT * FROM c'))
+      .query(withOwnerFilter(req, 'SELECT * FROM c WHERE (NOT IS_DEFINED(c.archived) OR c.archived = false)'))
       .fetchAll();
     res.json(resources as Book[]);
   } catch (err) {
     console.error('Error fetching books:', err);
     res.status(500).json({ error: 'Failed to fetch books' });
+  }
+});
+
+// GET all archived books
+router.get('/archived', async (req: Request, res: Response) => {
+  try {
+    const { resources } = await container.items
+      .query(withOwnerFilter(req, 'SELECT * FROM c WHERE c.archived = true'))
+      .fetchAll();
+    res.json(resources as Book[]);
+  } catch (err) {
+    console.error('Error fetching archived books:', err);
+    res.status(500).json({ error: 'Failed to fetch archived books' });
   }
 });
 
@@ -33,7 +46,7 @@ router.get('/series/:seriesId', async (req: Request, res: Response) => {
     }
     const { resources } = await container.items
       .query({
-        query: 'SELECT * FROM c WHERE c.seriesId = @seriesId',
+        query: 'SELECT * FROM c WHERE c.seriesId = @seriesId AND (NOT IS_DEFINED(c.archived) OR c.archived = false)',
         parameters: [{ name: '@seriesId', value: seriesId }],
       })
       .fetchAll();
@@ -115,6 +128,42 @@ router.put('/:id', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('Error updating book:', err);
     res.status(500).json({ error: 'Failed to update book' });
+  }
+});
+
+// PATCH archive book
+router.patch('/:id/archive', async (req: Request, res: Response) => {
+  try {
+    const id = req.params['id'] as string;
+    const existing = await readAccessibleItem<Book>(container, id, id, req);
+    if (!existing) {
+      res.status(404).json({ error: 'Book not found' });
+      return;
+    }
+    const updated: Book = { ...existing, archived: true, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };
+    const { resource } = await container.item(id, id).replace<Book>(updated);
+    res.json(resource);
+  } catch (err) {
+    console.error('Error archiving book:', err);
+    res.status(500).json({ error: 'Failed to archive book' });
+  }
+});
+
+// PATCH unarchive book
+router.patch('/:id/unarchive', async (req: Request, res: Response) => {
+  try {
+    const id = req.params['id'] as string;
+    const existing = await readAccessibleItem<Book>(container, id, id, req);
+    if (!existing) {
+      res.status(404).json({ error: 'Book not found' });
+      return;
+    }
+    const updated: Book = { ...existing, archived: false, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };
+    const { resource } = await container.item(id, id).replace<Book>(updated);
+    res.json(resource);
+  } catch (err) {
+    console.error('Error unarchiving book:', err);
+    res.status(500).json({ error: 'Failed to unarchive book' });
   }
 });
 

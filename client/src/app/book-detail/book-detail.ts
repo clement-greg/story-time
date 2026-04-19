@@ -19,6 +19,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { HeaderService } from '../services/header.service';
 import { EntityPanelService } from '../services/entity-panel.service';
 import { SlideOutPanelContainer } from '../shared/slide-out-panel-container/slide-out-panel-container';
+import { BookNotesComponent } from '../book-notes/book-notes';
 
 @Component({
   selector: 'app-book-detail',
@@ -33,6 +34,7 @@ import { SlideOutPanelContainer } from '../shared/slide-out-panel-container/slid
     DragDropModule,
     MatMenuModule,
     SlideOutPanelContainer,
+    BookNotesComponent,
   ],
   templateUrl: './book-detail.html',
   styleUrl: './book-detail.css',
@@ -56,6 +58,10 @@ export class BookDetailComponent implements OnInit, OnDestroy {
   uploading = signal(false);
   thumbnailPreview = signal<string | null>(null);
   exporting = signal(false);
+  panelMode = signal<'edit' | 'notes' | null>(null);
+  notesContent = signal<string>('');
+  savingNotes = signal(false);
+  seriesId = signal<string>('');
 
   get rightPanelWidth(): number {
     return 420;
@@ -73,6 +79,7 @@ export class BookDetailComponent implements OnInit, OnDestroy {
         this.book.set(data);
         this.seriesService.getById(data.seriesId).subscribe({
           next: (series) => {
+            this.seriesId.set(series.id);
             this.headerService.set(
               [{ label: series.title, link: '/series/' + series.id }, { label: data.title }],
               [
@@ -103,6 +110,12 @@ export class BookDetailComponent implements OnInit, OnDestroy {
     if (!b) return;
     this.editingBook.set({ ...b });
     this.thumbnailPreview.set(this.proxyUrl(b.thumnailUrl));
+    this.panelMode.set('edit');
+    this.showPanel.set(true);
+  }
+
+  openNotes(): void {
+    this.panelMode.set('notes');
     this.showPanel.set(true);
   }
 
@@ -111,6 +124,7 @@ export class BookDetailComponent implements OnInit, OnDestroy {
     if (!open) {
       this.editingBook.set(null);
       this.thumbnailPreview.set(null);
+      this.panelMode.set(null);
     }
   }
 
@@ -118,6 +132,7 @@ export class BookDetailComponent implements OnInit, OnDestroy {
     this.showPanel.set(false);
     this.editingBook.set(null);
     this.thumbnailPreview.set(null);
+    this.panelMode.set(null);
   }
 
   updateTitle(value: string): void {
@@ -158,6 +173,14 @@ export class BookDetailComponent implements OnInit, OnDestroy {
         this.book.set(updated);
         this.closePanel();
       },
+    });
+  }
+
+  archiveBook(): void {
+    const b = this.book();
+    if (!b) return;
+    this.bookService.archive(b.id).subscribe({
+      next: () => this.goBack(),
     });
   }
 

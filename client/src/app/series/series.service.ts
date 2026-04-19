@@ -28,6 +28,18 @@ export class SeriesService {
     return this.http.delete<void>(`${this.apiUrl}/${id}`);
   }
 
+  archive(id: string): Observable<Series> {
+    return this.http.patch<Series>(`${this.apiUrl}/${id}/archive`, {});
+  }
+
+  unarchive(id: string): Observable<Series> {
+    return this.http.patch<Series>(`${this.apiUrl}/${id}/unarchive`, {});
+  }
+
+  getArchived(): Observable<Series[]> {
+    return this.http.get<Series[]>(`${this.apiUrl}/archived`);
+  }
+
   uploadThumbnail(file: File): Observable<{ url: string; thumbnailUrl: string }> {
     const formData = new FormData();
     formData.append('file', file);

@@ -2,6 +2,7 @@ export * from './hello-response';
 export * from './audited-record';
 export * from './series.model';
 export * from './book.model';
+export * from './book-note.model';
 export * from './chapter.model';
 export * from './entity.model';
 export * from './entity-relationship.model';
