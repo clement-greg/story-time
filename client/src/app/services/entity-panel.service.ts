@@ -93,6 +93,17 @@ export class EntityPanelService {
     });
   }
 
+  archiveEntity(id: string): void {
+    this.entityService.archive(id).subscribe({
+      next: () => {
+        this.entityList.update((list) => list.filter((e) => e.id !== id));
+        if (this.editingEntity()?.id === id) {
+          this.editingEntity.set(null);
+        }
+      },
+    });
+  }
+
   proxyUrl(url: string | undefined): string | null {
     if (!url) return null;
     const filename = url.split('/').pop();

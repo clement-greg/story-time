@@ -1,5 +1,31 @@
 <div class="entity-edit-form">
-  <mat-form-field appearance="outline">
+    <div class="thumbnail-section">
+    <div class="thumbnail-preview">
+      @if (thumbnailPreview()) {
+        <img [src]="thumbnailPreview()!" alt="Thumbnail preview" />
+      } @else {
+        <mat-icon class="thumbnail-placeholder-icon">image</mat-icon>
+      }
+      @if (uploading() || generatingImage()) {
+        <div class="upload-overlay">
+          <mat-spinner diameter="36" />
+        </div>
+      }
+    </div>
+    <div class="thumbnail-actions" >
+      <button mat-stroked-button type="button" (click)="fileInput.click()" [disabled]="uploading() || generatingImage()" title="Upload image">
+        <mat-icon>upload</mat-icon>
+        Upload
+      </button>
+      <button mat-stroked-button type="button" (click)="openGenerateImageDialog()" [disabled]="uploading() || generatingImage()" title="Generate image with AI">
+        <mat-icon>auto_awesome</mat-icon>
+        Generate
+      </button>
+      <input #fileInput type="file" accept="image/*" hidden (change)="onFileSelected($event)" />
+    </div>
+  </div>
+
+  <mat-form-field appearance="outline" style="max-width: 200px;margin-top: 30px;">
     <mat-label>Type</mat-label>
     <mat-select [ngModel]="draft()!.type"
                 (ngModelChange)="update('type', $event)">
@@ -39,7 +65,7 @@
              (ngModelChange)="update('nickname', $event)" />
     </mat-form-field>
 
-    <mat-form-field appearance="outline">
+    <mat-form-field appearance="outline" style="max-width: 250px;">
       <mat-label>Preferred Reference</mat-label>
       <mat-select [ngModel]="draft()!.preferredReference"
                   (ngModelChange)="update('preferredReference', $event)">
@@ -71,7 +97,7 @@
     </button>
   }
 
-  <mat-form-field appearance="outline">
+  <mat-form-field appearance="outline" style="margin-top: 40px;">
     <mat-label>Short biography</mat-label>
     <textarea matInput rows="3"
               [ngModel]="draft()!.biography"
@@ -79,39 +105,16 @@
               placeholder="Enter a short biography"></textarea>
   </mat-form-field>
 
-  <div class="thumbnail-section">
-    <div class="thumbnail-preview">
-      @if (thumbnailPreview()) {
-        <img [src]="thumbnailPreview()!" alt="Thumbnail preview" />
-      } @else {
-        <mat-icon class="thumbnail-placeholder-icon">image</mat-icon>
-      }
-      @if (uploading() || generatingImage()) {
-        <div class="upload-overlay">
-          <mat-spinner diameter="36" />
-        </div>
-      }
-    </div>
-    <div class="thumbnail-actions">
-      <button mat-stroked-button type="button" (click)="fileInput.click()" [disabled]="uploading() || generatingImage()" title="Upload image">
-        <mat-icon>upload</mat-icon>
-        Upload
-      </button>
-      <button mat-stroked-button type="button" (click)="openGenerateImageDialog()" [disabled]="uploading() || generatingImage()" title="Generate image with AI">
-        <mat-icon>auto_awesome</mat-icon>
-        Generate
-      </button>
-      <input #fileInput type="file" accept="image/*" hidden (change)="onFileSelected($event)" />
-    </div>
-  </div>
 
-  <div class="entity-edit-actions">
+  <div class="entity-edit-actions" style="margin-top: 40px;">
     <button mat-flat-button color="primary" (click)="onSave()" [disabled]="uploading() || generatingImage()">Save</button>
     <button mat-button (click)="onCancel()">Cancel</button>
     <span class="action-spacer"></span>
-    <button mat-stroked-button (click)="openRelationshipDiagram()" title="Open relationship diagram">
-      <mat-icon>account_tree</mat-icon>
-      Relationships
-    </button>
+    @if (entity().id) {
+      <button mat-button color="warn" (click)="onArchive()" [disabled]="uploading() || generatingImage()" matTooltip="Hide this entity from the entity list and chapter autocomplete">
+        <mat-icon>archive</mat-icon>
+        Archive
+      </button>
+    }
   </div>
 </div>

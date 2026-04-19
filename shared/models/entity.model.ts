@@ -16,4 +16,5 @@ export interface Entity extends AuditedRecord {
     nickname?: string;
     preferredReference?: EntityReference;
     personality?: string;
+    archived?: boolean;
 }

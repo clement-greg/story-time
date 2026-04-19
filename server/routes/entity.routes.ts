@@ -18,7 +18,7 @@ const container = getContainer('entities');
 router.get('/', async (req: Request, res: Response) => {
   try {
     const { resources } = await container.items
-      .query(withOwnerFilter(req, 'SELECT * FROM c'))
+      .query(withOwnerFilter(req, 'SELECT * FROM c WHERE (NOT IS_DEFINED(c.archived) OR c.archived = false)'))
       .fetchAll();
     res.json(resources as Entity[]);
   } catch (err) {
@@ -33,7 +33,7 @@ router.get('/series/:seriesId', async (req: Request, res: Response) => {
     const seriesId = req.params['seriesId'] as string;
     const { resources } = await container.items
       .query(withOwnerFilter(req, {
-        query: 'SELECT * FROM c WHERE c.seriesId = @seriesId',
+        query: 'SELECT * FROM c WHERE c.seriesId = @seriesId AND (NOT IS_DEFINED(c.archived) OR c.archived = false)',
         parameters: [{ name: '@seriesId', value: seriesId }],
       }))
       .fetchAll();
@@ -100,6 +100,42 @@ router.put('/:id', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('Error updating entity:', err);
     res.status(500).json({ error: 'Failed to update entity' });
+  }
+});
+
+// PATCH archive entity
+router.patch('/:id/archive', async (req: Request, res: Response) => {
+  try {
+    const id = req.params['id'] as string;
+    const existing = await readOwnedItem<Entity>(container, id, id, req);
+    if (!existing) {
+      res.status(404).json({ error: 'Entity not found' });
+      return;
+    }
+    const updated: Entity = { ...existing, archived: true, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };
+    const { resource } = await container.item(id, id).replace<Entity>(updated);
+    res.json(resource);
+  } catch (err) {
+    console.error('Error archiving entity:', err);
+    res.status(500).json({ error: 'Failed to archive entity' });
+  }
+});
+
+// PATCH unarchive entity
+router.patch('/:id/unarchive', async (req: Request, res: Response) => {
+  try {
+    const id = req.params['id'] as string;
+    const existing = await readOwnedItem<Entity>(container, id, id, req);
+    if (!existing) {
+      res.status(404).json({ error: 'Entity not found' });
+      return;
+    }
+    const updated: Entity = { ...existing, archived: false, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };
+    const { resource } = await container.item(id, id).replace<Entity>(updated);
+    res.json(resource);
+  } catch (err) {
+    console.error('Error unarchiving entity:', err);
+    res.status(500).json({ error: 'Failed to unarchive entity' });
   }
 });
 

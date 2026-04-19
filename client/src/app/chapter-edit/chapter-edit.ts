@@ -704,6 +704,15 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     });
   }
 
+  archiveEntityEdit(id: string): void {
+    this.entityService.archive(id).subscribe({
+      next: () => {
+        this.entities.update(list => list.filter(e => e.id !== id));
+        this.editingEntity.set(null);
+      },
+    });
+  }
+
   cancelEntityEdit(): void {
     this.editingEntity.set(null);
   }

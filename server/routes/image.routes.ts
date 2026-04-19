@@ -6,47 +6,88 @@ import config from '../config';
 
 const router = Router();
 
-// POST /api/image/generate  — { prompt: string } → { url, thumbnailUrl }
+// POST /api/image/generate  — { prompt: string, provider?: 'gpt' | 'gemini' } → { url, thumbnailUrl }
 router.post('/generate', async (req: Request, res: Response) => {
-  const { prompt } = req.body as { prompt?: string };
+  const { prompt, provider = 'gpt' } = req.body as { prompt?: string; provider?: 'gpt' | 'gemini' };
   if (!prompt?.trim()) {
     res.status(400).json({ error: 'prompt is required' });
     return;
   }
 
   try {
-    const genRes = await fetch(config.foundry.imageGenerationEndpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'api-key': config.foundry.imageGenerationKey,
-      },
-      body: JSON.stringify({
-        prompt: prompt.trim(),
-        n: 1,
-        size: '1024x1024',
-      }),
-    });
-
-    if (!genRes.ok) {
-      const errText = await genRes.text();
-      console.error('Image generation API error:', errText);
-      res.status(502).json({ error: 'Image generation failed' });
-      return;
-    }
-
-    const genData = await genRes.json() as { data: { b64_json?: string; url?: string }[] };
-    const item = genData.data?.[0];
     let imageBuffer: Buffer;
 
-    if (item?.b64_json) {
-      imageBuffer = Buffer.from(item.b64_json, 'base64');
-    } else if (item?.url) {
-      const imgRes = await fetch(item.url);
-      imageBuffer = Buffer.from(await imgRes.arrayBuffer());
+    if (provider === 'gemini') {
+      // Google AI Studio — Gemini image generation via generateContent
+      const modelId = config.googleAIStudio.model;
+      const geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelId)}:generateContent`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': config.googleAIStudio.apiKey,
+          },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt.trim() }] }],
+            generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
+          }),
+        }
+      );
+
+      if (!geminiRes.ok) {
+        const errText = await geminiRes.text();
+        console.error('Gemini image generation API error:', errText);
+        res.status(502).json({ error: 'Image generation failed' });
+        return;
+      }
+
+      const geminiData = await geminiRes.json() as {
+        candidates: { content: { parts: { text?: string; inlineData?: { mimeType: string; data: string } }[] } }[]
+      };
+
+      const parts = geminiData.candidates?.[0]?.content?.parts ?? [];
+      const imagePart = parts.find(p => p.inlineData);
+      if (!imagePart?.inlineData) {
+        res.status(502).json({ error: 'No image returned from Gemini API' });
+        return;
+      }
+
+      imageBuffer = Buffer.from(imagePart.inlineData.data, 'base64');
     } else {
-      res.status(502).json({ error: 'No image returned from generation API' });
-      return;
+      // Azure Foundry — GPT image generation
+      const genRes = await fetch(config.foundry.imageGenerationEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'api-key': config.foundry.imageGenerationKey,
+        },
+        body: JSON.stringify({
+          prompt: prompt.trim(),
+          n: 1,
+          size: '1024x1024',
+        }),
+      });
+
+      if (!genRes.ok) {
+        const errText = await genRes.text();
+        console.error('Image generation API error:', errText);
+        res.status(502).json({ error: 'Image generation failed' });
+        return;
+      }
+
+      const genData = await genRes.json() as { data: { b64_json?: string; url?: string }[] };
+      const item = genData.data?.[0];
+
+      if (item?.b64_json) {
+        imageBuffer = Buffer.from(item.b64_json, 'base64');
+      } else if (item?.url) {
+        const imgRes = await fetch(item.url);
+        imageBuffer = Buffer.from(await imgRes.arrayBuffer());
+      } else {
+        res.status(502).json({ error: 'No image returned from generation API' });
+        return;
+      }
     }
 
     const id = uuidv4();

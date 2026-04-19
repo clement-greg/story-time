@@ -305,7 +305,8 @@
         <app-entity-edit
           [entity]="editingEntity()!"
           (save)="saveEntityEdit($event)"
-          (cancel)="cancelEntityEdit()" />
+          (cancel)="cancelEntityEdit()"
+          (archive)="archiveEntityEdit($event)" />
       </div>
     }
   </div>

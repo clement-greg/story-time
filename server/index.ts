@@ -18,6 +18,15 @@ import exportRoutes from './routes/export.routes';
 const app = express();
 const PORT = process.env['PORT'] || 3200;
 
+// Required for Google Sign-In (GSI) to work: the GSI library uses postMessage
+// between the popup/iframe and the opener. A strict COOP header (same-origin)
+// blocks that channel. Azure App Service sets same-origin by default, so we
+// explicitly override it to same-origin-allow-popups for HTML document responses.
+app.use((_req: Request, res: Response, next) => {
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  next();
+});
+
 app.use(express.json());
 
 // Public route — used to verify login and return user profile

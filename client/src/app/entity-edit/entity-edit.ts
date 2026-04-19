@@ -7,11 +7,12 @@ import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog } from '@angular/material/dialog';
 import { TextFieldModule } from '@angular/cdk/text-field';
 import { Entity, EntityReference } from '@shared/models/entity.model';
 import { EntityService } from '../services/entity.service';
-import { ImageGenDialogComponent } from './image-gen-dialog';
+import { ImageGenDialogComponent, ImageGenResult } from './image-gen-dialog';
 
 @Component({
   selector: 'app-entity-edit',
@@ -23,6 +24,7 @@ import { ImageGenDialogComponent } from './image-gen-dialog';
     MatFormFieldModule,
     MatSelectModule,
     MatProgressSpinnerModule,
+    MatTooltipModule,
     TextFieldModule,
   ],
   templateUrl: './entity-edit.html',
@@ -36,6 +38,7 @@ export class EntityEditComponent {
   entity = input.required<Entity>();
   save = output<Entity>();
   cancel = output<void>();
+  archive = output<string>();
 
   readonly entityTypes: Entity['type'][] = ['PERSON', 'PLACE', 'THING'];
   readonly referenceOptions: { value: EntityReference; label: string }[] = [
@@ -119,10 +122,10 @@ export class EntityEditComponent {
 
   openGenerateImageDialog(): void {
     const dialogRef = this.dialog.open(ImageGenDialogComponent, { width: '500px' });
-    dialogRef.afterClosed().subscribe((prompt: string | undefined) => {
-      if (!prompt) return;
+    dialogRef.afterClosed().subscribe((result: ImageGenResult | undefined) => {
+      if (!result) return;
       this.generatingImage.set(true);
-      this.entityService.generateImage(prompt).subscribe({
+      this.entityService.generateImage(result.prompt, result.provider).subscribe({
         next: ({ url, thumbnailUrl }) => {
           const current = this.draft();
           if (current) {
@@ -157,6 +160,13 @@ export class EntityEditComponent {
 
   onCancel(): void {
     this.cancel.emit();
+  }
+
+  onArchive(): void {
+    const d = this.draft();
+    if (d?.id) {
+      this.archive.emit(d.id);
+    }
   }
 
   openRelationshipDiagram(): void {

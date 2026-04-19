@@ -62,8 +62,10 @@
 .thumbnail-actions {
   display: flex;
   gap: 8px;
+  margin-top: -50px;
 }
 
 .thumbnail-actions button {
   flex: 1;
+  color: #fff;
 }

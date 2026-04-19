@@ -32,6 +32,14 @@ export class EntityService {
     return this.http.delete<void>(`${this.apiUrl}/${id}`);
   }
 
+  archive(id: string): Observable<Entity> {
+    return this.http.patch<Entity>(`${this.apiUrl}/${id}/archive`, {});
+  }
+
+  unarchive(id: string): Observable<Entity> {
+    return this.http.patch<Entity>(`${this.apiUrl}/${id}/unarchive`, {});
+  }
+
   uploadThumbnail(file: File): Observable<{ url: string; thumbnailUrl: string }> {
     const formData = new FormData();
     formData.append('file', file);
@@ -42,7 +50,7 @@ export class EntityService {
     return this.http.post<{ personality: string }>(`${this.apiUrl}/${entityId}/generate-personality`, { basicDescription });
   }
 
-  generateImage(prompt: string): Observable<{ url: string; thumbnailUrl: string }> {
-    return this.http.post<{ url: string; thumbnailUrl: string }>('/api/image/generate', { prompt });
+  generateImage(prompt: string, provider: 'gpt' | 'gemini' = 'gpt'): Observable<{ url: string; thumbnailUrl: string }> {
+    return this.http.post<{ url: string; thumbnailUrl: string }>('/api/image/generate', { prompt, provider });
   }
 }
