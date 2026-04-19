@@ -101,6 +101,13 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   selectedVersion = signal<ChapterVersion | null>(null);
   diffLines = signal<{ type: 'same' | 'add' | 'remove'; text: string }[]>([]);
 
+  // Mobile chat panel toggle
+  mobileChatOpen = signal(false);
+
+  // Mobile title edit
+  mobileTitleEditOpen = signal(false);
+  mobileTitleDraft = signal('');
+
   // Inline AI prompt (Ctrl+.)
   inlineAiVisible = signal(false);
   inlineAiTop = signal(0);

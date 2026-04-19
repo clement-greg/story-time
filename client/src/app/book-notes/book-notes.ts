@@ -1,6 +1,6 @@
 import {
   Component, inject, signal, input, OnInit, OnDestroy,
-  ElementRef, ViewChild, HostListener, effect,
+  ElementRef, ViewChild, HostListener, effect, NgZone, ChangeDetectorRef,
 } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
@@ -32,6 +32,8 @@ export class BookNotesComponent implements OnInit, OnDestroy {
   private http = inject(HttpClient);
   private sanitizer = inject(DomSanitizer);
   private entityService = inject(EntityService);
+  private zone = inject(NgZone);
+  private cdr = inject(ChangeDetectorRef);
 
   bookId = input.required<string>();
   seriesId = input.required<string>();
@@ -43,6 +45,16 @@ export class BookNotesComponent implements OnInit, OnDestroy {
   editContent = signal('');
 
   entities = signal<Entity[]>([]);
+
+  // Speech-to-text (push-to-talk)
+  speechSupported = signal(false);
+  pttActive = signal(false);
+  pttDisplayText = signal('');
+  sttConnected = signal(false);
+  private speechRecognition: any;
+  private pttTranscript = '';
+  private pttSessionGen = 0;
+  private pttAudioCtx: AudioContext | null = null;
 
   // Autocomplete
   autocompleteItems = signal<{ entity: Entity; text: string; isPreferred: boolean }[]>([]);
@@ -67,9 +79,13 @@ export class BookNotesComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.loadNotes();
+    this.initializeSpeechToText();
   }
 
-  ngOnDestroy(): void {}
+  ngOnDestroy(): void {
+    this.pttActive.set(false);
+    try { this.speechRecognition?.stop(); } catch { /* ok */ }
+  }
 
   loadNotes(): void {
     const id = this.bookId();
@@ -166,6 +182,146 @@ export class BookNotesComponent implements OnInit, OnDestroy {
     if (!url) return null;
     const filename = url.split('/').pop();
     return filename ? `/api/image/${filename}` : null;
+  }
+
+  // ── Speech-to-text (push-to-talk) ──────────────────────────────────────
+
+  private initializeSpeechToText(): void {
+    const Ctor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    this.speechSupported.set(!!Ctor);
+  }
+
+  pttPress(): void {
+    if (this.pttActive() || !this.speechSupported()) return;
+    this.pttActive.set(true);
+    this.sttConnected.set(false);
+    this.pttTranscript = '';
+    this.pttDisplayText.set('');
+    this.pttSessionGen++;
+    const gen = this.pttSessionGen;
+
+    this.playPttStartTone();
+
+    const Ctor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const recognition = new Ctor();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+    recognition.maxAlternatives = 1;
+
+    recognition.onaudiostart = () => {
+      if (gen !== this.pttSessionGen) return;
+      this.zone.run(() => { this.sttConnected.set(true); });
+    };
+
+    recognition.onresult = (event: any) => {
+      if (gen !== this.pttSessionGen) return;
+      this.zone.run(() => {
+        let finalText = '';
+        let interim = '';
+        for (let i = 0; i < event.results.length; i++) {
+          const text = event.results[i][0]?.transcript || '';
+          if (event.results[i].isFinal) finalText += text;
+          else interim += text;
+        }
+        this.pttTranscript = finalText;
+        this.pttDisplayText.set((finalText + ' ' + interim).trim());
+      });
+    };
+
+    recognition.onerror = (event: any) => {
+      console.warn('[STT] error:', event.error, event.message);
+    };
+
+    recognition.onend = () => {
+      if (gen !== this.pttSessionGen) return;
+      this.zone.run(() => {
+        this.sttConnected.set(false);
+        if (this.pttActive()) {
+          try { this.pttPress(); } catch { /* ok */ }
+        }
+      });
+    };
+
+    this.speechRecognition = recognition;
+    try {
+      recognition.start();
+    } catch (e) {
+      console.error('[STT] Failed to start:', e);
+      this.pttActive.set(false);
+    }
+  }
+
+  pttRelease(): void {
+    if (!this.pttActive()) return;
+    this.pttActive.set(false);
+    this.playPttStopTone();
+
+    const gen = this.pttSessionGen;
+    setTimeout(() => {
+      if (gen !== this.pttSessionGen) return;
+      this.pttSessionGen++;
+      this.sttConnected.set(false);
+      try { this.speechRecognition?.stop(); } catch { /* ok */ }
+
+      const text = (this.pttDisplayText() || this.pttTranscript || '').trim();
+      if (text) {
+        this.zone.run(() => {
+          this.pttDisplayText.set('');
+          this.editorContent = text;
+          if (this.noteEditorRef?.nativeElement) {
+            this.noteEditorRef.nativeElement.innerHTML = text;
+          }
+          this.addNote();
+        });
+      } else {
+        this.zone.run(() => { this.pttDisplayText.set(''); });
+      }
+    }, 1500);
+  }
+
+  private playPttStartTone(): void {
+    try {
+      const ctx = this.ensurePttAudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 600;
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.12);
+    } catch { /* ok */ }
+  }
+
+  private playPttStopTone(): void {
+    try {
+      const ctx = this.ensurePttAudioContext();
+      const playTone = (freq: number, startTime: number, dur: number) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.12, startTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + dur);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(startTime);
+        osc.stop(startTime + dur);
+      };
+      playTone(520, ctx.currentTime, 0.08);
+      playTone(780, ctx.currentTime + 0.09, 0.1);
+    } catch { /* ok */ }
+  }
+
+  private ensurePttAudioContext(): AudioContext {
+    if (!this.pttAudioCtx || this.pttAudioCtx.state === 'closed') {
+      this.pttAudioCtx = new AudioContext();
+    }
+    if (this.pttAudioCtx.state === 'suspended') {
+      this.pttAudioCtx.resume().catch(() => { /* ok */ });
+    }
+    return this.pttAudioCtx;
   }
 
   // ── Contenteditable entry box ──────────────────────────
@@ -343,8 +499,24 @@ export class BookNotesComponent implements OnInit, OnDestroy {
     this.autocompleteItems.set(flat);
     const rect = this.getCursorRect();
     if (rect) {
-      this.autocompleteTop.set(rect.bottom + 4);
-      this.autocompleteLeft.set(rect.left);
+      const itemHeight = 44; // approx px per item
+      const estimatedHeight = Math.min(flat.length * itemHeight + 8, 240);
+      const dropdownWidth = 320;
+      const margin = 8;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+
+      // Clamp left so dropdown doesn't overflow the right edge
+      const clampedLeft = Math.max(margin, Math.min(rect.left, vw - dropdownWidth - margin));
+
+      // Show below cursor unless there isn't enough space, then flip above
+      const spaceBelow = vh - rect.bottom;
+      const top = spaceBelow >= estimatedHeight + margin
+        ? rect.bottom + 4
+        : rect.top - estimatedHeight - 4;
+
+      this.autocompleteTop.set(top);
+      this.autocompleteLeft.set(clampedLeft);
     }
   }
 

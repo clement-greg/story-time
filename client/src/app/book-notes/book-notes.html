@@ -43,6 +43,19 @@
 
   <!-- Entry box -->
   <div class="note-entry">
+    @if (pttActive() || pttDisplayText()) {
+      <div class="ptt-status" [class.connected]="sttConnected()">
+        <mat-icon class="ptt-status-icon">mic</mat-icon>
+        @if (pttDisplayText()) {
+          <span class="ptt-transcript-text">{{ pttDisplayText() }}</span>
+        } @else {
+          <span class="ptt-hint-text">{{ sttConnected() ? 'Listening…' : 'Connecting…' }}</span>
+        }
+        @if (pttActive()) {
+          <span class="ptt-pulse-dot"></span>
+        }
+      </div>
+    }
     <div class="note-entry-wrapper">
       <div class="note-entry-editor entity-editor"
            #noteEditorEl
@@ -50,6 +63,16 @@
            (input)="onEditorInput($event, false)"
            (keydown)="onEditorKeyDown($event, false)"
            data-placeholder="Add a note… (Ctrl+Enter to submit)"></div>
+      @if (speechSupported()) {
+        <button mat-icon-button class="mic-btn"
+                [class.ptt-active]="pttActive()"
+                (pointerdown)="pttPress()"
+                (pointerup)="pttRelease()"
+                (pointercancel)="pttRelease()"
+                title="Hold to dictate">
+          <mat-icon>{{ pttActive() ? 'mic' : 'mic_none' }}</mat-icon>
+        </button>
+      }
       <button mat-icon-button class="send-btn" (click)="addNote()" [disabled]="saving()" title="Add note">
         <mat-icon>send</mat-icon>
       </button>

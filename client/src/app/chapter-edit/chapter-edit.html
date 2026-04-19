@@ -10,18 +10,15 @@
   <div main-content>
 <div class="page">
   <div class="top-bar">
-    <button mat-icon-button (click)="goBack()">
-      <mat-icon>arrow_back</mat-icon>
-    </button>
     @if (chapter()) {
-      <mat-form-field appearance="outline" class="title-field">
+      <mat-form-field appearance="outline" class="title-field desktop-only">
         <mat-label>Title</mat-label>
         <input matInput
                [ngModel]="chapter()!.title"
                (ngModelChange)="updateTitle($event)" />
       </mat-form-field>
     } @else {
-      <h1 class="title-placeholder">Edit Chapter</h1>
+      <h1 class="title-placeholder desktop-only">Edit Chapter</h1>
     }
     <div class="top-bar-actions">
       @if (hasDraft()) {
@@ -44,10 +41,17 @@
               title="Version history">
         <mat-icon>history</mat-icon>
       </button>
+      <button mat-icon-button
+              class="mobile-only mobile-ai-btn"
+              [class.active]="mobileChatOpen()"
+              (click)="mobileChatOpen.set(!mobileChatOpen())"
+              title="AI Assistant">
+        <mat-icon>smart_toy</mat-icon>
+      </button>
       <button mat-flat-button (click)="save()" [disabled]="saving() || !chapter()">
         {{ saving() ? 'Saving…' : 'Save' }}
       </button>
-      <button mat-button (click)="goBack()">Cancel</button>
+      <button mat-button (click)="goBack()" class="desktop-only">Cancel</button>
     </div>
   </div>
 
@@ -132,15 +136,18 @@
       </div>
 
       <!-- Chat panel -->
-      <aside class="chat-panel">
+      <aside class="chat-panel" [class.mobile-chat-open]="mobileChatOpen()">
         <div class="chat-header">
           <mat-icon>smart_toy</mat-icon>
           <span>AI Assistant</span>
           @if (chatMessages().length > 0) {
-            <button mat-icon-button class="chat-clear-btn" title="Clear chat history" (click)="clearChat()">
+            <button mat-icon-button class="chat-clear-btn desktop-only" title="Clear chat history" (click)="clearChat()">
               <mat-icon>delete_sweep</mat-icon>
             </button>
           }
+          <button mat-icon-button class="chat-close-btn mobile-only" title="Close" (click)="mobileChatOpen.set(false)">
+            <mat-icon>close</mat-icon>
+          </button>
         </div>
         <div class="chat-messages" #chatMessagesEl>
           @if (chatMessages().length === 0) {
@@ -295,6 +302,45 @@
   } @else {
     <p class="loading">Loading…</p>
   }
+
+  <!-- Mobile: floating title bar -->
+  @if (chapter()) {
+    <div class="mobile-title-bar mobile-only">
+      <span class="mobile-title-text">{{ chapter()!.title || 'Untitled' }}</span>
+      <button mat-icon-button class="mobile-title-edit-btn"
+              (click)="mobileTitleDraft.set(chapter()!.title); mobileTitleEditOpen.set(true)"
+              title="Edit title">
+        <mat-icon>edit</mat-icon>
+      </button>
+    </div>
+  }
+
+  <!-- Mobile: title edit bottom sheet -->
+  @if (mobileTitleEditOpen()) {
+    <div class="mobile-title-sheet-backdrop" (click)="mobileTitleEditOpen.set(false)"></div>
+    <div class="mobile-title-sheet">
+      <div class="mobile-title-sheet-header">
+        <span>Edit Title</span>
+        <button mat-icon-button (click)="mobileTitleEditOpen.set(false)">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+      <div class="mobile-title-sheet-body">
+        <mat-form-field appearance="outline" style="width: 100%">
+          <mat-label>Title</mat-label>
+          <input matInput
+                 [ngModel]="mobileTitleDraft()"
+                 (ngModelChange)="mobileTitleDraft.set($event)"
+                 (keydown.enter)="updateTitle(mobileTitleDraft()); mobileTitleEditOpen.set(false)" />
+        </mat-form-field>
+      </div>
+      <div class="mobile-title-sheet-actions">
+        <button mat-button (click)="mobileTitleEditOpen.set(false)">Cancel</button>
+        <button mat-flat-button (click)="updateTitle(mobileTitleDraft()); mobileTitleEditOpen.set(false)">Done</button>
+      </div>
+    </div>
+  }
+
 </div>
   </div>
 

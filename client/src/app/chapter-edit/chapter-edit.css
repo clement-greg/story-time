@@ -895,3 +895,173 @@
 .diff-text {
   flex: 1;
 }
+
+/* ── Mobile styles ───────────────────────────────────── */
+.mobile-only {
+  display: none;
+}
+
+.mobile-ai-btn.active {
+  color: var(--mat-sys-primary, #1976d2);
+}
+
+.chat-close-btn {
+  margin-left: auto;
+}
+
+/* ── Mobile floating title ───────────────────────────── */
+.mobile-title-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 44px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(6px);
+  border-top: 1px solid var(--mat-sys-outline-variant, #e0e0e0);
+  display: flex;
+  align-items: center;
+  padding: 0 8px 0 16px;
+  gap: 8px;
+  z-index: 5;
+}
+
+.mobile-title-text {
+  flex: 1;
+  font-size: 0.95rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--mat-sys-on-surface, #212121);
+}
+
+.mobile-title-edit-btn {
+  flex-shrink: 0;
+  color: var(--mat-sys-on-surface-variant, #555) !important;
+}
+
+/* ── Mobile title edit sheet ─────────────────────────── */
+.mobile-title-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 30;
+}
+
+.mobile-title-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 31;
+  background: var(--mat-sys-surface, #fff);
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+}
+
+.mobile-title-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 8px 8px 20px;
+  font-weight: 600;
+  font-size: 1rem;
+  border-bottom: 1px solid var(--mat-sys-outline-variant, #e0e0e0);
+}
+
+.mobile-title-sheet-body {
+  padding: 16px 16px 0;
+}
+
+.mobile-title-sheet-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 16px 20px;
+}
+
+@media (max-width: 768px) {
+  .desktop-only {
+    display: none !important;
+  }
+
+  .mobile-only {
+    display: inline-flex;
+  }
+
+  .page {
+    /* 56px mobile toolbar */
+    height: calc(100vh - 56px);
+    padding: 0;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .top-bar {
+    padding: 6px 8px;
+    gap: 6px;
+    flex-wrap: nowrap;
+  }
+
+  .top-bar-actions {
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  .draft-indicator {
+    display: none;
+  }
+
+  .workspace {
+    position: relative;
+    overflow: hidden;
+    /* leave room for floating title bar */
+    height: calc(100% - 44px);
+  }
+
+  .notes-panel {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 10;
+    width: 85vw;
+    max-width: 320px;
+    box-shadow: 4px 0 16px rgba(0, 0, 0, 0.15);
+  }
+
+  /* Chat panel: hidden off-screen by default, slides up as overlay when open */
+  .chat-panel {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    top: auto;
+    height: 70vh;
+    width: 100%;
+    z-index: 20;
+    border-left: none;
+    border-top: 1px solid var(--mat-sys-outline-variant, #e0e0e0);
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.18);
+    border-radius: 16px 16px 0 0;
+    transform: translateY(100%);
+    transition: transform 0.25s ease;
+  }
+
+  .chat-panel.mobile-chat-open {
+    transform: translateY(0);
+  }
+
+  .editor-panel {
+    padding: 8px;
+    width: 100%;
+  }
+
+  .content-editor {
+    padding: 14px;
+    font-size: 1rem;
+  }
+}

@@ -67,3 +67,36 @@ main {
   border-bottom: 1px solid rgba(0, 0, 0, 0.12);
   margin-bottom: 4px;
 }
+
+.mobile-back-btn {
+  display: none;
+  color: white !important;
+  margin-right: 4px;
+}
+
+.breadcrumbs-container {
+  display: flex;
+  align-items: center;
+}
+
+.mobile-only {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .desktop-only {
+    display: none !important;
+  }
+
+  .mobile-only {
+    display: inline-flex;
+  }
+
+  .mobile-back-btn {
+    display: inline-flex;
+  }
+
+  .breadcrumbs-container {
+    display: none;
+  }
+}

@@ -105,6 +105,8 @@
 .chapters-header {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
   justify-content: space-between;
   padding: 8px 0;
 }
@@ -116,6 +118,7 @@
 .chapters-header-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 

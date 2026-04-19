@@ -136,6 +136,78 @@
   color: var(--mat-sys-primary, #1976d2);
 }
 
+/* ── PTT ────────────────────────────────────────────── */
+.ptt-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 6px 12px;
+  margin-bottom: 6px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--mat-sys-primary, #1976d2) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--mat-sys-primary, #1976d2) 25%, transparent);
+  font-size: 0.9rem;
+  color: var(--mat-sys-on-surface-variant, #444);
+  transition: background 0.2s;
+}
+
+.ptt-status.connected {
+  background: color-mix(in srgb, #4caf50 12%, transparent);
+  border-color: color-mix(in srgb, #4caf50 30%, transparent);
+}
+
+.ptt-status-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  color: var(--mat-sys-primary, #1976d2);
+  flex-shrink: 0;
+}
+
+.ptt-status.connected .ptt-status-icon {
+  color: #4caf50;
+}
+
+.ptt-transcript-text {
+  flex: 1;
+  font-style: italic;
+}
+
+.ptt-hint-text {
+  flex: 1;
+  opacity: 0.65;
+}
+
+.ptt-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--mat-sys-primary, #1976d2);
+  flex-shrink: 0;
+  animation: ptt-blink 1s ease-in-out infinite;
+}
+
+.ptt-status.connected .ptt-pulse-dot {
+  background: #4caf50;
+}
+
+@keyframes ptt-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}
+
+.mic-btn {
+  flex-shrink: 0;
+  color: var(--mat-sys-on-surface-variant, #666);
+  transition: color 0.15s;
+  touch-action: none;
+  user-select: none;
+}
+
+.mic-btn.ptt-active {
+  color: var(--mat-sys-primary, #1976d2);
+}
+
 /* ── Shared contenteditable editor ──────────────────── */
 .entity-editor {
   flex: 1;
