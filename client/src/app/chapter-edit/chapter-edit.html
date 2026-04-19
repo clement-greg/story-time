@@ -51,6 +51,9 @@
              (mousemove)="onEditorMouseMove($event)"
              (mouseleave)="onEditorMouseLeave()"
              (scroll)="onEditorScroll()"
+             (touchstart)="onEditorTouchStart($event)"
+             (touchend)="onEditorTouchEnd()"
+             (touchmove)="onEditorTouchMove()"
              placeholder="Start writing your chapter…"></div>
 
         <!-- Image resize overlay (shown on image click) -->

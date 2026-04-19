@@ -10,6 +10,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatDialog, MatDialogModule, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { ChapterService } from '../chapter/chapter.service';
 import { ChapterDraftService } from './chapter-draft.service';
 import { ChapterVersionService } from './chapter-version.service';
@@ -33,6 +34,7 @@ import { EntityPanelService } from '../services/entity-panel.service';
     MatFormFieldModule,
     MatProgressSpinnerModule,
     MatTabsModule,
+    MatDialogModule,
     SlideOutPanelContainer,
     EntityEditComponent,
   ],
@@ -55,6 +57,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   private bookService = inject(BookService);
   private seriesService = inject(SeriesService);
   private snackBar = inject(MatSnackBar);
+  private dialog = inject(MatDialog);
   private headerService = inject(HeaderService);
   private entityPanel = inject(EntityPanelService);
 
@@ -148,6 +151,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   private editorContent = '';
   private autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
   private chatAbortController: AbortController | null = null;
+  private longPressTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     effect(() => {
@@ -561,6 +565,29 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     }
   }
 
+  onEditorTouchStart(event: TouchEvent): void {
+    this.longPressTimer = setTimeout(() => {
+      this.longPressTimer = null;
+      // Prevent the context menu that some browsers show on long-press
+      event.preventDefault();
+      this.openInlineAiPrompt();
+    }, 600);
+  }
+
+  onEditorTouchEnd(): void {
+    if (this.longPressTimer !== null) {
+      clearTimeout(this.longPressTimer);
+      this.longPressTimer = null;
+    }
+  }
+
+  onEditorTouchMove(): void {
+    if (this.longPressTimer !== null) {
+      clearTimeout(this.longPressTimer);
+      this.longPressTimer = null;
+    }
+  }
+
   onResizeHandleMouseDown(event: MouseEvent, direction: 'e' | 's' | 'se'): void {
     event.preventDefault();
     event.stopPropagation();
@@ -954,17 +981,28 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   discardDraft(): void {
     const chapter = this.chapter();
     if (!chapter) return;
-    this.draftService.clearDraft(chapter.id);
-    this.hasDraft.set(false);
-    // Reload from server
-    this.chapterService.getById(chapter.id).subscribe({
-      next: (data) => {
-        this.chapter.set(data);
-        this.notes.set(data.notes ?? []);
-        if (this.contentEditorRef) {
-          this.contentEditorRef.nativeElement.innerHTML = data.content ?? '';
-        }
+    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
+      data: {
+        title: 'Discard draft?',
+        message: 'This will revert to the last saved version. Any unsaved changes will be lost.',
+        confirm: 'Discard',
       },
+      width: '360px',
+    });
+    dialogRef.afterClosed().subscribe(confirmed => {
+      if (!confirmed) return;
+      this.draftService.clearDraft(chapter.id);
+      this.hasDraft.set(false);
+      // Reload from server
+      this.chapterService.getById(chapter.id).subscribe({
+        next: (data) => {
+          this.chapter.set(data);
+          this.notes.set(data.notes ?? []);
+          if (this.contentEditorRef) {
+            this.contentEditorRef.nativeElement.innerHTML = data.content ?? '';
+          }
+        },
+      });
     });
   }
 
@@ -1697,4 +1735,20 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
       }
     }
   }
+}
+
+@Component({
+  selector: 'app-confirm-dialog',
+  imports: [MatButtonModule, MatDialogModule],
+  template: `
+    <h2 mat-dialog-title>{{ data.title }}</h2>
+    <mat-dialog-content>{{ data.message }}</mat-dialog-content>
+    <mat-dialog-actions align="end">
+      <button mat-button [mat-dialog-close]="false">Cancel</button>
+      <button mat-flat-button color="warn" [mat-dialog-close]="true">{{ data.confirm }}</button>
+    </mat-dialog-actions>
+  `,
+})
+export class ConfirmDialogComponent {
+  data = inject<{ title: string; message: string; confirm: string }>(MAT_DIALOG_DATA);
 }

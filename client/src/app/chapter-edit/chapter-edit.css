@@ -127,6 +127,11 @@
   z-index: 10;
 }
 
+/* Reserve space for the close button so chat-header content doesn't overlap it */
+.mobile-sidebar-open .chat-header {
+  padding-right: 48px;
+}
+
 /* ── History tab (vertical layout in sidebar) ────────── */
 .tab-history {
   overflow: hidden;
@@ -1276,8 +1281,6 @@
   .workspace {
     position: relative;
     overflow: hidden;
-    /* leave room for floating title bar */
-    height: calc(100% - 44px);
   }
 
   .notes-panel {
@@ -1308,6 +1311,8 @@
 
   .editor-panel {
     padding: 8px;
+    /* clear the floating title bar at the bottom */
+    padding-bottom: 52px;
     width: 100%;
   }
 
