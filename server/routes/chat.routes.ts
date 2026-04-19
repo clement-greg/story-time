@@ -19,7 +19,7 @@ router.get('/:chapterId/history', async (req: Request, res: Response) => {
   const chapterId = req.params['chapterId'] as string;
   try {
     const container = getContainer('chat-history');
-    const { resource } = await container.item(chapterId, chapterId).read<{ id: string; owner?: string; deleted?: boolean; messages: { role: string; text: string }[] }>();
+    const { resource } = await container.item(chapterId, chapterId).read<{ id: string; owner?: string; deleted?: boolean; messages: { role: string; text: string; imageUrl?: string }[] }>();
     if (!resource || resource.deleted || resource.owner !== req.user!.email) {
       res.json({ messages: [] });
       return;
@@ -33,7 +33,7 @@ router.get('/:chapterId/history', async (req: Request, res: Response) => {
 // PUT (upsert) chat history for a chapter
 router.put('/:chapterId/history', async (req: Request, res: Response) => {
   const chapterId = req.params['chapterId'] as string;
-  const messages: { role: string; text: string }[] = req.body.messages;
+  const messages: { role: string; text: string; imageUrl?: string }[] = req.body.messages;
   if (!Array.isArray(messages)) {
     res.status(400).json({ error: 'messages array required' });
     return;

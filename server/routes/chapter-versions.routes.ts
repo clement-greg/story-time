@@ -15,7 +15,7 @@ router.get('/chapter/:chapterId', async (req: Request, res: Response) => {
       .query(withOwnerFilter(req, {
         query: 'SELECT * FROM c WHERE c.chapterId = @chapterId ORDER BY c.savedAt DESC',
         parameters: [{ name: '@chapterId', value: chapterId }],
-      }))
+      }), { partitionKey: chapterId })
       .fetchAll();
     res.json(resources as ChapterVersion[]);
   } catch (err) {

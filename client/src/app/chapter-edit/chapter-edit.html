@@ -1,11 +1,7 @@
 <app-slide-out-panel-container
   [showRightPanel]="!!editingEntity()"
   (showRightPanelChange)="$event ? null : cancelEntityEdit()"
-  [rightPanelWidth]="420"
-  [showBottomPanel]="historyVisible()"
-  (showBottomPanelChange)="historyVisible.set($event)"
-  [bottomPanelHeight]="500"
-  [bottomPanelWidth]="historyPanelWidth">
+  [rightPanelWidth]="420">
 
   <div main-content>
 <div class="page">
@@ -25,67 +21,23 @@
         <span class="draft-indicator">Unsaved draft</span>
         <button mat-button (click)="discardDraft()">Discard draft</button>
       }
-      <button mat-icon-button
-              class="notes-toggle-btn"
-              [class.active]="notesListVisible()"
-              (click)="toggleNotesList()"
-              title="Toggle notes">
-        <mat-icon>sticky_note_2</mat-icon>
-        @if (notes().length > 0) {
-          <span class="notes-count-badge">{{ notes().length }}</span>
-        }
-      </button>
-      <button mat-icon-button
-              [class.active]="historyVisible()"
-              (click)="toggleHistory()"
-              title="Version history">
-        <mat-icon>history</mat-icon>
-      </button>
+
+
       <button mat-icon-button
               class="mobile-only mobile-ai-btn"
-              [class.active]="mobileChatOpen()"
-              (click)="mobileChatOpen.set(!mobileChatOpen())"
+              [class.active]="mobileSidebarOpen() && sidebarTabIndex() === 0"
+              (click)="activateSidebarTab(0)"
               title="AI Assistant">
         <mat-icon>smart_toy</mat-icon>
       </button>
       <button mat-flat-button (click)="save()" [disabled]="saving() || !chapter()">
         {{ saving() ? 'Saving…' : 'Save' }}
       </button>
-      <button mat-button (click)="goBack()" class="desktop-only">Cancel</button>
     </div>
   </div>
 
   @if (chapter()) {
     <div class="workspace">
-
-      <!-- Notes panel -->
-      @if (notesListVisible()) {
-        <aside class="notes-panel">
-          <div class="notes-panel-header">
-            <mat-icon>sticky_note_2</mat-icon>
-            <span>Notes</span>
-            <span class="notes-panel-count">({{ notes().length }})</span>
-          </div>
-          <div class="notes-list">
-            @if (notes().length === 0) {
-              <p class="notes-empty">No notes yet. Select text and click <mat-icon style="font-size:14px;vertical-align:middle">sticky_note_2</mat-icon> to add one.</p>
-            }
-            @for (note of notes(); track note.id) {
-              <div class="note-item"
-                   [class.note-item-highlighted]="highlightedNoteId() === note.id"
-                   (click)="scrollToNote(note.id)">
-                <div class="note-selected-text">&ldquo;{{ note.selectedText }}&rdquo;</div>
-                <div class="note-text">{{ note.noteText }}</div>
-                <button class="note-delete-btn" mat-icon-button
-                        (click)="deleteNote(note.id); $event.stopPropagation()"
-                        title="Delete note">
-                  <mat-icon>delete</mat-icon>
-                </button>
-              </div>
-            }
-          </div>
-        </aside>
-      }
 
       <!-- Content editor -->
       <div class="editor-panel">
@@ -95,11 +47,26 @@
              (input)="onContentInput($event)"
              (keydown)="onEditorKeyDown($event)"
              (mouseup)="onEditorMouseUp()"
+             (click)="onEditorClick($event)"
              (mousemove)="onEditorMouseMove($event)"
              (mouseleave)="onEditorMouseLeave()"
+             (scroll)="onEditorScroll()"
              placeholder="Start writing your chapter…"></div>
 
-        <!-- Formatting toolbar (shown on text selection) -->
+        <!-- Image resize overlay (shown on image click) -->
+        @if (imageOverlayRect()) {
+          <div class="image-resize-overlay"
+               [style.top.px]="imageOverlayRect()!.top"
+               [style.left.px]="imageOverlayRect()!.left"
+               [style.width.px]="imageOverlayRect()!.width"
+               [style.height.px]="imageOverlayRect()!.height">
+            <div class="resize-handle resize-e"  (mousedown)="onResizeHandleMouseDown($event, 'e')"></div>
+            <div class="resize-handle resize-s"  (mousedown)="onResizeHandleMouseDown($event, 's')"></div>
+            <div class="resize-handle resize-se" (mousedown)="onResizeHandleMouseDown($event, 'se')"></div>
+          </div>
+        }
+
+        <!-- Formatting toolbar (shown on text selection or image selection) -->
         @if (formattingToolbarVisible()) {
           <div class="formatting-toolbar"
                [style.top.px]="formattingToolbarTop()"
@@ -120,6 +87,27 @@
               <span style="text-decoration:underline">U</span>
             </button>
             <div class="fmt-separator"></div>
+            <button class="fmt-btn" [class.active]="formattingState().align === 'left'"
+                    (mousedown)="$event.preventDefault(); applyFormat('justifyLeft')"
+                    title="Align left">
+              <mat-icon style="font-size:16px;width:16px;height:16px;line-height:16px">format_align_left</mat-icon>
+            </button>
+            <button class="fmt-btn" [class.active]="formattingState().align === 'center'"
+                    (mousedown)="$event.preventDefault(); applyFormat('justifyCenter')"
+                    title="Align center">
+              <mat-icon style="font-size:16px;width:16px;height:16px;line-height:16px">format_align_center</mat-icon>
+            </button>
+            <button class="fmt-btn" [class.active]="formattingState().align === 'right'"
+                    (mousedown)="$event.preventDefault(); applyFormat('justifyRight')"
+                    title="Align right">
+              <mat-icon style="font-size:16px;width:16px;height:16px;line-height:16px">format_align_right</mat-icon>
+            </button>
+            <button class="fmt-btn" [class.active]="formattingState().align === 'justify'"
+                    (mousedown)="$event.preventDefault(); applyFormat('justifyFull')"
+                    title="Justify">
+              <mat-icon style="font-size:16px;width:16px;height:16px;line-height:16px">format_align_justify</mat-icon>
+            </button>
+            <div class="fmt-separator"></div>
             <button class="fmt-btn"
                     (mousedown)="$event.preventDefault(); applyFormat('insertUnorderedList')"
                     title="Bullet list">
@@ -135,49 +123,161 @@
         }
       </div>
 
-      <!-- Chat panel -->
-      <aside class="chat-panel" [class.mobile-chat-open]="mobileChatOpen()">
-        <div class="chat-header">
-          <mat-icon>smart_toy</mat-icon>
-          <span>AI Assistant</span>
-          @if (chatMessages().length > 0) {
-            <button mat-icon-button class="chat-clear-btn desktop-only" title="Clear chat history" (click)="clearChat()">
-              <mat-icon>delete_sweep</mat-icon>
-            </button>
-          }
-          <button mat-icon-button class="chat-close-btn mobile-only" title="Close" (click)="mobileChatOpen.set(false)">
-            <mat-icon>close</mat-icon>
-          </button>
-        </div>
-        <div class="chat-messages" #chatMessagesEl>
-          @if (chatMessages().length === 0) {
-            <p class="chat-empty">Ask anything about your chapter…</p>
-          }
-          @for (msg of chatMessages(); track $index; let last = $last) {
-            <div class="chat-message" [class.user]="msg.role === 'user'" [class.assistant]="msg.role === 'assistant'"
-                 [class.streaming]="last && msg.role === 'assistant' && chatStreaming()">
-              <span class="chat-role">{{ msg.role === 'user' ? 'You' : 'AI' }}</span>
-              @if (msg.role === 'assistant') {
-                <div class="chat-markdown" [innerHTML]="markdownToHtml(msg.text)"></div>
+      <!-- Sidebar panel (AI / Notes / History) -->
+      <aside class="sidebar-panel" [class.mobile-sidebar-open]="mobileSidebarOpen()">
+        <button mat-icon-button class="sidebar-close-btn mobile-only"
+                (click)="mobileSidebarOpen.set(false)" title="Close">
+          <mat-icon>close</mat-icon>
+        </button>
+
+        <mat-tab-group [selectedIndex]="sidebarTabIndex()"
+                       (selectedIndexChange)="onSidebarTabChange($event)"
+                       headerPosition="below"
+                       class="sidebar-tab-group">
+
+          <!-- Tab 0: AI Assistant -->
+          <mat-tab>
+            <ng-template mat-tab-label><mat-icon>smart_toy</mat-icon></ng-template>
+            <div class="sidebar-tab-content">
+              <div class="chat-header">
+                <mat-icon>smart_toy</mat-icon>
+                <span>AI Assistant</span>
+                @if (chatMessages().length > 0) {
+                  <button mat-icon-button class="chat-clear-btn" title="Clear chat history" (click)="clearChat()">
+                    <mat-icon>delete_sweep</mat-icon>
+                  </button>
+                }
+              </div>
+              <div class="chat-messages" #chatMessagesEl>
+                @if (chatMessages().length === 0) {
+                  <p class="chat-empty">Ask anything about your chapter…</p>
+                }
+                @for (msg of chatMessages(); track $index; let last = $last) {
+                  <div class="chat-message" [class.user]="msg.role === 'user'" [class.assistant]="msg.role === 'assistant'"
+                       [class.streaming]="last && msg.role === 'assistant' && chatStreaming()">
+                    <span class="chat-role">{{ msg.role === 'user' ? 'You' : 'AI' }}</span>
+                    @if (msg.role === 'assistant') {
+                      @if (msg.generatingImage) {
+                        <div class="chat-image-generating">
+                          <mat-spinner diameter="20"></mat-spinner>
+                          <span>Generating image…</span>
+                        </div>
+                      } @else if (msg.imageUrl) {
+                        <div class="chat-image-container">
+                          <img [src]="proxyUrl(msg.imageUrl)" alt="Generated image" class="chat-generated-image" />
+                          <a [href]="proxyUrl(msg.imageUrl)" download="generated-image.png" class="chat-image-download" mat-stroked-button>
+                            <mat-icon>download</mat-icon>
+                            Download
+                          </a>
+                        </div>
+                      } @else {
+                        <div class="chat-markdown" [innerHTML]="markdownToHtml(msg.text)"></div>
+                      }
+                    } @else {
+                      <p>{{ msg.text }}</p>
+                    }
+                  </div>
+                }
+              </div>
+              <div class="chat-input-area">
+                <textarea class="chat-textarea"
+                          placeholder="Message AI… (Enter to send, Shift+Enter for new line)"
+                          rows="3"
+                          [value]="chatInput()"
+                          (input)="chatInput.set($any($event.target).value)"
+                          (keydown)="onChatKeyDown($event)"></textarea>
+                <button mat-icon-button class="chat-send-btn"
+                        [disabled]="chatStreaming() || !chatInput().trim()"
+                        (click)="sendChat()">
+                  <mat-icon>{{ chatStreaming() ? 'hourglass_top' : 'send' }}</mat-icon>
+                </button>
+              </div>
+            </div>
+          </mat-tab>
+
+          <!-- Tab 1: Notes -->
+          <mat-tab>
+            <ng-template mat-tab-label><mat-icon>sticky_note_2</mat-icon></ng-template>
+            <div class="sidebar-tab-content">
+              <div class="notes-panel-header">
+                <mat-icon>sticky_note_2</mat-icon>
+                <span>Notes</span>
+                <span class="notes-panel-count">({{ notes().length }})</span>
+              </div>
+              <div class="notes-list">
+                @if (notes().length === 0) {
+                  <p class="notes-empty">No notes yet. Select text and click <mat-icon style="font-size:14px;vertical-align:middle">sticky_note_2</mat-icon> to add one.</p>
+                }
+                @for (note of notes(); track note.id) {
+                  <div class="note-item"
+                       [class.note-item-highlighted]="highlightedNoteId() === note.id"
+                       (click)="scrollToNote(note.id)">
+                    <div class="note-selected-text">&ldquo;{{ note.selectedText }}&rdquo;</div>
+                    <div class="note-text">{{ note.noteText }}</div>
+                    <button class="note-delete-btn" mat-icon-button
+                            (click)="deleteNote(note.id); $event.stopPropagation()"
+                            title="Delete note">
+                      <mat-icon>delete</mat-icon>
+                    </button>
+                  </div>
+                }
+              </div>
+            </div>
+          </mat-tab>
+
+          <!-- Tab 2: Version History -->
+          <mat-tab>
+            <ng-template mat-tab-label><mat-icon>history</mat-icon></ng-template>
+            <div class="sidebar-tab-content tab-history">
+              <div class="history-sidebar-list">
+                <div class="history-list-title">
+                  <span>Version History</span>
+                  <button mat-icon-button class="history-refresh-btn"
+                          [disabled]="historyLoading()"
+                          (click)="loadHistory(chapter()!.id)"
+                          title="Refresh">
+                    <mat-icon>refresh</mat-icon>
+                  </button>
+                </div>
+                @if (historyLoading()) {
+                  <p class="history-status">Loading…</p>
+                } @else if (historyVersions().length === 0) {
+                  <p class="history-status">No saved versions yet.</p>
+                } @else {
+                  @for (version of historyVersions(); track version.id) {
+                    <button class="history-version-item"
+                            [class.selected]="selectedVersion()?.id === version.id"
+                            (click)="selectVersion(version)">
+                      {{ formatVersionDate(version.savedAt) }}
+                    </button>
+                  }
+                }
+              </div>
+              @if (!selectedVersion()) {
+                <p class="history-status history-select-hint">Select a version to compare with current content.</p>
               } @else {
-                <p>{{ msg.text }}</p>
+                <div class="history-sidebar-diff">
+                  <div class="history-diff-legend">
+                    <span class="legend-remove">&#8722; Version ({{ formatVersionDate(selectedVersion()!.savedAt) }})</span>
+                    <span class="legend-add">&#43; Current</span>
+                  </div>
+                  <div class="history-diff-lines">
+                    @for (line of diffLines(); track $index) {
+                      <div class="diff-line"
+                           [class.diff-add]="line.type === 'add'"
+                           [class.diff-remove]="line.type === 'remove'"
+                           [class.diff-same]="line.type === 'same'">
+                        <span class="diff-marker">{{ line.type === 'add' ? '+' : line.type === 'remove' ? '-' : ' ' }}</span>
+                        <span class="diff-text">{{ line.text }}</span>
+                      </div>
+                    }
+                  </div>
+                </div>
               }
             </div>
-          }
-        </div>
-        <div class="chat-input-area">
-          <textarea class="chat-textarea"
-                    placeholder="Message AI… (Enter to send, Shift+Enter for new line)"
-                    rows="3"
-                    [value]="chatInput()"
-                    (input)="chatInput.set($any($event.target).value)"
-                    (keydown)="onChatKeyDown($event)"></textarea>
-          <button mat-icon-button class="chat-send-btn"
-                  [disabled]="chatStreaming() || !chatInput().trim()"
-                  (click)="sendChat()">
-            <mat-icon>{{ chatStreaming() ? 'hourglass_top' : 'send' }}</mat-icon>
-          </button>
-        </div>
+          </mat-tab>
+
+        </mat-tab-group>
       </aside>
 
     </div>
@@ -287,9 +387,20 @@
             <mat-icon>{{ inlineAiStreaming() ? 'hourglass_top' : 'send' }}</mat-icon>
           </button>
         </div>
-        @if (inlineAiStreaming() || inlineAiResponse()) {
-          <div class="inline-ai-response" [class.streaming]="inlineAiStreaming()">{{ inlineAiResponse() }}</div>
-          @if (!inlineAiStreaming() && inlineAiResponse()) {
+        @if (inlineAiStreaming() || inlineAiResponse() || inlineAiImageUrl()) {
+          @if (inlineAiGeneratingImage()) {
+            <div class="inline-ai-image-generating">
+              <mat-spinner diameter="20"></mat-spinner>
+              <span>Generating image…</span>
+            </div>
+          } @else if (inlineAiImageUrl()) {
+            <div class="inline-ai-image-preview">
+              <img [src]="proxyUrl(inlineAiImageUrl()!)" alt="Generated image" class="inline-ai-generated-image" />
+            </div>
+          } @else {
+            <div class="inline-ai-response" [class.streaming]="inlineAiStreaming()">{{ inlineAiResponse() }}</div>
+          }
+          @if (!inlineAiStreaming() && (inlineAiResponse() || inlineAiImageUrl())) {
             <div class="inline-ai-actions">
               <button mat-flat-button (click)="acceptInlineAiResponse()">Accept</button>
               <button mat-button (click)="dismissInlineAiPrompt()">Dismiss</button>
@@ -355,48 +466,6 @@
           (archive)="archiveEntityEdit($event)" />
       </div>
     }
-  </div>
-
-  <div bottom-panel>
-    <div class="history-panel">
-      <div class="history-list">
-        <div class="history-list-title">Version History</div>
-        @if (historyLoading()) {
-          <p class="history-status">Loading…</p>
-        } @else if (historyVersions().length === 0) {
-          <p class="history-status">No saved versions yet.</p>
-        } @else {
-          @for (version of historyVersions(); track version.id) {
-            <button class="history-version-item"
-                    [class.selected]="selectedVersion()?.id === version.id"
-                    (click)="selectVersion(version)">
-              {{ formatVersionDate(version.savedAt) }}
-            </button>
-          }
-        }
-      </div>
-      <div class="history-diff">
-        @if (!selectedVersion()) {
-          <p class="history-status">Select a version from the list to compare it with the current content.</p>
-        } @else {
-          <div class="history-diff-legend">
-            <span class="legend-remove">&#8722; Version ({{ formatVersionDate(selectedVersion()!.savedAt) }})</span>
-            <span class="legend-add">&#43; Current</span>
-          </div>
-          <div class="history-diff-lines">
-            @for (line of diffLines(); track $index) {
-              <div class="diff-line"
-                   [class.diff-add]="line.type === 'add'"
-                   [class.diff-remove]="line.type === 'remove'"
-                   [class.diff-same]="line.type === 'same'">
-                <span class="diff-marker">{{ line.type === 'add' ? '+' : line.type === 'remove' ? '-' : ' ' }}</span>
-                <span class="diff-text">{{ line.text }}</span>
-              </div>
-            }
-          </div>
-        }
-      </div>
-    </div>
   </div>
 
 </app-slide-out-panel-container>

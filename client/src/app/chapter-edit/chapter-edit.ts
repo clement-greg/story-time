@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit, OnDestroy, ElementRef, ViewChild, HostListener, effect } from '@angular/core';
+import { Component, inject, signal, OnInit, OnDestroy, ElementRef, ViewChild, HostListener, effect, untracked } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { ActivatedRoute, Router } from '@angular/router';
 import { parse as parseMarkdown } from 'marked';
@@ -7,6 +7,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTabsModule } from '@angular/material/tabs';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ChapterService } from '../chapter/chapter.service';
 import { ChapterDraftService } from './chapter-draft.service';
@@ -29,6 +31,8 @@ import { EntityPanelService } from '../services/entity-panel.service';
     MatIconModule,
     MatInputModule,
     MatFormFieldModule,
+    MatProgressSpinnerModule,
+    MatTabsModule,
     SlideOutPanelContainer,
     EntityEditComponent,
   ],
@@ -57,7 +61,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   chapter = signal<Chapter | null>(null);
   saving = signal(false);
   hasDraft = signal(false);
-  chatMessages = signal<{ role: 'user' | 'assistant'; text: string }[]>([]);
+  chatMessages = signal<{ role: 'user' | 'assistant'; text: string; imageUrl?: string; generatingImage?: boolean }[]>([]);
   chatInput = signal('');
   chatStreaming = signal(false);
   entities = signal<Entity[]>([]);
@@ -73,7 +77,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   formattingToolbarVisible = signal(false);
   formattingToolbarTop = signal(0);
   formattingToolbarLeft = signal(0);
-  formattingState = signal({ bold: false, italic: false, underline: false });
+  formattingState = signal({ bold: false, italic: false, underline: false, align: '' as 'left' | 'center' | 'right' | 'justify' | '' });
 
   // Hover popup
   hoveredEntity = signal<Entity | null>(null);
@@ -101,8 +105,24 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   selectedVersion = signal<ChapterVersion | null>(null);
   diffLines = signal<{ type: 'same' | 'add' | 'remove'; text: string }[]>([]);
 
-  // Mobile chat panel toggle
-  mobileChatOpen = signal(false);
+  // Image resize
+  selectedImage = signal<HTMLImageElement | null>(null);
+  imageOverlayRect = signal<{ top: number; left: number; width: number; height: number } | null>(null);
+
+  private resizeDrag: {
+    direction: 'e' | 's' | 'se';
+    startX: number;
+    startY: number;
+    startWidth: number;
+    startHeight: number;
+    img: HTMLImageElement;
+    moveHandler: (e: MouseEvent) => void;
+    upHandler: () => void;
+  } | null = null;
+
+  // Sidebar panel
+  mobileSidebarOpen = signal(false);
+  sidebarTabIndex = signal(0);
 
   // Mobile title edit
   mobileTitleEditOpen = signal(false);
@@ -116,6 +136,8 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   inlineAiResponse = signal('');
   inlineAiStreaming = signal(false);
   inlineAiSelectedText = signal('');
+  inlineAiImageUrl = signal<string | null>(null);
+  inlineAiGeneratingImage = signal(false);
   private inlineAiCursorRange: Range | null = null;
   private inlineAiCharBefore = '';
   private inlineAiCharAfter = '';
@@ -138,6 +160,19 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
         if (this.contentEditorRef) {
           this.contentEditorRef.nativeElement.innerHTML = synced;
         }
+      }
+    });
+
+    // Load version history whenever the history tab becomes active and the chapter is ready
+    effect(() => {
+      const idx = this.sidebarTabIndex();
+      const chapter = this.chapter();
+      if (idx === 2 && chapter) {
+        untracked(() => {
+          if (!this.historyLoading() && this.historyVersions().length === 0) {
+            this.loadHistory(chapter.id);
+          }
+        });
       }
     });
   }
@@ -321,6 +356,11 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
       }
     }
 
+    // If an image is selected and a delete key is pressed, clear the overlay first
+    if ((event.key === 'Backspace' || event.key === 'Delete') && this.selectedImage()) {
+      this.clearImageSelection();
+    }
+
     // Delete entire entity-reference span on Backspace
     if (event.key === 'Backspace') {
       const sel = window.getSelection();
@@ -434,12 +474,162 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     }
   }
 
+  private formattingToolbarShownForImage = false;
+
+  onEditorClick(event: MouseEvent): void {
+    const target = event.target as HTMLElement;
+    if (target.tagName === 'IMG') {
+      const img = target as HTMLImageElement;
+      // Remove selection from any previously selected image
+      this.contentEditorRef?.nativeElement.querySelectorAll('img.image-selected')
+        .forEach(el => el.classList.remove('image-selected'));
+      img.classList.add('image-selected');
+      this.selectedImage.set(img);
+      this.positionImageToolbar(img);
+      this.showFormattingToolbarForImage(img);
+    } else {
+      this.clearImageSelection();
+    }
+  }
+
+  private showFormattingToolbarForImage(img: HTMLImageElement): void {
+    const rect = img.getBoundingClientRect();
+    const toolbarWidth = 326;
+    const left = Math.max(8, Math.min(rect.left + rect.width / 2 - toolbarWidth / 2, window.innerWidth - toolbarWidth - 8));
+    this.formattingToolbarTop.set(rect.top - 44);
+    this.formattingToolbarLeft.set(left);
+    this.formattingState.set({
+      bold: false,
+      italic: false,
+      underline: false,
+      align: this.readImageAlign(img),
+    });
+    this.formattingToolbarVisible.set(true);
+    this.formattingToolbarShownForImage = true;
+  }
+
+  /** Walk up from the image to the nearest block ancestor and return its text-align. */
+  private readImageAlign(img: HTMLImageElement): 'left' | 'center' | 'right' | 'justify' {
+    const editor = this.contentEditorRef?.nativeElement;
+    let el: HTMLElement | null = img.parentElement;
+    while (el && el !== editor) {
+      const ta = el.style.textAlign;
+      if (ta === 'center' || ta === 'right' || ta === 'justify') return ta as 'center' | 'right' | 'justify';
+      if (ta === 'left') return 'left';
+      el = el.parentElement;
+    }
+    return 'left';
+  }
+
+  /** Set text-align on the nearest block ancestor of the image. */
+  private applyAlignToImage(img: HTMLImageElement, align: 'left' | 'center' | 'right' | 'justify'): void {
+    const editor = this.contentEditorRef?.nativeElement;
+    let el: HTMLElement | null = img.parentElement;
+    // Walk up to the first block-level element inside the editor
+    while (el && el !== editor) {
+      const display = window.getComputedStyle(el).display;
+      if (display === 'block' || display === 'flex' || display === 'table-cell') break;
+      el = el.parentElement;
+    }
+    if (!el || el === editor) el = img.parentElement;
+    if (!el) return;
+    el.style.textAlign = align === 'left' ? '' : align;
+    this.formattingState.update(s => ({ ...s, align }));
+    this.syncEditorAfterImageResize();
+  }
+
+  private clearImageSelection(): void {
+    this.contentEditorRef?.nativeElement.querySelectorAll('img.image-selected')
+      .forEach(el => el.classList.remove('image-selected'));
+    this.selectedImage.set(null);
+    this.imageOverlayRect.set(null);
+    if (this.formattingToolbarShownForImage) {
+      this.formattingToolbarVisible.set(false);
+      this.formattingToolbarShownForImage = false;
+    }
+  }
+
+  private positionImageToolbar(img: HTMLImageElement): void {
+    const rect = img.getBoundingClientRect();
+    this.imageOverlayRect.set({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
+  }
+
+  onEditorScroll(): void {
+    const img = this.selectedImage();
+    if (img) {
+      this.positionImageToolbar(img);
+    }
+  }
+
+  onResizeHandleMouseDown(event: MouseEvent, direction: 'e' | 's' | 'se'): void {
+    event.preventDefault();
+    event.stopPropagation();
+    const img = this.selectedImage();
+    if (!img) return;
+    const rect = img.getBoundingClientRect();
+    const moveHandler = (e: MouseEvent) => this.onResizeMouseMove(e);
+    const upHandler = () => this.onResizeMouseUp();
+    this.resizeDrag = {
+      direction,
+      startX: event.clientX,
+      startY: event.clientY,
+      startWidth: rect.width,
+      startHeight: rect.height,
+      img,
+      moveHandler,
+      upHandler,
+    };
+    document.addEventListener('mousemove', moveHandler);
+    document.addEventListener('mouseup', upHandler);
+  }
+
+  private onResizeMouseMove(event: MouseEvent): void {
+    if (!this.resizeDrag) return;
+    const { direction, startX, startY, startWidth, startHeight, img } = this.resizeDrag;
+    const dx = event.clientX - startX;
+    const dy = event.clientY - startY;
+    if (direction === 'e' || direction === 'se') {
+      img.style.width = Math.max(20, startWidth + dx) + 'px';
+      img.removeAttribute('width');
+    }
+    if (direction === 's' || direction === 'se') {
+      img.style.height = Math.max(20, startHeight + dy) + 'px';
+      img.removeAttribute('height');
+    }
+    const updated = img.getBoundingClientRect();
+    this.imageOverlayRect.set({ top: updated.top, left: updated.left, width: updated.width, height: updated.height });
+  }
+
+  private onResizeMouseUp(): void {
+    if (!this.resizeDrag) return;
+    document.removeEventListener('mousemove', this.resizeDrag.moveHandler);
+    document.removeEventListener('mouseup', this.resizeDrag.upHandler);
+    const img = this.resizeDrag.img;
+    this.resizeDrag = null;
+    this.syncEditorAfterImageResize();
+    this.positionImageToolbar(img);
+  }
+
+  private syncEditorAfterImageResize(): void {
+    if (!this.contentEditorRef) return;
+    this.editorContent = this.contentEditorRef.nativeElement.innerHTML;
+    const current = this.chapter();
+    if (!current) return;
+    if (this.autoSaveTimer) clearTimeout(this.autoSaveTimer);
+    this.autoSaveTimer = setTimeout(() => {
+      this.draftService.saveDraft(current.id, this.editorContent, this.notes());
+      this.hasDraft.set(true);
+    }, 800);
+  }
+
   onEditorMouseUp(): void {
     // Defer so the selection is finalized before we read it
     setTimeout(() => this.updateFormattingToolbar());
   }
 
   private updateFormattingToolbar(): void {
+    // Don't override the toolbar shown for a selected image
+    if (this.formattingToolbarShownForImage) return;
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed || sel.toString().trim() === '') {
       this.formattingToolbarVisible.set(false);
@@ -452,7 +642,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const toolbarWidth = 188; // 5 buttons + 2 separators
+    const toolbarWidth = 326; // 7 buttons + 3 separators + alignment group
     const left = rect.left + rect.width / 2 - toolbarWidth / 2;
     this.formattingToolbarTop.set(rect.top - 44);
     this.formattingToolbarLeft.set(Math.max(8, left));
@@ -460,12 +650,28 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
       bold: document.queryCommandState('bold'),
       italic: document.queryCommandState('italic'),
       underline: document.queryCommandState('underline'),
+      align: document.queryCommandState('justifyCenter') ? 'center'
+           : document.queryCommandState('justifyRight')  ? 'right'
+           : document.queryCommandState('justifyFull')   ? 'justify'
+           : 'left',
     });
     this.formattingToolbarVisible.set(true);
   }
 
-  applyFormat(command: 'bold' | 'italic' | 'underline' | 'insertUnorderedList'): void {
-    // execCommand keeps the selection and operates on the contenteditable
+  applyFormat(command: 'bold' | 'italic' | 'underline' | 'insertUnorderedList' | 'justifyLeft' | 'justifyCenter' | 'justifyRight' | 'justifyFull'): void {
+    const img = this.selectedImage();
+    // When an image is selected, alignment must be applied directly to the
+    // parent block — execCommand requires a text selection and won't work.
+    if (img && command.startsWith('justify')) {
+      const alignMap: Record<string, 'left' | 'center' | 'right' | 'justify'> = {
+        justifyLeft: 'left', justifyCenter: 'center',
+        justifyRight: 'right', justifyFull: 'justify',
+      };
+      this.applyAlignToImage(img, alignMap[command]);
+      return;
+    }
+
+    // Normal text-selection path
     document.execCommand(command, false);
     // Update the stored content after the DOM changes
     if (this.contentEditorRef) {
@@ -484,6 +690,10 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
       bold: document.queryCommandState('bold'),
       italic: document.queryCommandState('italic'),
       underline: document.queryCommandState('underline'),
+      align: document.queryCommandState('justifyCenter') ? 'center'
+           : document.queryCommandState('justifyRight')  ? 'right'
+           : document.queryCommandState('justifyFull')   ? 'justify'
+           : 'left',
     });
   }
 
@@ -556,6 +766,9 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     }
     if (this.noteInputVisible() && !target.closest('.note-input-popup')) {
       this.dismissNoteInput();
+    }
+    if (this.selectedImage() && target.tagName !== 'IMG' && !target.closest('.image-resize-toolbar') && !target.closest('.image-resize-overlay')) {
+      this.clearImageSelection();
     }
   }
 
@@ -782,15 +995,27 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     this.editingEntity.set(null);
   }
 
-  toggleHistory(): void {
-    const chapter = this.chapter();
-    if (!chapter) return;
-    if (this.historyVisible()) {
-      this.historyVisible.set(false);
-      return;
+  onSidebarTabChange(index: number): void {
+    this.sidebarTabIndex.set(index);
+    if (index === 2) {
+      const chapter = this.chapter();
+      if (chapter && !this.historyLoading() && this.historyVersions().length === 0) {
+        this.loadHistory(chapter.id);
+      }
     }
-    this.historyVisible.set(true);
-    this.loadHistory(chapter.id);
+  }
+
+  activateSidebarTab(index: number): void {
+    if (this.mobileSidebarOpen() && this.sidebarTabIndex() === index) {
+      this.mobileSidebarOpen.set(false);
+    } else {
+      this.onSidebarTabChange(index);
+      this.mobileSidebarOpen.set(true);
+    }
+  }
+
+  toggleHistory(): void {
+    this.activateSidebarTab(2);
   }
 
   loadHistory(chapterId: string): void {
@@ -923,7 +1148,32 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     if (!chapter) return;
 
     this.inlineAiResponse.set('');
+    this.inlineAiImageUrl.set(null);
     this.inlineAiStreaming.set(true);
+
+    // Image generation (only when no text is selected for rewording)
+    if (!selectedText && this.isImageRequest(text)) {
+      this.inlineAiGeneratingImage.set(true);
+      try {
+        const imgResponse = await this.authFetch('/api/image/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: text }),
+        });
+        if (imgResponse.ok) {
+          const imgData = await imgResponse.json() as { url: string; thumbnailUrl: string };
+          this.inlineAiImageUrl.set(imgData.url);
+        } else {
+          this.inlineAiResponse.set('Error: image generation failed.');
+        }
+      } catch {
+        this.inlineAiResponse.set('Error: could not connect to image generation service.');
+      } finally {
+        this.inlineAiGeneratingImage.set(false);
+        this.inlineAiStreaming.set(false);
+      }
+      return;
+    }
 
     const content = selectedText
       ? text
@@ -934,7 +1184,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     this.inlineAiAbortController = new AbortController();
 
     try {
-      const response = await fetch(`/api/chat/${chapter.id}`, {
+      const response = await this.authFetch(`/api/chat/${chapter.id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: apiMessages, selectedText: selectedText || undefined }),
@@ -984,6 +1234,42 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   }
 
   acceptInlineAiResponse(): void {
+    const imageUrl = this.inlineAiImageUrl();
+    if (imageUrl) {
+      if (!this.inlineAiCursorRange) return;
+      const range = this.inlineAiCursorRange;
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+      range.deleteContents();
+      const img = document.createElement('img');
+      img.src = this.proxyUrl(imageUrl) ?? imageUrl;
+      img.style.maxWidth = '100%';
+      range.insertNode(img);
+      const afterRange = document.createRange();
+      afterRange.setStartAfter(img);
+      afterRange.collapse(true);
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(afterRange);
+      }
+      if (this.contentEditorRef) {
+        this.editorContent = this.contentEditorRef.nativeElement.innerHTML;
+        const current = this.chapter();
+        if (current) {
+          if (this.autoSaveTimer) clearTimeout(this.autoSaveTimer);
+          this.autoSaveTimer = setTimeout(() => {
+            this.draftService.saveDraft(current.id, this.editorContent, this.notes());
+            this.hasDraft.set(true);
+          }, 800);
+        }
+      }
+      this.dismissInlineAiPrompt(false);
+      return;
+    }
+
     let text = this.inlineAiResponse();
     if (!text || !this.inlineAiCursorRange) return;
 
@@ -1039,6 +1325,8 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     this.inlineAiVisible.set(false);
     this.inlineAiInput.set('');
     this.inlineAiResponse.set('');
+    this.inlineAiImageUrl.set(null);
+    this.inlineAiGeneratingImage.set(false);
     this.inlineAiSelectedText.set('');
 
     if (restoreFocus && this.inlineAiCursorRange && this.contentEditorRef) {
@@ -1054,13 +1342,24 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     this.inlineAiCursorRange = null;
   }
 
+  private authFetch(input: string, init: RequestInit = {}): Promise<Response> {
+    const token = localStorage.getItem('app_auth_token');
+    const headers = new Headers(init.headers);
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    return fetch(input, { ...init, headers });
+  }
+
   private async loadChatHistory(chapterId: string): Promise<void> {
     try {
-      const response = await fetch(`/api/chat/${chapterId}/history`);
+      const response = await this.authFetch(`/api/chat/${chapterId}/history`);
       if (response.ok) {
-        const data = await response.json() as { messages: { role: 'user' | 'assistant'; text: string }[] };
+        const data = await response.json() as { messages: { role: 'user' | 'assistant'; text: string; imageUrl?: string }[] };
         if (data.messages.length > 0) {
-          this.chatMessages.set(data.messages);
+          // Sanitize any stale generatingImage placeholder that was saved mid-generation
+          const messages = data.messages.map(m =>
+            (!m.imageUrl && !m.text) ? { ...m, text: '(Image generation was interrupted.)' } : m
+          );
+          this.chatMessages.set(messages);
           this.scrollChatToBottom();
         }
       }
@@ -1072,11 +1371,15 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   private async saveChatHistory(): Promise<void> {
     const chapter = this.chapter();
     if (!chapter) return;
+    // Strip transient UI state before persisting
+    const messages = this.chatMessages()
+      .filter(m => !m.generatingImage)
+      .map(({ role, text, imageUrl }) => ({ role, text, ...(imageUrl ? { imageUrl } : {}) }));
     try {
-      await fetch(`/api/chat/${chapter.id}/history`, {
+      await this.authFetch(`/api/chat/${chapter.id}/history`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: this.chatMessages() }),
+        body: JSON.stringify({ messages }),
       });
     } catch {
       // Best-effort save
@@ -1088,7 +1391,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     if (!chapter) return;
     this.chatMessages.set([]);
     try {
-      await fetch(`/api/chat/${chapter.id}/history`, { method: 'DELETE' });
+      await this.authFetch(`/api/chat/${chapter.id}/history`, { method: 'DELETE' });
     } catch {
       // Best-effort clear
     }
@@ -1101,12 +1404,57 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     }
   }
 
+  private isImageRequest(text: string): boolean {
+    return /\b(generate|create|draw|make|produce|illustrate)\b[\s\S]{0,60}\b(image|picture|illustration|artwork|photo|painting)\b/i.test(text) ||
+           /\b(image|draw|illustrate|paint)\s*:/i.test(text);
+  }
+
   async sendChat(): Promise<void> {
     const text = this.chatInput().trim();
     if (!text || this.chatStreaming()) return;
 
     const chapter = this.chapter();
     if (!chapter) return;
+
+    if (this.isImageRequest(text)) {
+      this.chatMessages.update(msgs => [...msgs, { role: 'user', text }]);
+      this.chatInput.set('');
+      this.chatStreaming.set(true);
+      this.chatMessages.update(msgs => [...msgs, { role: 'assistant', text: 'Generating image…', generatingImage: true }]);
+      this.scrollChatToBottom();
+      try {
+        const imgResponse = await this.authFetch('/api/image/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: text }),
+        });
+        if (imgResponse.ok) {
+          const imgData = await imgResponse.json() as { url: string; thumbnailUrl: string };
+          this.chatMessages.update(msgs => {
+            const updated = [...msgs];
+            updated[updated.length - 1] = { role: 'assistant', text: '', imageUrl: imgData.url };
+            return updated;
+          });
+        } else {
+          this.chatMessages.update(msgs => {
+            const updated = [...msgs];
+            updated[updated.length - 1] = { role: 'assistant', text: 'Error: image generation failed.' };
+            return updated;
+          });
+        }
+      } catch {
+        this.chatMessages.update(msgs => {
+          const updated = [...msgs];
+          updated[updated.length - 1] = { role: 'assistant', text: 'Error: could not connect to image generation service.' };
+          return updated;
+        });
+      } finally {
+        this.chatStreaming.set(false);
+        this.scrollChatToBottom();
+        this.saveChatHistory();
+      }
+      return;
+    }
 
     // Add user message and clear input
     this.chatMessages.update(msgs => [...msgs, { role: 'user', text }]);
@@ -1125,7 +1473,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     this.chatAbortController = new AbortController();
 
     try {
-      const response = await fetch(`/api/chat/${chapter.id}`, {
+      const response = await this.authFetch(`/api/chat/${chapter.id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: apiMessages }),
@@ -1308,7 +1656,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   }
 
   toggleNotesList(): void {
-    this.notesListVisible.update(v => !v);
+    this.activateSidebarTab(1);
   }
 
   scrollToNote(noteId: string): void {

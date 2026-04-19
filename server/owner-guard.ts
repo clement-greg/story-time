@@ -14,18 +14,30 @@ function resolveEmail(source: OwnerSource): string {
  */
 export function withOwnerFilter(source: OwnerSource, query: string | SqlQuerySpec): SqlQuerySpec {
   const email = resolveEmail(source);
+
+  function injectOwner(sql: string): string {
+    // Insert owner filter before ORDER BY (or at end if no ORDER BY)
+    const orderByMatch = sql.match(/\s+ORDER\s+BY\s+/i);
+    if (orderByMatch && orderByMatch.index !== undefined) {
+      const before = sql.slice(0, orderByMatch.index);
+      const after = sql.slice(orderByMatch.index);
+      const hasWhere = /\bwhere\b/i.test(before);
+      return hasWhere
+        ? `${before} AND c.owner = @_owner${after}`
+        : `${before} WHERE c.owner = @_owner${after}`;
+    }
+    const hasWhere = /\bwhere\b/i.test(sql);
+    return hasWhere ? `${sql} AND c.owner = @_owner` : `${sql} WHERE c.owner = @_owner`;
+  }
+
   if (typeof query === 'string') {
-    const hasWhere = /\bwhere\b/i.test(query);
     return {
-      query: hasWhere ? `${query} AND c.owner = @_owner` : `${query} WHERE c.owner = @_owner`,
+      query: injectOwner(query),
       parameters: [{ name: '@_owner', value: email }],
     };
   }
-  const hasWhere = /\bwhere\b/i.test(query.query);
   return {
-    query: hasWhere
-      ? `${query.query} AND c.owner = @_owner`
-      : `${query.query} WHERE c.owner = @_owner`,
+    query: injectOwner(query.query),
     parameters: [...(query.parameters ?? []), { name: '@_owner', value: email }],
   };
 }
