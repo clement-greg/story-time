@@ -5,14 +5,24 @@
   gap: 4px;
 }
 
+.entity-edit-form .thumbnail-section {
+  margin-bottom: 20px;
+}
+
 .entity-edit-form mat-form-field {
   width: 100%;
 }
 
 .entity-edit-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+  margin-top: 24px;
+}
+
+.entity-edit-biography {
+  margin-top: 24px;
 }
 
 .action-spacer {
@@ -63,6 +73,16 @@
   display: flex;
   gap: 8px;
   margin-top: -50px;
+}
+
+@media (max-width: 599px) {
+  .entity-edit-actions {
+    justify-content: flex-start;
+  }
+
+  .entity-edit-actions .action-spacer {
+    display: none;
+  }
 }
 
 .thumbnail-actions button {

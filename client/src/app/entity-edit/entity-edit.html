@@ -25,7 +25,7 @@
     </div>
   </div>
 
-  <mat-form-field appearance="outline" style="max-width: 200px;margin-top: 30px;">
+  <mat-form-field appearance="outline" style="max-width: 200px;">
     <mat-label>Type</mat-label>
     <mat-select [ngModel]="draft()!.type"
                 (ngModelChange)="update('type', $event)">
@@ -44,6 +44,14 @@
   </mat-form-field>
 
   @if (draft()!.type === 'PERSON') {
+    <mat-form-field appearance="outline" style="max-width: 150px;">
+      <mat-label>Title</mat-label>
+      <input matInput
+             [ngModel]="draft()!.title"
+             (ngModelChange)="update('title', $event)"
+             placeholder="Dr, Mr, Ms…" />
+    </mat-form-field>
+
     <mat-form-field appearance="outline">
       <mat-label>First Name</mat-label>
       <input matInput
@@ -70,7 +78,9 @@
       <mat-select [ngModel]="draft()!.preferredReference"
                   (ngModelChange)="update('preferredReference', $event)">
         @for (opt of referenceOptions; track opt.value) {
-          <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
+          @if (!opt.requiresTitle || draft()!.title) {
+            <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
+          }
         }
       </mat-select>
     </mat-form-field>
@@ -97,7 +107,7 @@
     </button>
   }
 
-  <mat-form-field appearance="outline" style="margin-top: 40px;">
+  <mat-form-field appearance="outline" class="entity-edit-biography">
     <mat-label>Short biography</mat-label>
     <textarea matInput rows="3"
               [ngModel]="draft()!.biography"
@@ -106,7 +116,7 @@
   </mat-form-field>
 
 
-  <div class="entity-edit-actions" style="margin-top: 40px;">
+  <div class="entity-edit-actions">
     <button mat-flat-button color="primary" (click)="onSave()" [disabled]="uploading() || generatingImage()">Save</button>
     <button mat-button (click)="onCancel()">Cancel</button>
     <span class="action-spacer"></span>

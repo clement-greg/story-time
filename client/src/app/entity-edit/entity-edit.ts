@@ -42,11 +42,13 @@ export class EntityEditComponent {
   unarchive = output<string>();
 
   readonly entityTypes: Entity['type'][] = ['PERSON', 'PLACE', 'THING'];
-  readonly referenceOptions: { value: EntityReference; label: string }[] = [
+  readonly referenceOptions: { value: EntityReference; label: string; requiresTitle?: boolean }[] = [
     { value: 'full-name', label: 'Full Name' },
     { value: 'first-name', label: 'First Name' },
     { value: 'last-name', label: 'Last Name' },
     { value: 'nickname', label: 'Nickname' },
+    { value: 'title-full-name', label: 'Title + Full Name (e.g. Dr Sanderson Williams)', requiresTitle: true },
+    { value: 'title-last-name', label: 'Title + Last Name (e.g. Dr Williams)', requiresTitle: true },
   ];
 
   draft = signal<Entity | null>(null);

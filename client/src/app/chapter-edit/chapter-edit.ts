@@ -319,6 +319,34 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   }
 
   onEditorKeyDown(event: KeyboardEvent): void {
+    // Tab inserts a tab character instead of moving focus (unless autocomplete is open)
+    if (event.key === 'Tab' && !event.ctrlKey && !event.metaKey && !event.altKey && this.autocompleteItems().length === 0) {
+      event.preventDefault();
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        const range = sel.getRangeAt(0);
+        range.deleteContents();
+        const tabNode = document.createTextNode('\t');
+        range.insertNode(tabNode);
+        range.setStartAfter(tabNode);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        if (this.contentEditorRef) {
+          this.editorContent = this.contentEditorRef.nativeElement.innerHTML;
+          const current = this.chapter();
+          if (current) {
+            if (this.autoSaveTimer) clearTimeout(this.autoSaveTimer);
+            this.autoSaveTimer = setTimeout(() => {
+              this.draftService.saveDraft(current.id, this.editorContent, this.notes());
+              this.hasDraft.set(true);
+            }, 800);
+          }
+        }
+      }
+      return;
+    }
+
     // Ctrl+. opens inline AI prompt
     if (event.ctrlKey && event.key === '.') {
       event.preventDefault();
@@ -847,6 +875,10 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   private getReferenceType(entity: Entity, text: string): EntityReference {
     if (text === entity.name) return 'full-name';
     const refs = this.resolvedRefs(entity);
+    if (refs.title) {
+      if (text === `${refs.title} ${entity.name}`) return 'title-full-name';
+      if (refs.lastName && text === `${refs.title} ${refs.lastName}`) return 'title-last-name';
+    }
     if (refs.firstName && text === refs.firstName) return 'first-name';
     if (refs.lastName && text === refs.lastName) return 'last-name';
     if (refs.nickname && text === refs.nickname) return 'nickname';
@@ -859,6 +891,8 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
       case 'first-name': return refs.firstName || entity.name;
       case 'last-name': return refs.lastName || entity.name;
       case 'nickname': return refs.nickname || entity.name;
+      case 'title-full-name': return refs.title ? `${refs.title} ${entity.name}` : entity.name;
+      case 'title-last-name': return refs.title && refs.lastName ? `${refs.title} ${refs.lastName}` : entity.name;
       default: return entity.name;
     }
   }
@@ -883,15 +917,18 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
       case 'first-name': return refs.firstName || entity.name;
       case 'last-name': return refs.lastName || entity.name;
       case 'nickname': return refs.nickname || entity.name;
+      case 'title-full-name': return refs.title ? `${refs.title} ${entity.name}` : entity.name;
+      case 'title-last-name': return refs.title && refs.lastName ? `${refs.title} ${refs.lastName}` : entity.name;
       default: return entity.name;
     }
   }
 
   /** Returns stored name fields, falling back to parsing entity.name for PERSON entities. */
-  private resolvedRefs(entity: Entity): { firstName?: string; lastName?: string; nickname?: string } {
+  private resolvedRefs(entity: Entity): { title?: string; firstName?: string; lastName?: string; nickname?: string } {
     if (entity.type !== 'PERSON') return {};
     const parts = entity.name.trim().split(/\s+/);
     return {
+      title: entity.title,
       firstName: entity.firstName || (parts.length >= 2 ? parts[0] : undefined),
       lastName: entity.lastName || (parts.length >= 2 ? parts[parts.length - 1] : undefined),
       nickname: entity.nickname,
@@ -900,7 +937,9 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
 
   private allRefsFor(entity: Entity): string[] {
     const refs = this.resolvedRefs(entity);
-    return [entity.name, refs.firstName, refs.lastName, refs.nickname].filter((v): v is string => !!v);
+    const titleFullName = refs.title ? `${refs.title} ${entity.name}` : undefined;
+    const titleLastName = refs.title && refs.lastName ? `${refs.title} ${refs.lastName}` : undefined;
+    return [entity.name, refs.firstName, refs.lastName, refs.nickname, titleFullName, titleLastName].filter((v): v is string => !!v);
   }
 
   private getAlternativeRefs(entity: Entity): string[] {

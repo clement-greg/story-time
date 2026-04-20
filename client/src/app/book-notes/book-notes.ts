@@ -544,6 +544,10 @@ export class BookNotesComponent implements OnInit, OnDestroy {
   private getReferenceType(entity: Entity, text: string): EntityReference {
     if (text === entity.name) return 'full-name';
     const refs = this.resolvedRefs(entity);
+    if (refs.title) {
+      if (text === `${refs.title} ${entity.name}`) return 'title-full-name';
+      if (refs.lastName && text === `${refs.title} ${refs.lastName}`) return 'title-last-name';
+    }
     if (refs.firstName && text === refs.firstName) return 'first-name';
     if (refs.lastName && text === refs.lastName) return 'last-name';
     if (refs.nickname && text === refs.nickname) return 'nickname';
@@ -556,6 +560,8 @@ export class BookNotesComponent implements OnInit, OnDestroy {
       case 'first-name': return refs.firstName || entity.name;
       case 'last-name': return refs.lastName || entity.name;
       case 'nickname': return refs.nickname || entity.name;
+      case 'title-full-name': return refs.title ? `${refs.title} ${entity.name}` : entity.name;
+      case 'title-last-name': return refs.title && refs.lastName ? `${refs.title} ${refs.lastName}` : entity.name;
       default: return entity.name;
     }
   }
@@ -580,14 +586,17 @@ export class BookNotesComponent implements OnInit, OnDestroy {
       case 'first-name': return refs.firstName || entity.name;
       case 'last-name': return refs.lastName || entity.name;
       case 'nickname': return refs.nickname || entity.name;
+      case 'title-full-name': return refs.title ? `${refs.title} ${entity.name}` : entity.name;
+      case 'title-last-name': return refs.title && refs.lastName ? `${refs.title} ${refs.lastName}` : entity.name;
       default: return entity.name;
     }
   }
 
-  private resolvedRefs(entity: Entity): { firstName?: string; lastName?: string; nickname?: string } {
+  private resolvedRefs(entity: Entity): { title?: string; firstName?: string; lastName?: string; nickname?: string } {
     if (entity.type !== 'PERSON') return {};
     const parts = entity.name.trim().split(/\s+/);
     return {
+      title: entity.title,
       firstName: entity.firstName || (parts.length >= 2 ? parts[0] : undefined),
       lastName: entity.lastName || (parts.length >= 2 ? parts[parts.length - 1] : undefined),
       nickname: entity.nickname,
@@ -596,7 +605,9 @@ export class BookNotesComponent implements OnInit, OnDestroy {
 
   private allRefsFor(entity: Entity): string[] {
     const refs = this.resolvedRefs(entity);
-    return [entity.name, refs.firstName, refs.lastName, refs.nickname].filter((v): v is string => !!v);
+    const titleFullName = refs.title ? `${refs.title} ${entity.name}` : undefined;
+    const titleLastName = refs.title && refs.lastName ? `${refs.title} ${refs.lastName}` : undefined;
+    return [entity.name, refs.firstName, refs.lastName, refs.nickname, titleFullName, titleLastName].filter((v): v is string => !!v);
   }
 
   private getCurrentWordAtCursor(): { word: string; range: Range } | null {
