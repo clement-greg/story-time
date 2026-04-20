@@ -92,3 +92,11 @@
 </main>
 
 <app-entity-panel />
+
+@if (updateCheck.updateAvailable()) {
+  <div class="update-banner">
+    <mat-icon>system_update_alt</mat-icon>
+    <span>A new version is available.</span>
+    <button mat-flat-button (click)="reload()">Refresh</button>
+  </div>
+}
