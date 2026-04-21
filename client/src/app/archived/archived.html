@@ -27,10 +27,16 @@
             <span class="item-title">{{ series.title }}</span>
             <span class="item-type">Series</span>
           </div>
-          <button mat-stroked-button (click)="unarchiveSeries(series.id)" matTooltip="Restore this series">
-            <mat-icon>unarchive</mat-icon>
-            Restore
-          </button>
+          <div class="item-actions">
+            <button mat-stroked-button (click)="unarchiveSeries(series.id)" matTooltip="Restore this series">
+              <mat-icon>unarchive</mat-icon>
+              Restore
+            </button>
+            <button mat-stroked-button color="warn" (click)="deleteSeries(series)" matTooltip="Delete this series">
+              <mat-icon>delete</mat-icon>
+              Delete
+            </button>
+          </div>
         </div>
       }
     </div>
@@ -56,10 +62,16 @@
             <span class="item-title">{{ book.title }}</span>
             <span class="item-type">Book</span>
           </div>
-          <button mat-stroked-button (click)="unarchiveBook(book.id)" matTooltip="Restore this book">
-            <mat-icon>unarchive</mat-icon>
-            Restore
-          </button>
+          <div class="item-actions">
+            <button mat-stroked-button (click)="unarchiveBook(book.id)" matTooltip="Restore this book">
+              <mat-icon>unarchive</mat-icon>
+              Restore
+            </button>
+            <button mat-stroked-button color="warn" (click)="deleteBook(book)" matTooltip="Delete this book">
+              <mat-icon>delete</mat-icon>
+              Delete
+            </button>
+          </div>
         </div>
       }
     </div>
@@ -85,10 +97,16 @@
             <span class="item-title">{{ entity.name || '(unnamed)' }}</span>
             <span class="item-type">{{ entity.type }}</span>
           </div>
-          <button mat-stroked-button (click)="unarchiveEntity(entity.id)" matTooltip="Restore this entity">
-            <mat-icon>unarchive</mat-icon>
-            Restore
-          </button>
+          <div class="item-actions">
+            <button mat-stroked-button (click)="unarchiveEntity(entity.id)" matTooltip="Restore this entity">
+              <mat-icon>unarchive</mat-icon>
+              Restore
+            </button>
+            <button mat-stroked-button color="warn" (click)="deleteEntity(entity)" matTooltip="Delete this entity">
+              <mat-icon>delete</mat-icon>
+              Delete
+            </button>
+          </div>
         </div>
       }
     </div>

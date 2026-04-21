@@ -83,6 +83,12 @@
   color: rgba(0, 0, 0, 0.54);
 }
 
+.item-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .empty {
   color: rgba(0, 0, 0, 0.54);
   font-style: italic;

@@ -40,7 +40,7 @@ router.get('/archived', async (req: Request, res: Response) => {
     const email = req.user!.email;
     const { resources } = await container.items
       .query({
-        query: 'SELECT * FROM c WHERE c.owner = @owner AND c.archived = true',
+        query: 'SELECT * FROM c WHERE c.owner = @owner AND c.archived = true AND (NOT IS_DEFINED(c.deleted) OR c.deleted = false)',
         parameters: [{ name: '@owner', value: email }],
       })
       .fetchAll();
@@ -135,6 +135,42 @@ router.patch('/:id/unarchive', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('Error unarchiving series:', err);
     res.status(500).json({ error: 'Failed to unarchive series' });
+  }
+});
+
+// PATCH soft-delete series
+router.patch('/:id/soft-delete', async (req: Request, res: Response) => {
+  try {
+    const id = req.params['id'] as string;
+    const existing = await readOwnedItem<Series>(container, id, id, req);
+    if (!existing) {
+      res.status(404).json({ error: 'Series not found' });
+      return;
+    }
+    const updated: Series = { ...existing, deleted: true, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };
+    const { resource } = await container.item(id, id).replace<Series>(updated);
+    res.json(resource);
+  } catch (err) {
+    console.error('Error soft-deleting series:', err);
+    res.status(500).json({ error: 'Failed to soft-delete series' });
+  }
+});
+
+// PATCH restore soft-deleted series
+router.patch('/:id/restore-delete', async (req: Request, res: Response) => {
+  try {
+    const id = req.params['id'] as string;
+    const existing = await readOwnedItem<Series>(container, id, id, req);
+    if (!existing) {
+      res.status(404).json({ error: 'Series not found' });
+      return;
+    }
+    const updated: Series = { ...existing, deleted: false, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };
+    const { resource } = await container.item(id, id).replace<Series>(updated);
+    res.json(resource);
+  } catch (err) {
+    console.error('Error restoring series:', err);
+    res.status(500).json({ error: 'Failed to restore series' });
   }
 });
 

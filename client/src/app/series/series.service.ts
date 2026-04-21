@@ -36,6 +36,14 @@ export class SeriesService {
     return this.http.patch<Series>(`${this.apiUrl}/${id}/unarchive`, {});
   }
 
+  softDelete(id: string): Observable<Series> {
+    return this.http.patch<Series>(`${this.apiUrl}/${id}/soft-delete`, {});
+  }
+
+  restoreDelete(id: string): Observable<Series> {
+    return this.http.patch<Series>(`${this.apiUrl}/${id}/restore-delete`, {});
+  }
+
   getArchived(): Observable<Series[]> {
     return this.http.get<Series[]>(`${this.apiUrl}/archived`);
   }

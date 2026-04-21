@@ -15,6 +15,7 @@ import { ChapterService } from '../chapter/chapter.service';
 import { ChapterDraftService } from './chapter-draft.service';
 import { ChapterVersionService } from './chapter-version.service';
 import { Chapter, ChapterNote, ChapterVersion } from '@shared/models/chapter.model';
+import { GrammarCheckService, GrammarError, SuggestedEntity } from '../services/grammar-check.service';
 import { Entity, EntityReference } from '@shared/models/entity.model';
 import { BookService } from '../book/book.service';
 import { EntityService } from '../services/entity.service';
@@ -23,6 +24,20 @@ import { SlideOutPanelContainer } from '../shared/slide-out-panel-container/slid
 import { EntityEditComponent } from '../entity-edit/entity-edit';
 import { HeaderService } from '../services/header.service';
 import { EntityPanelService } from '../services/entity-panel.service';
+
+export interface SuggestedEntityCard extends SuggestedEntity {
+  creating?: boolean;
+  created?: boolean;
+  draftEntity?: Entity;
+}
+
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  text: string;
+  imageUrl?: string;
+  generatingImage?: boolean;
+  entitySuggestions?: SuggestedEntityCard[];
+}
 
 @Component({
   selector: 'app-chapter-edit',
@@ -60,11 +75,12 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   private dialog = inject(MatDialog);
   private headerService = inject(HeaderService);
   private entityPanel = inject(EntityPanelService);
+  private grammarService = inject(GrammarCheckService);
 
   chapter = signal<Chapter | null>(null);
   saving = signal(false);
   hasDraft = signal(false);
-  chatMessages = signal<{ role: 'user' | 'assistant'; text: string; imageUrl?: string; generatingImage?: boolean }[]>([]);
+  chatMessages = signal<ChatMessage[]>([]);
   chatInput = signal('');
   chatStreaming = signal(false);
   entities = signal<Entity[]>([]);
@@ -126,6 +142,15 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   // Sidebar panel
   mobileSidebarOpen = signal(false);
   sidebarTabIndex = signal(0);
+  sidebarWidth = signal(350);
+
+  // Panel resizer
+  private resizerDrag: {
+    startX: number;
+    startWidth: number;
+    moveHandler: (e: MouseEvent) => void;
+    upHandler: () => void;
+  } | null = null;
 
   // Mobile title edit
   mobileTitleEditOpen = signal(false);
@@ -135,6 +160,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   inlineAiVisible = signal(false);
   inlineAiTop = signal(0);
   inlineAiLeft = signal(0);
+  inlineAiAbove = signal(false);
   inlineAiInput = signal('');
   inlineAiResponse = signal('');
   inlineAiStreaming = signal(false);
@@ -144,14 +170,49 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   private inlineAiCursorRange: Range | null = null;
   private inlineAiCharBefore = '';
   private inlineAiCharAfter = '';
+  private inlineAiSurroundingText = '';
   private inlineAiAbortController: AbortController | null = null;
   private noteSelectionRange: Range | null = null;
 
-  /** Tracks latest editor content without writing back to the DOM */
-  private editorContent = '';
+  // Grammar checking
+  grammarChecking = signal(false);
+  grammarPopoverVisible = signal(false);
+  grammarPopoverTop = signal(0);
+  grammarPopoverLeft = signal(0);
+  grammarPopoverError = signal<GrammarError | null>(null);
+  private grammarPopoverMarkEl: HTMLElement | null = null;
+  private grammarTimer: ReturnType<typeof setTimeout> | null = null;
+  private grammarAbortController: AbortController | null = null;
+
+  // Inline entity edit within suggestion card
+  expandedSuggestion = signal<{ msgIdx: number; sugIdx: number } | null>(null);
+
+  /** Tracks latest editor content without writing back to the DOM.
+   *  The setter automatically strips grammar mark elements so they are
+   *  never persisted to the draft or the server. */
+  private _editorContent = '';
+  private get editorContent(): string { return this._editorContent; }
+  private set editorContent(value: string) {
+    const needsClean = value.includes('grammar-error') || value.includes('ai-insertion-marker');
+    if (needsClean) {
+      const div = document.createElement('div');
+      div.innerHTML = value;
+      div.querySelectorAll('mark.grammar-error').forEach(mark => {
+        const parent = mark.parentNode!;
+        while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
+        parent.removeChild(mark);
+      });
+      div.querySelectorAll('.ai-insertion-marker').forEach(el => el.remove());
+      this._editorContent = div.innerHTML;
+    } else {
+      this._editorContent = value;
+    }
+  }
   private autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
   private chatAbortController: AbortController | null = null;
   private longPressTimer: ReturnType<typeof setTimeout> | null = null;
+  private seriesId = '';
+  private suggestedEntityNames = new Set<string>();
 
   constructor() {
     effect(() => {
@@ -182,6 +243,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    this.loadSidebarWidth();
     const id = this.route.snapshot.paramMap.get('id')!;
     this.chapterService.getById(id).subscribe({
       next: async (data) => {
@@ -208,6 +270,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
         // Load entities + register header breadcrumbs
         this.bookService.getById(data.bookId).subscribe({
           next: (book) => {
+            this.seriesId = book.seriesId;
             this.seriesService.getById(book.seriesId).subscribe({
               next: (series) => {
                 this.headerService.set(
@@ -245,8 +308,14 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     this.headerService.clear();
     if (this.autoSaveTimer) clearTimeout(this.autoSaveTimer);
     if (this.popupHideTimer) clearTimeout(this.popupHideTimer);
+    if (this.grammarTimer) clearTimeout(this.grammarTimer);
+    this.grammarAbortController?.abort();
     this.chatAbortController?.abort();
     this.inlineAiAbortController?.abort();
+    if (this.resizerDrag) {
+      document.removeEventListener('mousemove', this.resizerDrag.moveHandler);
+      document.removeEventListener('mouseup', this.resizerDrag.upHandler);
+    }
   }
 
   updateTitle(value: string): void {
@@ -316,6 +385,8 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
       this.draftService.saveDraft(current.id, this.editorContent, this.notes());
       this.hasDraft.set(true);
     }, 800);
+
+    this.scheduleGrammarCheck();
   }
 
   onEditorKeyDown(event: KeyboardEvent): void {
@@ -510,6 +581,14 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
 
   onEditorClick(event: MouseEvent): void {
     const target = event.target as HTMLElement;
+
+    // Grammar error mark clicked — show suggestion popover
+    const grammarMark = target.closest('mark.grammar-error') as HTMLElement | null;
+    if (grammarMark) {
+      this.showGrammarPopover(event, grammarMark);
+      return;
+    }
+
     if (target.tagName === 'IMG') {
       const img = target as HTMLImageElement;
       // Remove selection from any previously selected image
@@ -614,6 +693,49 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
       clearTimeout(this.longPressTimer);
       this.longPressTimer = null;
     }
+  }
+
+  // ── Panel resizer (sidebar width) ─────────────────────
+  private static readonly SIDEBAR_STORAGE_KEY = 'chapter-edit-sidebar-width';
+  private static readonly SIDEBAR_MIN = 200;
+  private static readonly SIDEBAR_MAX_RATIO = 0.6; // sidebar can't exceed 60% of window
+
+  private loadSidebarWidth(): void {
+    const stored = localStorage.getItem(ChapterEditComponent.SIDEBAR_STORAGE_KEY);
+    if (stored) {
+      const w = parseInt(stored, 10);
+      if (!isNaN(w) && w >= ChapterEditComponent.SIDEBAR_MIN && w < window.innerWidth * ChapterEditComponent.SIDEBAR_MAX_RATIO) {
+        this.sidebarWidth.set(w);
+      }
+    }
+  }
+
+  onResizerMouseDown(event: MouseEvent): void {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = this.sidebarWidth();
+
+    const moveHandler = (e: MouseEvent) => {
+      const delta = startX - e.clientX; // dragging left = wider sidebar
+      const maxWidth = window.innerWidth * ChapterEditComponent.SIDEBAR_MAX_RATIO;
+      const newWidth = Math.max(ChapterEditComponent.SIDEBAR_MIN, Math.min(startWidth + delta, maxWidth));
+      this.sidebarWidth.set(Math.round(newWidth));
+    };
+
+    const upHandler = () => {
+      document.removeEventListener('mousemove', moveHandler);
+      document.removeEventListener('mouseup', upHandler);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      localStorage.setItem(ChapterEditComponent.SIDEBAR_STORAGE_KEY, String(this.sidebarWidth()));
+      this.resizerDrag = null;
+    };
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', moveHandler);
+    document.addEventListener('mouseup', upHandler);
+    this.resizerDrag = { startX, startWidth, moveHandler, upHandler };
   }
 
   onResizeHandleMouseDown(event: MouseEvent, direction: 'e' | 's' | 'se'): void {
@@ -821,6 +943,9 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     }
     if (this.noteInputVisible() && !target.closest('.note-input-popup')) {
       this.dismissNoteInput();
+    }
+    if (this.grammarPopoverVisible() && !target.closest('.grammar-popover')) {
+      this.dismissGrammarPopover();
     }
     if (this.selectedImage() && target.tagName !== 'IMG' && !target.closest('.image-resize-toolbar') && !target.closest('.image-resize-overlay')) {
       this.clearImageSelection();
@@ -1169,11 +1294,34 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     return result;
   }
 
+  private extractSurroundingText(range: Range): string {
+    const editor = this.contentEditorRef?.nativeElement;
+    if (!editor) return '';
+    const fullText = editor.innerText ?? '';
+    // Find the cursor offset within the plain text
+    const preRange = document.createRange();
+    preRange.setStart(editor, 0);
+    preRange.setEnd(range.startContainer, range.startOffset);
+    const cursorOffset = preRange.toString().length;
+    // Grab ~300 chars before and after, then trim to sentence boundaries
+    const RADIUS = 300;
+    const rawBefore = fullText.slice(Math.max(0, cursorOffset - RADIUS), cursorOffset);
+    const rawAfter = fullText.slice(cursorOffset, cursorOffset + RADIUS);
+    // Trim to last sentence start before the window
+    const sentenceStart = rawBefore.search(/[.!?]\s+(?=[A-Z])[^]*$/);
+    const before = sentenceStart >= 0 ? rawBefore.slice(sentenceStart + 1).trim() : rawBefore.trim();
+    // Trim to first sentence end after the window
+    const sentenceEnd = rawAfter.search(/[.!?]\s/);
+    const after = sentenceEnd >= 0 ? rawAfter.slice(0, sentenceEnd + 1).trim() : rawAfter.trim();
+    if (!before && !after) return '';
+    return before + ' [CURSOR] ' + after;
+  }
+
   openInlineAiPrompt(): void {
-    const rect = this.getCursorRect();
     const sel = window.getSelection();
     this.inlineAiCharBefore = '';
     this.inlineAiCharAfter = '';
+    this.inlineAiSurroundingText = '';
     if (sel && sel.rangeCount > 0) {
       const r = sel.getRangeAt(0);
       this.inlineAiCursorRange = r.cloneRange();
@@ -1188,22 +1336,60 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
       if (ec.nodeType === Node.TEXT_NODE) {
         this.inlineAiCharAfter = (ec.textContent ?? '')[r.endOffset] ?? '';
       }
+      // Capture surrounding text for AI context
+      this.inlineAiSurroundingText = this.extractSurroundingText(r);
     } else {
       this.inlineAiCursorRange = null;
       this.inlineAiSelectedText.set('');
     }
 
-    const PANEL_WIDTH = 388;
-    const top = rect ? rect.bottom + 10 : 200;
-    const left = rect
-      ? Math.max(8, Math.min(rect.left, window.innerWidth - PANEL_WIDTH - 8))
-      : 200;
-
-    this.inlineAiTop.set(top);
-    this.inlineAiLeft.set(left);
     this.inlineAiInput.set('');
     this.inlineAiResponse.set('');
     this.inlineAiVisible.set(true);
+
+    // Insert the marker first so we can use its position for the popup
+    this.insertAiMarker();
+
+    // Get position from the marker element if available, otherwise fall back to cursor rect
+    const marker = this.contentEditorRef?.nativeElement?.querySelector('.ai-insertion-marker');
+    const rect = marker?.getBoundingClientRect() ?? this.getCursorRect();
+
+    const PANEL_WIDTH = 388;
+    const PANEL_HEIGHT_EST = 120;
+    const GAP = 10;
+
+    let top: number;
+    let left: number;
+    let above = false;
+
+    if (rect && (rect.top !== 0 || rect.left !== 0 || rect.width !== 0 || rect.height !== 0)) {
+      // Horizontal: prefer right-aligned with cursor, shift left if it overflows
+      left = rect.left;
+      if (left + PANEL_WIDTH + GAP > window.innerWidth) {
+        left = rect.right - PANEL_WIDTH;
+      }
+      left = Math.max(GAP, Math.min(left, window.innerWidth - PANEL_WIDTH - GAP));
+
+      // Vertical: prefer below cursor, flip above if it overflows
+      if (rect.bottom + GAP + PANEL_HEIGHT_EST < window.innerHeight) {
+        top = rect.bottom + GAP;
+        above = false;
+      } else {
+        // Position anchor at cursor top, CSS translateY(-100%) pulls popup above
+        top = rect.top - GAP;
+        above = true;
+      }
+      top = Math.max(GAP, top);
+    } else {
+      // Fallback: center-ish in the editor
+      const editorRect = this.contentEditorRef?.nativeElement?.getBoundingClientRect();
+      top = editorRect ? editorRect.top + 60 : 200;
+      left = editorRect ? editorRect.left + 40 : 200;
+    }
+
+    this.inlineAiTop.set(top);
+    this.inlineAiLeft.set(left);
+    this.inlineAiAbove.set(above);
 
     setTimeout(() => this.inlineAiInputEl?.nativeElement?.focus());
   }
@@ -1214,6 +1400,9 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
       this.submitInlineAiPrompt();
     } else if (event.key === 'Escape') {
       this.dismissInlineAiPrompt();
+    } else if (event.key === 'a' && !this.inlineAiStreaming() && (this.inlineAiResponse() || this.inlineAiImageUrl())) {
+      event.preventDefault();
+      this.acceptInlineAiResponse();
     }
   }
 
@@ -1252,11 +1441,17 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const content = selectedText
-      ? text
+    let content: string;
+    if (selectedText) {
+      content = text
         ? `Selected text:\n"${selectedText}"\n\n${text}`
-        : `Selected text:\n"${selectedText}"`
-      : text;
+        : `Selected text:\n"${selectedText}"`;
+    } else {
+      // Include surrounding text so the AI can match tone and continuity
+      content = this.inlineAiSurroundingText
+        ? `The following is the text surrounding the cursor position (marked with [CURSOR]). Use it ONLY as context for tone, style, and continuity. Do NOT repeat or include any of the surrounding text in your response — return ONLY the new content to be inserted at the cursor.\n\nSurrounding text:\n"${this.inlineAiSurroundingText}"\n\nInstruction: ${text}`
+        : text;
+    }
     const apiMessages = [{ role: 'user' as const, content }];
     this.inlineAiAbortController = new AbortController();
 
@@ -1307,6 +1502,8 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     } finally {
       this.inlineAiStreaming.set(false);
       this.inlineAiAbortController = null;
+      // Refocus the input so user can modify the prompt without mouse
+      setTimeout(() => this.inlineAiInputEl?.nativeElement?.focus());
     }
   }
 
@@ -1332,6 +1529,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
         sel.removeAllRanges();
         sel.addRange(afterRange);
       }
+      this.scrollCursorIntoView();
       if (this.contentEditorRef) {
         this.editorContent = this.contentEditorRef.nativeElement.innerHTML;
         const current = this.chapter();
@@ -1380,6 +1578,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
       sel.removeAllRanges();
       sel.addRange(afterRange);
     }
+    this.scrollCursorIntoView();
 
     if (this.contentEditorRef) {
       this.editorContent = this.contentEditorRef.nativeElement.innerHTML;
@@ -1397,6 +1596,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   }
 
   dismissInlineAiPrompt(restoreFocus = true): void {
+    this.removeAiMarker();
     this.inlineAiAbortController?.abort();
     this.inlineAiAbortController = null;
     this.inlineAiVisible.set(false);
@@ -1417,6 +1617,50 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     }
 
     this.inlineAiCursorRange = null;
+  }
+
+  private scrollCursorIntoView(): void {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || !this.contentEditorRef) return;
+    const range = sel.getRangeAt(0).cloneRange();
+    range.collapse(false);
+    const span = document.createElement('span');
+    range.insertNode(span);
+    span.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    span.remove();
+  }
+
+  private insertAiMarker(): void {
+    this.removeAiMarker();
+    if (!this.inlineAiCursorRange || !this.contentEditorRef) return;
+    if (this.inlineAiSelectedText()) return;
+    const marker = document.createElement('span');
+    marker.className = 'ai-insertion-marker';
+    marker.setAttribute('data-ai-marker', '');
+    // Inline styles because Angular view encapsulation won't scope to dynamic DOM nodes
+    marker.style.display = 'inline-block';
+    marker.style.width = '2px';
+    marker.style.height = '1.2em';
+    marker.style.verticalAlign = 'text-bottom';
+    marker.style.background = '#6750a4';
+    marker.style.borderRadius = '1px';
+    marker.style.pointerEvents = 'none';
+    marker.style.margin = '0 1px';
+    marker.style.animation = 'ai-marker-blink 1s step-end infinite';
+    const range = this.inlineAiCursorRange;
+    range.insertNode(marker);
+    // Re-position the saved range after the marker so insertion goes to the right place
+    const newRange = document.createRange();
+    newRange.setStartAfter(marker);
+    newRange.collapse(true);
+    this.inlineAiCursorRange = newRange;
+  }
+
+  private removeAiMarker(): void {
+    if (!this.contentEditorRef) return;
+    this.contentEditorRef.nativeElement
+      .querySelectorAll('.ai-insertion-marker')
+      .forEach((el: Element) => el.remove());
   }
 
   private authFetch(input: string, init: RequestInit = {}): Promise<Response> {
@@ -1450,7 +1694,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     if (!chapter) return;
     // Strip transient UI state before persisting
     const messages = this.chatMessages()
-      .filter(m => !m.generatingImage)
+      .filter(m => !m.generatingImage && !m.entitySuggestions)
       .map(({ role, text, imageUrl }) => ({ role, text, ...(imageUrl ? { imageUrl } : {}) }));
     try {
       await this.authFetch(`/api/chat/${chapter.id}/history`, {
@@ -1773,6 +2017,382 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
         }, 800);
       }
     }
+  }
+
+  // ── Grammar checking ────────────────────────────────────────────────────────
+
+  scheduleGrammarCheck(): void {
+    if (this.grammarTimer) clearTimeout(this.grammarTimer);
+    this.grammarTimer = setTimeout(() => this.runGrammarCheck(), 750);
+  }
+
+  private async runGrammarCheck(): Promise<void> {
+    this.grammarTimer = null;
+    if (!this.contentEditorRef) return;
+    const editor = this.contentEditorRef.nativeElement;
+
+    const text = this.grammarService.extractCheckableText(editor);
+    if (!text.trim()) {
+      this.unwrapGrammarMarks();
+      return;
+    }
+
+    // Abort any in-flight check before starting a new one
+    this.grammarAbortController?.abort();
+    this.grammarAbortController = new AbortController();
+    this.grammarChecking.set(true);
+
+    const knownEntityNames = this.entities().flatMap(e =>
+      [e.name, e.firstName, e.lastName, e.nickname].filter((n): n is string => !!n)
+    );
+    const { errors, suggestedEntities } = await this.grammarService.check(text, knownEntityNames, this.grammarAbortController.signal);
+
+    this.grammarChecking.set(false);
+    this.grammarAbortController = null;
+
+    // Remove stale marks and apply fresh ones
+    this.unwrapGrammarMarks();
+    if (errors.length > 0) {
+      this.applyGrammarMarks(errors);
+    }
+
+    // Surface any newly-discovered entities as a chat message
+    if (suggestedEntities.length > 0) {
+      const newSuggestions = suggestedEntities.filter(
+        s => !this.suggestedEntityNames.has(s.name.toLowerCase())
+      );
+      if (newSuggestions.length > 0) {
+        newSuggestions.forEach(s => this.suggestedEntityNames.add(s.name.toLowerCase()));
+        this.chatMessages.update(msgs => [
+          ...msgs,
+          {
+            role: 'assistant' as const,
+            text: '',
+            entitySuggestions: newSuggestions.map(s => ({
+              ...s,
+              draftEntity: {
+                id: crypto.randomUUID(),
+                name: s.name,
+                type: s.type,
+                seriesId: this.seriesId,
+                biography: s.description,
+                preferredReference: 'first-name' as EntityReference,
+              } satisfies Entity,
+            })),
+          },
+        ]);
+        this.scrollChatToBottom();
+      }
+    }
+  }
+
+  private unwrapGrammarMarks(): void {
+    if (!this.contentEditorRef) return;
+    const editor = this.contentEditorRef.nativeElement;
+    const marks = editor.querySelectorAll('mark.grammar-error');
+    if (marks.length === 0) return;
+    marks.forEach(mark => {
+      const parent = mark.parentNode!;
+      while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
+      parent.removeChild(mark);
+    });
+    editor.normalize();
+  }
+
+  private applyGrammarMarks(errors: GrammarError[]): void {
+    for (const error of errors) {
+      this.markFirstOccurrence(error);
+    }
+  }
+
+  private markFirstOccurrence(error: GrammarError): void {
+    if (!this.contentEditorRef) return;
+    const editor = this.contentEditorRef.nativeElement;
+    const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT, {
+      acceptNode: (node: Node) => {
+        const parent = (node as Text).parentElement;
+        if (!parent) return NodeFilter.FILTER_REJECT;
+        // Skip text inside entity references, note indicators, or existing marks
+        if (parent.closest('.entity-reference, .note-indicator, mark')) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+
+    let textNode: Text | null;
+    while ((textNode = walker.nextNode() as Text | null)) {
+      const content = textNode.textContent ?? '';
+      const idx = content.indexOf(error.text);
+      if (idx === -1) continue;
+
+      const range = document.createRange();
+      range.setStart(textNode, idx);
+      range.setEnd(textNode, idx + error.text.length);
+
+      const mark = document.createElement('mark');
+      mark.className = 'grammar-error';
+      mark.setAttribute('data-grammar-suggestion', error.suggestion);
+      mark.setAttribute('data-grammar-message', error.message);
+
+      try {
+        range.surroundContents(mark);
+      } catch {
+        // Skip if the range crosses element boundaries
+      }
+      break; // Mark only the first occurrence per error
+    }
+  }
+
+  showGrammarPopover(event: MouseEvent, markEl: HTMLElement): void {
+    const suggestion = markEl.getAttribute('data-grammar-suggestion') ?? '';
+    const message = markEl.getAttribute('data-grammar-message') ?? '';
+    this.grammarPopoverMarkEl = markEl;
+    this.grammarPopoverError.set({ text: markEl.textContent ?? '', suggestion, message });
+
+    const POPOVER_WIDTH = 280;
+    const rect = markEl.getBoundingClientRect();
+    const top = rect.bottom + 6;
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - POPOVER_WIDTH - 8));
+    this.grammarPopoverTop.set(top);
+    this.grammarPopoverLeft.set(left);
+    this.grammarPopoverVisible.set(true);
+  }
+
+  applyGrammarSuggestion(): void {
+    const error = this.grammarPopoverError();
+    const markEl = this.grammarPopoverMarkEl;
+    if (!error || !markEl || !markEl.parentNode) return;
+
+    const parent = markEl.parentNode!;
+    const textNode = document.createTextNode(error.suggestion);
+    parent.replaceChild(textNode, markEl);
+    parent.normalize();
+
+    if (this.contentEditorRef) {
+      this.editorContent = this.contentEditorRef.nativeElement.innerHTML;
+      const current = this.chapter();
+      if (current) {
+        if (this.autoSaveTimer) clearTimeout(this.autoSaveTimer);
+        this.autoSaveTimer = setTimeout(() => {
+          this.draftService.saveDraft(current.id, this.editorContent, this.notes());
+          this.hasDraft.set(true);
+        }, 800);
+      }
+    }
+
+    this.dismissGrammarPopover();
+    this.scheduleGrammarCheck();
+  }
+
+  dismissGrammarPopover(): void {
+    this.grammarPopoverVisible.set(false);
+    this.grammarPopoverError.set(null);
+    this.grammarPopoverMarkEl = null;
+  }
+
+  // ── Entity suggestions from grammar check ───────────────────────────────────
+
+  createEntityFromSuggestion(msgIdx: number, sugIdx: number): void {
+    if (!this.seriesId) return;
+    const suggestion = this.chatMessages()[msgIdx]?.entitySuggestions?.[sugIdx];
+    if (!suggestion || suggestion.creating || suggestion.created) return;
+
+    // Use the draftEntity (possibly edited by user) or fall back to defaults
+    const entityToCreate: Entity = suggestion.draftEntity ?? {
+      id: crypto.randomUUID(),
+      name: suggestion.name,
+      type: suggestion.type,
+      seriesId: this.seriesId,
+      biography: suggestion.description,
+      preferredReference: 'first-name',
+    };
+
+    this.expandedSuggestion.set(null);
+
+    this.chatMessages.update(msgs =>
+      msgs.map((m, mi) =>
+        mi !== msgIdx || !m.entitySuggestions ? m : {
+          ...m,
+          entitySuggestions: m.entitySuggestions.map((s, si) =>
+            si === sugIdx ? { ...s, creating: true } : s
+          ),
+        }
+      )
+    );
+
+    this.entityService.create(entityToCreate).subscribe({
+      next: (created) => {
+        this.entities.update(list => [...list, created]);
+        this.suggestedEntityNames.add(created.name.toLowerCase());
+        this.wrapEntityReferencesInEditor(created);
+        this.chatMessages.update(msgs =>
+          msgs.map((m, mi) =>
+            mi !== msgIdx || !m.entitySuggestions ? m : {
+              ...m,
+              entitySuggestions: m.entitySuggestions.map((s, si) =>
+                si === sugIdx ? { ...s, creating: false, created: true } : s
+              ),
+            }
+          )
+        );
+      },
+      error: () => {
+        this.chatMessages.update(msgs =>
+          msgs.map((m, mi) =>
+            mi !== msgIdx || !m.entitySuggestions ? m : {
+              ...m,
+              entitySuggestions: m.entitySuggestions.map((s, si) =>
+                si === sugIdx ? { ...s, creating: false } : s
+              ),
+            }
+          )
+        );
+      },
+    });
+  }
+
+  dismissEntitySuggestion(msgIdx: number, sugIdx: number): void {
+    const suggestion = this.chatMessages()[msgIdx]?.entitySuggestions?.[sugIdx];
+    if (suggestion) this.suggestedEntityNames.add(suggestion.name.toLowerCase());
+    this.chatMessages.update(msgs =>
+      msgs.map((m, mi) =>
+        mi !== msgIdx || !m.entitySuggestions ? m : {
+          ...m,
+          entitySuggestions: m.entitySuggestions.map((s, si) =>
+            si === sugIdx ? { ...s, created: true } : s
+          ),
+        }
+      )
+    );
+  }
+
+  toggleSuggestionEdit(msgIdx: number, sugIdx: number): void {
+    const current = this.expandedSuggestion();
+    if (current?.msgIdx === msgIdx && current?.sugIdx === sugIdx) {
+      this.expandedSuggestion.set(null);
+    } else {
+      this.expandedSuggestion.set({ msgIdx, sugIdx });
+    }
+  }
+
+  saveSuggestionDraft(msgIdx: number, sugIdx: number, entity: Entity): void {
+    this.chatMessages.update(msgs =>
+      msgs.map((m, mi) =>
+        mi !== msgIdx || !m.entitySuggestions ? m : {
+          ...m,
+          entitySuggestions: m.entitySuggestions.map((s, si) =>
+            si === sugIdx ? { ...s, draftEntity: entity, name: entity.name } : s
+          ),
+        }
+      )
+    );
+    this.expandedSuggestion.set(null);
+    // Save in editor = confirm creation immediately
+    this.createEntityFromSuggestion(msgIdx, sugIdx);
+  }
+
+  private wrapEntityReferencesInEditor(entity: Entity): void {
+    if (!this.contentEditorRef) return;
+    const editor = this.contentEditorRef.nativeElement;
+
+    // Clear grammar marks so their text nodes are accessible
+    this.unwrapGrammarMarks();
+
+    // Build all name variants with their reference types, longest first so the
+    // regex prefers the longest match (e.g. "Jimmy Williams" over "Jimmy").
+    const variants = this.buildEntityVariants(entity);
+    if (variants.length === 0) return;
+
+    const pattern = variants
+      .map(v => v.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('|');
+    const searchRegex = new RegExp(pattern, 'gi');
+
+    // Lowercase lookup: matched text → reference type
+    const variantMap = new Map<string, EntityReference>(
+      variants.map(v => [v.text.toLowerCase(), v.refType])
+    );
+
+    const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT, {
+      acceptNode: (node: Node) => {
+        const parent = (node as Text).parentElement;
+        if (!parent) return NodeFilter.FILTER_REJECT;
+        if (parent.closest('.entity-reference, .note-indicator')) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+
+    const textNodes: Text[] = [];
+    let node: Text | null;
+    while ((node = walker.nextNode() as Text | null)) {
+      searchRegex.lastIndex = 0;
+      if (searchRegex.test(node.textContent ?? '')) textNodes.push(node);
+    }
+
+    for (const textNode of textNodes) {
+      const content = textNode.textContent ?? '';
+      const parent = textNode.parentNode!;
+      const fragment = document.createDocumentFragment();
+      let lastIdx = 0;
+      let match: RegExpExecArray | null;
+      searchRegex.lastIndex = 0;
+      while ((match = searchRegex.exec(content)) !== null) {
+        if (match.index > lastIdx) {
+          fragment.appendChild(document.createTextNode(content.slice(lastIdx, match.index)));
+        }
+        const refType = variantMap.get(match[0].toLowerCase()) ?? 'full-name';
+        const span = document.createElement('span');
+        span.className = 'entity-reference';
+        span.setAttribute('data-id', entity.id);
+        span.setAttribute('data-reference-type', refType);
+        span.textContent = match[0]; // preserve exact text typed by author
+        fragment.appendChild(span);
+        lastIdx = match.index + match[0].length;
+      }
+      if (lastIdx < content.length) {
+        fragment.appendChild(document.createTextNode(content.slice(lastIdx)));
+      }
+      parent.replaceChild(fragment, textNode);
+    }
+
+    editor.normalize();
+    this.editorContent = editor.innerHTML;
+    const current = this.chapter();
+    if (current) {
+      if (this.autoSaveTimer) clearTimeout(this.autoSaveTimer);
+      this.autoSaveTimer = setTimeout(() => {
+        this.draftService.saveDraft(current.id, this.editorContent, this.notes());
+        this.hasDraft.set(true);
+      }, 800);
+    }
+
+    this.scheduleGrammarCheck();
+  }
+
+  private buildEntityVariants(entity: Entity): { text: string; refType: EntityReference }[] {
+    const refs = this.resolvedRefs(entity);
+    const pairs: { text: string; refType: EntityReference }[] = [];
+    const seen = new Set<string>();
+
+    const add = (text: string | undefined, refType: EntityReference) => {
+      if (text?.trim() && !seen.has(text.toLowerCase())) {
+        seen.add(text.toLowerCase());
+        pairs.push({ text, refType });
+      }
+    };
+
+    // Add longest forms first so the regex alternation prefers them
+    if (refs.title) add(`${refs.title} ${entity.name}`, 'title-full-name');
+    if (refs.title && refs.lastName) add(`${refs.title} ${refs.lastName}`, 'title-last-name');
+    add(entity.name, 'full-name');
+    if (refs.firstName && refs.lastName) add(`${refs.firstName} ${refs.lastName}`, 'full-name');
+    add(refs.nickname, 'nickname');
+    add(refs.firstName, 'first-name');
+    add(refs.lastName, 'last-name');
+
+    // Sort descending by length so the combined regex always prefers longer matches
+    return pairs.sort((a, b) => b.text.length - a.text.length);
   }
 }
 

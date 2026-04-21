@@ -44,6 +44,14 @@ export class EntityService {
     return this.http.patch<Entity>(`${this.apiUrl}/${id}/unarchive`, {});
   }
 
+  softDelete(id: string): Observable<Entity> {
+    return this.http.patch<Entity>(`${this.apiUrl}/${id}/soft-delete`, {});
+  }
+
+  restoreDelete(id: string): Observable<Entity> {
+    return this.http.patch<Entity>(`${this.apiUrl}/${id}/restore-delete`, {});
+  }
+
   getAllArchived(): Observable<Entity[]> {
     return this.http.get<Entity[]>(`${this.apiUrl}/archived`);
   }

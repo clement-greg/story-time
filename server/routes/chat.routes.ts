@@ -72,14 +72,14 @@ router.post('/:chapterId', async (req: Request, res: Response) => {
   }
 
   // Fetch chapter for context
-  let systemPrompt = 'You are a helpful writing assistant helping an author with their story.';
+  let systemPrompt = 'You are a helpful writing assistant helping an author with their story. Provide only the requested content in plain text. Do not use markdown, HTML, or any formatting. Do not include conversational filler, preamble, or meta-commentary such as "Sure, here you go" or "Let me generate that for you."';
   try {
     const container = getContainer('chapters');
     const { resource } = await container.item(chapterId, chapterId).read<Chapter>();
     if (resource) {
       const plainText = (resource.content ?? '').replace(/<[^>]+>/g, '').trim();
       systemPrompt =
-        `You are a helpful writing assistant helping an author with their story chapter titled "${resource.title}".` +
+        `You are a helpful writing assistant helping an author with their story chapter titled "${resource.title}". Provide only the requested content in plain text. Do not use markdown, HTML, or any formatting. Do not include conversational filler, preamble, or meta-commentary such as "Sure, here you go" or "Let me generate that for you."` +
         (plainText
           ? `\n\nHere is the current chapter content:\n\n${plainText}`
           : '');

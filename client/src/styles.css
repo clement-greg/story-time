@@ -1,4 +1,10 @@
 /* You can add global styles to this file, and also import other style files */
+
+@keyframes ai-marker-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
 .entity-reference {
     text-decoration: underline;
     color: cadetblue;

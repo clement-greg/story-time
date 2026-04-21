@@ -25,7 +25,7 @@ router.get('/', async (req: Request, res: Response) => {
 router.get('/archived', async (req: Request, res: Response) => {
   try {
     const { resources } = await container.items
-      .query(withOwnerFilter(req, 'SELECT * FROM c WHERE c.archived = true'))
+      .query(withOwnerFilter(req, 'SELECT * FROM c WHERE c.archived = true AND (NOT IS_DEFINED(c.deleted) OR c.deleted = false)'))
       .fetchAll();
     res.json(resources as Book[]);
   } catch (err) {
@@ -164,6 +164,42 @@ router.patch('/:id/unarchive', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('Error unarchiving book:', err);
     res.status(500).json({ error: 'Failed to unarchive book' });
+  }
+});
+
+// PATCH soft-delete book
+router.patch('/:id/soft-delete', async (req: Request, res: Response) => {
+  try {
+    const id = req.params['id'] as string;
+    const existing = await readAccessibleItem<Book>(container, id, id, req);
+    if (!existing) {
+      res.status(404).json({ error: 'Book not found' });
+      return;
+    }
+    const updated: Book = { ...existing, deleted: true, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };
+    const { resource } = await container.item(id, id).replace<Book>(updated);
+    res.json(resource);
+  } catch (err) {
+    console.error('Error soft-deleting book:', err);
+    res.status(500).json({ error: 'Failed to soft-delete book' });
+  }
+});
+
+// PATCH restore soft-deleted book
+router.patch('/:id/restore-delete', async (req: Request, res: Response) => {
+  try {
+    const id = req.params['id'] as string;
+    const existing = await readAccessibleItem<Book>(container, id, id, req);
+    if (!existing) {
+      res.status(404).json({ error: 'Book not found' });
+      return;
+    }
+    const updated: Book = { ...existing, deleted: false, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };
+    const { resource } = await container.item(id, id).replace<Book>(updated);
+    res.json(resource);
+  } catch (err) {
+    console.error('Error restoring book:', err);
+    res.status(500).json({ error: 'Failed to restore book' });
   }
 });
 

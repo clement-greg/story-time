@@ -50,7 +50,7 @@ router.get('/series/:seriesId/archived', async (req: Request, res: Response) => 
     const seriesId = req.params['seriesId'] as string;
     const { resources } = await container.items
       .query(withOwnerFilter(req, {
-        query: 'SELECT * FROM c WHERE c.seriesId = @seriesId AND c.archived = true',
+        query: 'SELECT * FROM c WHERE c.seriesId = @seriesId AND c.archived = true AND (NOT IS_DEFINED(c.deleted) OR c.deleted = false)',
         parameters: [{ name: '@seriesId', value: seriesId }],
       }))
       .fetchAll();
@@ -65,7 +65,7 @@ router.get('/series/:seriesId/archived', async (req: Request, res: Response) => 
 router.get('/archived', async (req: Request, res: Response) => {
   try {
     const { resources } = await container.items
-      .query(withOwnerFilter(req, 'SELECT * FROM c WHERE c.archived = true'))
+      .query(withOwnerFilter(req, 'SELECT * FROM c WHERE c.archived = true AND (NOT IS_DEFINED(c.deleted) OR c.deleted = false)'))
       .fetchAll();
     res.json(resources as Entity[]);
   } catch (err) {
@@ -166,6 +166,42 @@ router.patch('/:id/unarchive', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('Error unarchiving entity:', err);
     res.status(500).json({ error: 'Failed to unarchive entity' });
+  }
+});
+
+// PATCH soft-delete entity
+router.patch('/:id/soft-delete', async (req: Request, res: Response) => {
+  try {
+    const id = req.params['id'] as string;
+    const existing = await readOwnedItem<Entity>(container, id, id, req);
+    if (!existing) {
+      res.status(404).json({ error: 'Entity not found' });
+      return;
+    }
+    const updated: Entity = { ...existing, deleted: true, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };
+    const { resource } = await container.item(id, id).replace<Entity>(updated);
+    res.json(resource);
+  } catch (err) {
+    console.error('Error soft-deleting entity:', err);
+    res.status(500).json({ error: 'Failed to soft-delete entity' });
+  }
+});
+
+// PATCH restore soft-deleted entity
+router.patch('/:id/restore-delete', async (req: Request, res: Response) => {
+  try {
+    const id = req.params['id'] as string;
+    const existing = await readOwnedItem<Entity>(container, id, id, req);
+    if (!existing) {
+      res.status(404).json({ error: 'Entity not found' });
+      return;
+    }
+    const updated: Entity = { ...existing, deleted: false, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };
+    const { resource } = await container.item(id, id).replace<Entity>(updated);
+    res.json(resource);
+  } catch (err) {
+    console.error('Error restoring entity:', err);
+    res.status(500).json({ error: 'Failed to restore entity' });
   }
 });
 

@@ -40,6 +40,14 @@ export class BookService {
     return this.http.patch<Book>(`${this.apiUrl}/${id}/unarchive`, {});
   }
 
+  softDelete(id: string): Observable<Book> {
+    return this.http.patch<Book>(`${this.apiUrl}/${id}/soft-delete`, {});
+  }
+
+  restoreDelete(id: string): Observable<Book> {
+    return this.http.patch<Book>(`${this.apiUrl}/${id}/restore-delete`, {});
+  }
+
   getArchived(): Observable<Book[]> {
     return this.http.get<Book[]>(`${this.apiUrl}/archived`);
   }

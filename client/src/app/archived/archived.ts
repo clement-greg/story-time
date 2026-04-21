@@ -3,6 +3,7 @@ import { Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { SeriesService } from '../series/series.service';
 import { BookService } from '../book/book.service';
@@ -19,6 +20,7 @@ import { forkJoin } from 'rxjs';
     MatButtonModule,
     MatIconModule,
     MatProgressSpinnerModule,
+    MatSnackBarModule,
     MatTooltipModule,
   ],
   templateUrl: './archived.html',
@@ -29,6 +31,7 @@ export class ArchivedComponent implements OnInit {
   private bookService = inject(BookService);
   private entityService = inject(EntityService);
   private headerService = inject(HeaderService);
+  private snackBar = inject(MatSnackBar);
   private router = inject(Router);
 
   loading = signal(false);
@@ -80,5 +83,47 @@ export class ArchivedComponent implements OnInit {
     if (!url) return null;
     const filename = url.split('/').pop();
     return filename ? `/api/image/${filename}` : null;
+  }
+
+  deleteSeries(series: Series): void {
+    this.seriesService.softDelete(series.id).subscribe({
+      next: () => {
+        this.archivedSeries.update(list => list.filter(s => s.id !== series.id));
+        const ref = this.snackBar.open(`"${series.title}" deleted`, 'Undo', { duration: 5000 });
+        ref.onAction().subscribe(() => {
+          this.seriesService.restoreDelete(series.id).subscribe({
+            next: () => this.archivedSeries.update(list => [...list, series]),
+          });
+        });
+      },
+    });
+  }
+
+  deleteBook(book: Book): void {
+    this.bookService.softDelete(book.id).subscribe({
+      next: () => {
+        this.archivedBooks.update(list => list.filter(b => b.id !== book.id));
+        const ref = this.snackBar.open(`"${book.title}" deleted`, 'Undo', { duration: 5000 });
+        ref.onAction().subscribe(() => {
+          this.bookService.restoreDelete(book.id).subscribe({
+            next: () => this.archivedBooks.update(list => [...list, book]),
+          });
+        });
+      },
+    });
+  }
+
+  deleteEntity(entity: Entity): void {
+    this.entityService.softDelete(entity.id).subscribe({
+      next: () => {
+        this.archivedEntities.update(list => list.filter(e => e.id !== entity.id));
+        const ref = this.snackBar.open(`"${entity.name}" deleted`, 'Undo', { duration: 5000 });
+        ref.onAction().subscribe(() => {
+          this.entityService.restoreDelete(entity.id).subscribe({
+            next: () => this.archivedEntities.update(list => [...list, entity]),
+          });
+        });
+      },
+    });
   }
 }
