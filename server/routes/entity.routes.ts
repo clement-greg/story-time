@@ -74,6 +74,45 @@ router.get('/archived', async (req: Request, res: Response) => {
   }
 });
 
+// GET narrator entity for a series – creates one if it does not yet exist
+router.get('/narrator/:seriesId', async (req: Request, res: Response) => {
+  try {
+    const seriesId = req.params['seriesId'] as string;
+    const { resources } = await container.items
+      .query(withOwnerFilter(req, {
+        query: 'SELECT * FROM c WHERE c.seriesId = @seriesId AND c.isNarrator = true',
+        parameters: [{ name: '@seriesId', value: seriesId }],
+      }))
+      .fetchAll();
+
+    if (resources.length > 0) {
+      res.json(resources[0] as Entity);
+      return;
+    }
+
+    // Create the narrator for this series
+    const { randomUUID } = await import('crypto');
+    const now = new Date().toISOString();
+    const narrator: Entity = {
+      id: randomUUID(),
+      name: 'Narrator',
+      type: 'PERSON',
+      seriesId,
+      isNarrator: true,
+      owner: req.user!.email,
+      createdBy: req.user!.email,
+      createdAt: now,
+      modifiedBy: req.user!.email,
+      modifiedAt: now,
+    };
+    const { resource } = await container.items.create<Entity>(narrator);
+    res.status(201).json(resource);
+  } catch (err) {
+    console.error('Error fetching/creating narrator:', err);
+    res.status(500).json({ error: 'Failed to fetch narrator' });
+  }
+});
+
 // GET single entity by id
 router.get('/:id', async (req: Request, res: Response) => {
   try {
@@ -124,8 +163,18 @@ router.post('/', async (req: Request, res: Response) => {
 router.put('/:id', async (req: Request, res: Response) => {
   try {
     const id = req.params['id'] as string;
-    const entity: Entity = { ...req.body, id, owner: req.body.owner || req.user!.email, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };
-    const { resource } = await container.item(id, id).replace<Entity>(entity);
+    const existing = await readOwnedItem<Entity>(container, id, id, req);
+    if (!existing) {
+      res.status(404).json({ error: 'Entity not found' });
+      return;
+    }
+    const updates: Entity = { ...req.body, id, owner: existing.owner, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };
+    // Narrator name is immutable
+    if (existing.isNarrator) {
+      updates.name = 'Narrator';
+      updates.isNarrator = true;
+    }
+    const { resource } = await container.item(id, id).replace<Entity>(updates);
     res.json(resource);
   } catch (err) {
     console.error('Error updating entity:', err);
@@ -140,6 +189,10 @@ router.patch('/:id/archive', async (req: Request, res: Response) => {
     const existing = await readOwnedItem<Entity>(container, id, id, req);
     if (!existing) {
       res.status(404).json({ error: 'Entity not found' });
+      return;
+    }
+    if (existing.isNarrator) {
+      res.status(400).json({ error: 'The narrator cannot be archived' });
       return;
     }
     const updated: Entity = { ...existing, archived: true, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };
@@ -176,6 +229,10 @@ router.patch('/:id/soft-delete', async (req: Request, res: Response) => {
     const existing = await readOwnedItem<Entity>(container, id, id, req);
     if (!existing) {
       res.status(404).json({ error: 'Entity not found' });
+      return;
+    }
+    if (existing.isNarrator) {
+      res.status(400).json({ error: 'The narrator cannot be deleted' });
       return;
     }
     const updated: Entity = { ...existing, deleted: true, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };

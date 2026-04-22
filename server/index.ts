@@ -16,6 +16,7 @@ import entityRelationshipRoutes from './routes/entity-relationship.routes';
 import exportRoutes from './routes/export.routes';
 import bookNotesRoutes from './routes/book-notes.routes';
 import grammarRoutes from './routes/grammar.routes';
+import entityQuotesRoutes from './routes/entity-quotes.routes';
 
 const app = express();
 const PORT = process.env['PORT'] || 3200;
@@ -57,6 +58,7 @@ app.use('/api/entity-relationships', entityRelationshipRoutes);
 app.use('/api/export', exportRoutes);
 app.use('/api/book-notes', bookNotesRoutes);
 app.use('/api/grammar', grammarRoutes);
+app.use('/api/entity-quotes', entityQuotesRoutes);
 
 // Serve Angular static files
 app.use(express.static(path.join(__dirname, '../../client/dist/client/browser')));

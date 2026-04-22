@@ -42,14 +42,15 @@ export class GrammarCheckService {
   }
 
   /**
-   * Extracts visible text from the editor, returning only paragraphs that
-   * contain at least one complete sentence (ending in . ! or ?).
+   * Extracts visible text from the editor, returning only the last 2
+   * complete sentences (ending in . ! or ?) for grammar / entity checking.
    * Incomplete sentences (currently being typed) are excluded.
    */
   extractCheckableText(editorEl: HTMLElement): string {
     const fullText = editorEl.innerText ?? '';
-    const paragraphs = fullText.split(/\n+/).map(p => p.trim()).filter(p => p.length > 0);
-    const complete = paragraphs.filter(p => /[.!?]['"»\u201d\u2019]?\s*$/.test(p));
-    return complete.join('\n\n');
+    // Split into individual sentences (keep the delimiter attached)
+    const sentences = fullText.match(/[^.!?]*[.!?]['"»\u201d\u2019]?/g);
+    if (!sentences || sentences.length === 0) return '';
+    return sentences.slice(-2).map(s => s.trim()).filter(s => s.length > 0).join(' ');
   }
 }

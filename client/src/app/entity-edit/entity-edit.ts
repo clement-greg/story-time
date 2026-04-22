@@ -1,4 +1,4 @@
-import { Component, input, output, signal, inject, effect } from '@angular/core';
+import { Component, input, output, signal, inject, effect, computed } from '@angular/core';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -8,10 +8,13 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatTabsModule } from '@angular/material/tabs';
 import { MatDialog } from '@angular/material/dialog';
 import { TextFieldModule } from '@angular/cdk/text-field';
 import { Entity, EntityReference } from '@shared/models/entity.model';
+import { EntityQuote } from '@shared/models/entity-quote.model';
 import { EntityService } from '../services/entity.service';
+import { EntityQuoteService } from '../services/entity-quote.service';
 import { ImageGenDialogComponent, ImageGenResult } from './image-gen-dialog';
 
 @Component({
@@ -25,6 +28,7 @@ import { ImageGenDialogComponent, ImageGenResult } from './image-gen-dialog';
     MatSelectModule,
     MatProgressSpinnerModule,
     MatTooltipModule,
+    MatTabsModule,
     TextFieldModule,
   ],
   templateUrl: './entity-edit.html',
@@ -32,6 +36,7 @@ import { ImageGenDialogComponent, ImageGenResult } from './image-gen-dialog';
 })
 export class EntityEditComponent {
   private entityService = inject(EntityService);
+  private entityQuoteService = inject(EntityQuoteService);
   private dialog = inject(MatDialog);
   private router = inject(Router);
 
@@ -56,6 +61,19 @@ export class EntityEditComponent {
   uploading = signal(false);
   generatingImage = signal(false);
   generatingPersonality = signal(false);
+  quotes = signal<EntityQuote[]>([]);
+  quotesLoading = signal(false);
+  quoteSaving = signal(false);
+
+  isNarrator = computed(() => !!this.entity().isNarrator);
+
+  // Add-quote form
+  addingQuote = signal(false);
+  newQuoteText = signal('');
+
+  // Per-quote inline edit state: maps quote id → draft text (null = not editing)
+  editingQuoteId = signal<string | null>(null);
+  editingQuoteText = signal('');
 
   constructor() {
     effect(() => {
@@ -66,6 +84,7 @@ export class EntityEditComponent {
       }
       this.draft.set(draft);
       this.thumbnailPreview.set(this.proxyUrl(e.thumbnailUrl));
+      if (e.id) this.loadQuotes(e.id);
     });
   }
 
@@ -177,6 +196,78 @@ export class EntityEditComponent {
     if (d?.id) {
       this.unarchive.emit(d.id);
     }
+  }
+
+  loadQuotes(entityId: string): void {
+    this.quotesLoading.set(true);
+    this.entityQuoteService.getByEntity(entityId).subscribe({
+      next: quotes => { this.quotes.set(quotes); this.quotesLoading.set(false); },
+      error: () => this.quotesLoading.set(false),
+    });
+  }
+
+  toggleHighlight(quote: EntityQuote): void {
+    const next = !quote.isHighlighted;
+    this.entityQuoteService.setHighlight(quote.id, quote.entityId, next).subscribe(updated => {
+      this.quotes.update(qs => qs.map(q => q.id === updated.id ? updated : q));
+    });
+  }
+
+  startAddQuote(): void {
+    this.addingQuote.set(true);
+    this.newQuoteText.set('');
+  }
+
+  cancelAddQuote(): void {
+    this.addingQuote.set(false);
+    this.newQuoteText.set('');
+  }
+
+  saveNewQuote(): void {
+    const text = this.newQuoteText().trim();
+    const entityId = this.entity().id;
+    if (!text || !entityId || this.quoteSaving()) return;
+    this.quoteSaving.set(true);
+    this.entityQuoteService.create(entityId, text).subscribe({
+      next: created => {
+        this.quotes.update(qs => [...qs, created]);
+        this.addingQuote.set(false);
+        this.newQuoteText.set('');
+        this.quoteSaving.set(false);
+      },
+      error: () => this.quoteSaving.set(false),
+    });
+  }
+
+  startEditQuote(quote: EntityQuote): void {
+    this.editingQuoteId.set(quote.id);
+    this.editingQuoteText.set(quote.text);
+  }
+
+  cancelEditQuote(): void {
+    this.editingQuoteId.set(null);
+    this.editingQuoteText.set('');
+  }
+
+  saveEditQuote(quote: EntityQuote): void {
+    const text = this.editingQuoteText().trim();
+    if (!text || this.quoteSaving()) return;
+    this.quoteSaving.set(true);
+    this.entityQuoteService.updateText(quote.id, quote.entityId, text).subscribe({
+      next: updated => {
+        this.quotes.update(qs => qs.map(q => q.id === updated.id ? updated : q));
+        this.editingQuoteId.set(null);
+        this.editingQuoteText.set('');
+        this.quoteSaving.set(false);
+      },
+      error: () => this.quoteSaving.set(false),
+    });
+  }
+
+  deleteQuote(quote: EntityQuote): void {
+    this.entityQuoteService.delete(quote.id, quote.entityId).subscribe({
+      next: () => this.quotes.update(qs => qs.filter(q => q.id !== quote.id)),
+    });
   }
 
   openRelationshipDiagram(): void {

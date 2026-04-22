@@ -300,7 +300,7 @@
 
       <!-- Entity autocomplete dropdown -->
       @if (autocompleteItems().length > 0) {
-      <div class="autocomplete-dropdown" [style.top.px]="autocompleteTop()" [style.left.px]="autocompleteLeft()">
+      <div class="autocomplete-dropdown" [class.autocomplete-above]="autocompleteAbove()" [style.top.px]="autocompleteTop()" [style.left.px]="autocompleteLeft()">
         @for (item of autocompleteItems(); track $index; let i = $index) {
         <div class="autocomplete-item" [class.active]="i === autocompleteIndex()"
           [class.is-preferred]="item.isPreferred" (mousedown)="selectAutocomplete(item.entity, item.text)">
@@ -361,7 +361,7 @@
 
       <!-- Grammar suggestion popover -->
       @if (grammarPopoverVisible()) {
-      <div class="grammar-popover" [style.top.px]="grammarPopoverTop()" [style.left.px]="grammarPopoverLeft()">
+      <div class="grammar-popover" [class.grammar-popover-above]="grammarPopoverAbove()" [style.top.px]="grammarPopoverTop()" [style.left.px]="grammarPopoverLeft()">
         <div class="grammar-popover-message">
           <mat-icon class="grammar-popover-icon">spellcheck</mat-icon>
           {{ grammarPopoverError()?.message }}
@@ -379,7 +379,7 @@
 
       <!-- Inline AI prompt (Ctrl+.) -->
       @if (inlineAiVisible()) {
-      <div class="inline-ai-prompt" [class.inline-ai-above]="inlineAiAbove()" [style.top.px]="inlineAiTop()" [style.left.px]="inlineAiLeft()">
+      <div #inlineAiPanel class="inline-ai-prompt" [class.inline-ai-above]="inlineAiAbove()" [style.top.px]="inlineAiTop()" [style.left.px]="inlineAiLeft()">
         <div class="inline-ai-header">
           <mat-icon>auto_awesome</mat-icon>
           <span>{{ inlineAiSelectedText() ? 'AI Reword' : 'AI Insert' }}</span>
@@ -391,10 +391,18 @@
         <div class="inline-ai-selection-preview">{{ inlineAiSelectedText() }}</div>
         }
         <div class="inline-ai-input-row">
-          <input #inlineAiInputEl class="inline-ai-input" type="text"
-            [placeholder]="inlineAiSelectedText() ? 'Optional: describe how to reword… (Enter to send)' : 'Describe what to insert… (Enter to send)'"
-            [value]="inlineAiInput()" (input)="inlineAiInput.set($any($event.target).value)"
-            (keydown)="onInlineAiKeyDown($event)" [disabled]="inlineAiStreaming()" />
+          <div class="inline-ai-input-wrap">
+            <input #inlineAiInputEl class="inline-ai-input" type="text"
+              [placeholder]="inlineAiSelectedText() ? 'Optional: describe how to reword… (Enter to send)' : 'Describe what to insert… (Enter to send)'"
+              [value]="inlineAiInput()" (input)="onInlineAiInputChange($any($event.target).value)"
+              (keydown)="onInlineAiKeyDown($event)" [disabled]="inlineAiStreaming()" />
+            @if (ghostSuffix()) {
+            <div class="ghost-complete-overlay" aria-hidden="true">
+              <span class="ghost-typed">{{ inlineAiInput() }}</span><span class="ghost-suffix">{{ ghostSuffix() }}</span>
+            </div>
+            <span class="ghost-tab-badge" aria-hidden="true">Tab</span>
+            }
+          </div>
           <button mat-icon-button
             [disabled]="inlineAiStreaming() || (!inlineAiInput().trim() && !inlineAiSelectedText())"
             (click)="submitInlineAiPrompt()" title="Send">
@@ -416,7 +424,7 @@
         }
         @if (!inlineAiStreaming() && (inlineAiResponse() || inlineAiImageUrl())) {
         <div class="inline-ai-actions">
-          <button mat-flat-button (click)="acceptInlineAiResponse()"><u>A</u>ccept</button>
+          <button mat-flat-button (click)="acceptInlineAiResponse()" title="Accept (Alt+A)">Accept</button>
           <button mat-button (click)="dismissInlineAiPrompt()">Dismiss</button>
         </div>
         }
@@ -478,3 +486,16 @@
   </div>
 
 </app-slide-out-panel-container>
+
+<!-- Ctrl+. context menu -->
+@if (ctxMenuVisible()) {
+<div class="ctrl-dot-menu" [style.top.px]="ctxMenuTop()" [style.left.px]="ctxMenuLeft()">
+  @for (item of ctxMenuItems(); track item.id; let i = $index) {
+  <button class="ctrl-dot-item" [class.focused]="ctxMenuFocusedIndex() === i"
+    (click)="executeCtxMenuItem(item)" (mouseenter)="ctxMenuFocusedIndex.set(i)">
+    <mat-icon>{{ item.icon }}</mat-icon>
+    <span>{{ item.label }}</span>
+  </button>
+  }
+</div>
+}

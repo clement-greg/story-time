@@ -6,3 +6,4 @@ export * from './book-note.model';
 export * from './chapter.model';
 export * from './entity.model';
 export * from './entity-relationship.model';
+export * from './entity-quote.model';

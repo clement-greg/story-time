@@ -11,6 +11,8 @@ import { ChapterEditComponent } from './chapter-edit/chapter-edit';
 import { EntityRelationshipDiagramComponent } from './entity-relationship-diagram/entity-relationship-diagram';
 import { LoginComponent } from './login/login';
 import { ArchivedComponent } from './archived/archived';
+import { Home } from './home/home';
+import { UserSettingsComponent } from './user-settings/user-settings';
 import { authGuard } from './auth/auth.guard';
 import { authInterceptor } from './auth/auth.interceptor';
 
@@ -24,7 +26,9 @@ const routes: Routes = [
   { path: 'chapters/:id/edit', component: ChapterEditComponent, canActivate: [authGuard] },
   { path: 'series/:seriesId/relationships', component: EntityRelationshipDiagramComponent, canActivate: [authGuard] },
   { path: 'archived', component: ArchivedComponent, canActivate: [authGuard] },
-  { path: '', redirectTo: 'series', pathMatch: 'full' },
+  { path: 'settings', component: UserSettingsComponent, canActivate: [authGuard] },
+  { path: 'home', component: Home, canActivate: [authGuard] },
+  { path: '', redirectTo: 'home', pathMatch: 'full' },
 ];
 
 export const appConfig: ApplicationConfig = {

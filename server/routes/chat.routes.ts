@@ -5,6 +5,7 @@ import { getContainer } from '../cosmos';
 import { Chapter } from '../../shared/models/chapter.model';
 import { Book } from '../../shared/models/book.model';
 import { Entity } from '../../shared/models/entity.model';
+import { EntityQuote } from '../../shared/models/entity-quote.model';
 
 const router = Router();
 
@@ -95,6 +96,20 @@ router.post('/:chapterId', async (req: Request, res: Response) => {
             lastMessage.content += '\n\nReword this text in the character\'s authentic voice. Return only the reworded text, no explanation.';
           }
         }
+      } else {
+        // When inserting, find a character mentioned in the instruction and use their voice.
+        // If no specific character is identified, fall back to the narrator's voice.
+        const lastMessage = messages[messages.length - 1];
+        const instructionText = lastMessage?.content ?? '';
+        const voiceContext = await findInsertVoiceContext(resource, instructionText);
+        if (voiceContext) {
+          systemPrompt += `\n\n${voiceContext}`;
+        } else {
+          const narratorContext = await findNarratorContext(resource);
+          if (narratorContext) {
+            systemPrompt += `\n\n${narratorContext}`;
+          }
+        }
       }
     }
   } catch {
@@ -132,6 +147,79 @@ router.post('/:chapterId', async (req: Request, res: Response) => {
   }
 });
 
+async function findInsertVoiceContext(chapter: Chapter, instructionText: string): Promise<string | null> {
+  try {
+    const booksContainer = getContainer('books');
+    const { resource: book } = await booksContainer.item(chapter.bookId, chapter.bookId).read<Book>();
+    if (!book?.seriesId) return null;
+
+    const entitiesContainer = getContainer('entities');
+    const { resources } = await entitiesContainer.items
+      .query({
+        query: 'SELECT * FROM c WHERE c.seriesId = @seriesId AND c.type = @type',
+        parameters: [
+          { name: '@seriesId', value: book.seriesId },
+          { name: '@type', value: 'PERSON' },
+        ],
+      })
+      .fetchAll();
+
+    const persons = resources as Entity[];
+    if (persons.length === 0) return null;
+
+    // When surrounding text is included, the full message content looks like:
+    // "...Surrounding text:\n"..."\n\nInstruction: <user prompt>"
+    // Extract just the instruction so we don't accidentally match a character
+    // who happens to be mentioned in the surrounding chapter text instead of
+    // the character the user is actually asking about.
+    const instructionMatch = instructionText.match(/\n\nInstruction:\s*([\s\S]*)$/);
+    const searchText = (instructionMatch ? instructionMatch[1] : instructionText).toLowerCase();
+
+    // Find the first entity whose name appears in the instruction text.
+    // Also split entity.name into individual words so that a prompt saying
+    // "mendoza" matches an entity named "Carlos Mendoza".
+    for (const entity of persons) {
+      const nameWords = entity.name.split(/\s+/).filter(w => w.length > 1);
+      const names = [
+        ...nameWords,
+        entity.firstName,
+        entity.lastName,
+        entity.nickname,
+      ].filter(Boolean) as string[];
+      if (!names.some(n => searchText.includes(n.toLowerCase()))) continue;
+
+      let result = `The content being inserted includes dialogue for the character "${entity.name}".`;
+
+      // Include personality profile if available
+      if (entity.personality) {
+        result += ` Use the following personality profile to write in their authentic voice:\n\n${entity.personality}`;
+      }
+
+      // Fetch all quotes for this entity and add the top 5 as voice samples
+      const quotesContainer = getContainer('entity-quotes');
+      const { resources: allQuotes } = await quotesContainer.items
+        .query<EntityQuote>({
+          query: 'SELECT * FROM c WHERE c.entityId = @entityId',
+          parameters: [{ name: '@entityId', value: entity.id }],
+        })
+        .fetchAll();
+
+      if (allQuotes.length > 0) {
+        const sorted = allQuotes.sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''));
+        const samples = sorted.slice(0, 5).map(q => `- "${q.text}"`).join('\n');
+        result += `\n\nHere are example quotes that represent this character's voice:\n${samples}`;
+      }
+
+      // Only return if we have something useful to say
+      if (entity.personality || allQuotes.length > 0) return result;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 async function findSpeakerPersonality(chapter: Chapter, selectedText: string): Promise<string | null> {
   try {
     // Get the book to find the seriesId
@@ -165,14 +253,73 @@ async function findSpeakerPersonality(chapter: Chapter, selectedText: string): P
     for (const entity of persons) {
       const names = [entity.name, entity.firstName, entity.lastName, entity.nickname].filter(Boolean) as string[];
       if (names.some(n => context.includes(n.toLowerCase()))) {
-        return (
+        let result =
           `The selected text is spoken by the character "${entity.name}". ` +
-          `Use the following personality profile to ensure the reworded dialogue stays true to their voice:\n\n${entity.personality}`
-        );
+          `Use the following personality profile to ensure the reworded dialogue stays true to their voice:\n\n${entity.personality}`;
+
+        // Fetch captured voice-sample quotes for this entity (up to 5, newest first)
+        const quotesContainer = getContainer('entity-quotes');
+        const { resources: entityQuotes } = await quotesContainer.items
+          .query<EntityQuote>({
+            query: 'SELECT * FROM c WHERE c.entityId = @entityId',
+            parameters: [{ name: '@entityId', value: entity.id }],
+          })
+          .fetchAll();
+
+        if (entityQuotes.length > 0) {
+          const sorted = entityQuotes.sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''));
+          const samples = sorted.slice(0, 5).map(q => `- "${q.text}"`).join('\n');
+          result += `\n\nHere are example quotes that represent this character's voice well:\n${samples}`;
+        }
+
+        return result;
       }
     }
 
     return null;
+  } catch {
+    return null;
+  }
+}
+
+async function findNarratorContext(chapter: Chapter): Promise<string | null> {
+  try {
+    const booksContainer = getContainer('books');
+    const { resource: book } = await booksContainer.item(chapter.bookId, chapter.bookId).read<Book>();
+    if (!book?.seriesId) return null;
+
+    const entitiesContainer = getContainer('entities');
+    const { resources } = await entitiesContainer.items
+      .query({
+        query: 'SELECT * FROM c WHERE c.seriesId = @seriesId AND c.isNarrator = true',
+        parameters: [{ name: '@seriesId', value: book.seriesId }],
+      })
+      .fetchAll();
+
+    const narrator = (resources as Entity[])[0];
+    if (!narrator) return null;
+
+    let result = '';
+
+    if (narrator.personality) {
+      result += `The story is written in a specific narrative voice. Use the following narrator profile to guide the prose style and tone:\n\n${narrator.personality}`;
+    }
+
+    const quotesContainer = getContainer('entity-quotes');
+    const { resources: quotes } = await quotesContainer.items
+      .query<EntityQuote>({
+        query: 'SELECT * FROM c WHERE c.entityId = @entityId',
+        parameters: [{ name: '@entityId', value: narrator.id }],
+      })
+      .fetchAll();
+
+    if (quotes.length > 0) {
+      const sorted = quotes.sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''));
+      const samples = sorted.slice(0, 5).map(q => `- "${q.text}"`).join('\n');
+      result += `\n\nHere are example passages that represent the narrator's voice:\n${samples}`;
+    }
+
+    return result || null;
   } catch {
     return null;
   }

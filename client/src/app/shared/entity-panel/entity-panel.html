@@ -25,6 +25,29 @@
           <p class="loading">Loading...</p>
         }
 
+        <!-- Narrator (pinned, always shown when not in archived view) -->
+        @if (!panel.showingArchived() && panel.narrator()) {
+          <div class="narrator-section">
+            <div class="entity-list-item narrator-item"
+                 [class.entity-selected]="panel.editingEntity()?.id === panel.narrator()!.id"
+                 (click)="panel.startEditEntity(panel.narrator()!)"
+                 [matTooltip]="panel.editingEntity() ? 'Narrator' : ''"
+                 matTooltipPosition="right">
+              <div class="entity-avatar narrator-avatar">
+                @if (panel.narrator()!.thumbnailUrl) {
+                  <img [src]="panel.proxyUrl(panel.narrator()!.thumbnailUrl)!" alt="Narrator" />
+                } @else {
+                  <mat-icon class="entity-avatar-icon">record_voice_over</mat-icon>
+                }
+              </div>
+              @if (!panel.editingEntity()) {
+                <span class="narrator-badge">NARRATOR</span>
+                <span class="entity-name">Narrator</span>
+              }
+            </div>
+          </div>
+        }
+
         <div class="entity-list">
           @for (entity of panel.entityList(); track entity.id) {
             <div class="entity-list-item"

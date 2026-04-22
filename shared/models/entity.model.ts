@@ -19,4 +19,5 @@ export interface Entity extends AuditedRecord {
     personality?: string;
     archived?: boolean;
     deleted?: boolean;
+    isNarrator?: boolean;
 }

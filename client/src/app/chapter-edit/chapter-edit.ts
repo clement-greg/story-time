@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit, OnDestroy, ElementRef, ViewChild, HostListener, effect, untracked } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, OnDestroy, ElementRef, ViewChild, HostListener, effect, untracked } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { ActivatedRoute, Router } from '@angular/router';
 import { parse as parseMarkdown } from 'marked';
@@ -9,6 +9,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTabsModule } from '@angular/material/tabs';
+import { MatMenuModule, MatMenuTrigger } from '@angular/material/menu';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatDialog, MatDialogModule, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { ChapterService } from '../chapter/chapter.service';
@@ -19,11 +20,14 @@ import { GrammarCheckService, GrammarError, SuggestedEntity } from '../services/
 import { Entity, EntityReference } from '@shared/models/entity.model';
 import { BookService } from '../book/book.service';
 import { EntityService } from '../services/entity.service';
+import { EntityQuoteService } from '../services/entity-quote.service';
+import { EntityQuote } from '@shared/models';
 import { SeriesService } from '../series/series.service';
 import { SlideOutPanelContainer } from '../shared/slide-out-panel-container/slide-out-panel-container';
 import { EntityEditComponent } from '../entity-edit/entity-edit';
 import { HeaderService } from '../services/header.service';
 import { EntityPanelService } from '../services/entity-panel.service';
+import { UserSettingsService, GhostCompleteItem } from '../services/user-settings.service';
 
 export interface SuggestedEntityCard extends SuggestedEntity {
   creating?: boolean;
@@ -50,6 +54,7 @@ interface ChatMessage {
     MatProgressSpinnerModule,
     MatTabsModule,
     MatDialogModule,
+    MatMenuModule,
     SlideOutPanelContainer,
     EntityEditComponent,
   ],
@@ -60,6 +65,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   @ViewChild('contentEditor') contentEditorRef!: ElementRef<HTMLDivElement>;
   @ViewChild('chatMessagesEl') chatMessagesEl!: ElementRef<HTMLDivElement>;
   @ViewChild('inlineAiInputEl') inlineAiInputEl!: ElementRef<HTMLInputElement>;
+  @ViewChild('inlineAiPanel') inlineAiPanelRef?: ElementRef<HTMLElement>;
   @ViewChild('noteInputEl') noteInputEl!: ElementRef<HTMLTextAreaElement>;
 
   private route = inject(ActivatedRoute);
@@ -69,6 +75,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   private draftService = inject(ChapterDraftService);
   private chapterVersionService = inject(ChapterVersionService);
   private entityService = inject(EntityService);
+  private entityQuoteService = inject(EntityQuoteService);
   private bookService = inject(BookService);
   private seriesService = inject(SeriesService);
   private snackBar = inject(MatSnackBar);
@@ -76,6 +83,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   private headerService = inject(HeaderService);
   private entityPanel = inject(EntityPanelService);
   private grammarService = inject(GrammarCheckService);
+  private userSettings = inject(UserSettingsService);
 
   chapter = signal<Chapter | null>(null);
   saving = signal(false);
@@ -85,11 +93,24 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   chatStreaming = signal(false);
   entities = signal<Entity[]>([]);
 
+  // Entity quotes
+  capturingQuote = signal(false);
+
+  // Ctrl+. context menu
+  ctxMenuVisible = signal(false);
+  ctxMenuTop = signal(0);
+  ctxMenuLeft = signal(0);
+  ctxMenuItems = signal<{ id: string; label: string; icon: string }[]>([]);
+  ctxMenuFocusedIndex = signal(0);
+  private ctxMenuCaptureText = '';
+  private ctxMenuNarratorCaptureText = '';
+
   // Autocomplete
   autocompleteItems = signal<{ entity: Entity; text: string; isPreferred: boolean }[]>([]);
   autocompleteIndex = signal(0);
   autocompleteTop = signal(0);
   autocompleteLeft = signal(0);
+  autocompleteAbove = signal(false);
   private currentWordRange: Range | null = null;
 
   // Formatting toolbar
@@ -167,11 +188,28 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   inlineAiSelectedText = signal('');
   inlineAiImageUrl = signal<string | null>(null);
   inlineAiGeneratingImage = signal(false);
+
+  // Ghost complete inline suggestion for AI Insert
+  ghostSuggestion = computed(() => {
+    const input = this.inlineAiInput();
+    if (!input || this.inlineAiSelectedText()) return null;
+    const lower = input.toLowerCase();
+    return this.userSettings.ghostCompleteItems().find(
+      item => item.prompt.toLowerCase().startsWith(lower) && item.prompt.length > input.length
+    ) ?? null;
+  });
+  ghostSuffix = computed(() => {
+    const s = this.ghostSuggestion();
+    const input = this.inlineAiInput();
+    return s ? s.prompt.slice(input.length) : '';
+  });
   private inlineAiCursorRange: Range | null = null;
   private inlineAiCharBefore = '';
   private inlineAiCharAfter = '';
   private inlineAiSurroundingText = '';
   private inlineAiAbortController: AbortController | null = null;
+  private inlineAiAnchorRect: DOMRect | null = null;
+  private inlineAiResizeObserver: ResizeObserver | null = null;
   private noteSelectionRange: Range | null = null;
 
   // Grammar checking
@@ -179,10 +217,12 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   grammarPopoverVisible = signal(false);
   grammarPopoverTop = signal(0);
   grammarPopoverLeft = signal(0);
+  grammarPopoverAbove = signal(false);
   grammarPopoverError = signal<GrammarError | null>(null);
   private grammarPopoverMarkEl: HTMLElement | null = null;
   private grammarTimer: ReturnType<typeof setTimeout> | null = null;
   private grammarAbortController: AbortController | null = null;
+  private grammarLastCheckedText = '';
 
   // Inline entity edit within suggestion card
   expandedSuggestion = signal<{ msgIdx: number; sugIdx: number } | null>(null);
@@ -390,6 +430,32 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   }
 
   onEditorKeyDown(event: KeyboardEvent): void {
+    // Handle Ctrl+. context menu navigation when it is open
+    if (this.ctxMenuVisible()) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        this.closeCtxMenu();
+        return;
+      }
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        this.ctxMenuFocusedIndex.update(i => (i + 1) % this.ctxMenuItems().length);
+        return;
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        this.ctxMenuFocusedIndex.update(i => (i - 1 + this.ctxMenuItems().length) % this.ctxMenuItems().length);
+        return;
+      }
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        this.executeCtxMenuItem(this.ctxMenuItems()[this.ctxMenuFocusedIndex()]);
+        return;
+      }
+      // Any other key closes the menu and falls through to normal handling
+      this.closeCtxMenu();
+    }
+
     // Tab inserts a tab character instead of moving focus (unless autocomplete is open)
     if (event.key === 'Tab' && !event.ctrlKey && !event.metaKey && !event.altKey && this.autocompleteItems().length === 0) {
       event.preventDefault();
@@ -418,10 +484,10 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // Ctrl+. opens inline AI prompt
+    // Ctrl+. opens the context menu
     if (event.ctrlKey && event.key === '.') {
       event.preventDefault();
-      this.openInlineAiPrompt();
+      this.openCtxMenu();
       return;
     }
 
@@ -988,7 +1054,11 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
 
     const rect = this.getCursorRect();
     if (rect) {
-      this.autocompleteTop.set(rect.bottom + 4);
+      const DROPDOWN_MAX_HEIGHT = 240;
+      const GAP = 4;
+      const above = rect.bottom + GAP + DROPDOWN_MAX_HEIGHT > window.innerHeight;
+      this.autocompleteAbove.set(above);
+      this.autocompleteTop.set(above ? rect.top - GAP : rect.bottom + GAP);
       this.autocompleteLeft.set(rect.left);
     }
   }
@@ -1067,6 +1137,54 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     return [entity.name, refs.firstName, refs.lastName, refs.nickname, titleFullName, titleLastName].filter((v): v is string => !!v);
   }
 
+  /** Builds a DocumentFragment from plain text, wrapping entity name occurrences in entity-reference spans. */
+  private buildEntityAnnotatedFragment(text: string): DocumentFragment {
+    const fragment = document.createDocumentFragment();
+    const entities = this.entities().filter(e => !e.deleted && !e.archived);
+    if (entities.length === 0) {
+      fragment.appendChild(document.createTextNode(text));
+      return fragment;
+    }
+
+    type NameEntry = { name: string; entity: Entity; refType: EntityReference };
+    const entries: NameEntry[] = [];
+    for (const entity of entities) {
+      for (const name of this.allRefsFor(entity)) {
+        entries.push({ name, entity, refType: this.getReferenceType(entity, name) });
+      }
+    }
+    // Longest names first so "Carlos Mendoza" matches before "Carlos"
+    entries.sort((a, b) => b.name.length - a.name.length);
+
+    const escapedNames = entries.map(e => e.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const pattern = new RegExp(`\\b(${escapedNames.join('|')})\\b`, 'g');
+
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        fragment.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+      }
+      const matchedText = match[0];
+      const entry = entries.find(e => e.name === matchedText);
+      if (entry) {
+        const span = document.createElement('span');
+        span.setAttribute('data-id', entry.entity.id);
+        span.setAttribute('data-reference-type', entry.refType);
+        span.className = 'entity-reference';
+        span.textContent = matchedText;
+        fragment.appendChild(span);
+      } else {
+        fragment.appendChild(document.createTextNode(matchedText));
+      }
+      lastIndex = match.index + matchedText.length;
+    }
+    if (lastIndex < text.length) {
+      fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
+    }
+    return fragment;
+  }
+
   private getAlternativeRefs(entity: Entity): string[] {
     const preferred = this.getPreferredText(entity);
     const seen = new Set<string>([preferred]);
@@ -1115,6 +1233,22 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     return range.getBoundingClientRect();
   }
 
+  /** Reads entity-quote spans from the editor DOM and returns them as plain objects. */
+  private extractDetectedQuotes(): { entityId: string; text: string }[] {
+    if (!this.contentEditorRef) return [];
+    const editor = this.contentEditorRef.nativeElement;
+    const spans = editor.querySelectorAll<HTMLElement>('span.entity-quote[data-quoted-entity-id]');
+    const results: { entityId: string; text: string }[] = [];
+    spans.forEach(span => {
+      const entityId = span.getAttribute('data-quoted-entity-id');
+      // Strip the surrounding quote characters from the text content
+      const raw = span.textContent ?? '';
+      const text = raw.replace(/^[\u201c"]+|[\u201d"]+$/g, '').trim();
+      if (entityId && text) results.push({ entityId, text });
+    });
+    return results;
+  }
+
   async save(): Promise<void> {
     const chapter = this.chapter();
     if (!chapter || !chapter.title.trim()) return;
@@ -1122,6 +1256,12 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     if (this.autoSaveTimer) {
       clearTimeout(this.autoSaveTimer);
       this.autoSaveTimer = null;
+    }
+
+    // Strip any legacy entity-quote spans from the HTML before saving
+    if (this.contentEditorRef) {
+      this.unwrapEntityQuotes();
+      this.editorContent = this.contentEditorRef.nativeElement.innerHTML;
     }
 
     this.saving.set(true);
@@ -1317,6 +1457,218 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     return before + ' [CURSOR] ' + after;
   }
 
+  /** Returns the plain-text content of the sentence the cursor is currently inside. */
+  private extractCurrentLine(): string {
+    const editor = this.contentEditorRef?.nativeElement;
+    if (!editor) return '';
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return '';
+    const range = sel.getRangeAt(0);
+    const preRange = document.createRange();
+    preRange.setStart(editor, 0);
+    preRange.setEnd(range.startContainer, range.startOffset);
+    const cursorOffset = preRange.toString().length;
+    const fullText = editor.innerText ?? '';
+
+    // Sentence-ending punctuation followed by whitespace (or newline) marks a boundary
+    const sentenceEndRe = /[.!?][\s\n]/g;
+
+    // Find the start of the current sentence: last sentence-end before the cursor
+    let sentenceStart = 0;
+    let m: RegExpExecArray | null;
+    while ((m = sentenceEndRe.exec(fullText)) !== null) {
+      if (m.index + m[0].length > cursorOffset) break;
+      sentenceStart = m.index + m[0].length;
+    }
+
+    // Find the end of the current sentence: next sentence-end at or after the cursor
+    sentenceEndRe.lastIndex = cursorOffset;
+    const endMatch = sentenceEndRe.exec(fullText);
+    const sentenceEnd = endMatch ? endMatch.index + 1 : fullText.length;
+
+    return fullText.slice(sentenceStart, sentenceEnd).trim();
+  }
+
+  /** Detects whether the cursor is currently inside (or immediately after) a quoted string and returns the text, or null. */
+  private detectCursorInQuote(): string | null {
+    const editor = this.contentEditorRef?.nativeElement;
+    if (!editor) return null;
+    const sel = window.getSelection();
+    if (!sel || !sel.isCollapsed || sel.rangeCount === 0) return null;
+
+    const range = sel.getRangeAt(0);
+    const preRange = document.createRange();
+    preRange.setStart(editor, 0);
+    preRange.setEnd(range.startContainer, range.startOffset);
+    const cursorOffset = preRange.toString().length;
+
+    const fullText = editor.innerText ?? '';
+    // Restrict search to the current paragraph
+    const lineStart = Math.max(0, fullText.lastIndexOf('\n', cursorOffset - 1) + 1);
+    const lineEndIdx = fullText.indexOf('\n', cursorOffset);
+    const lineText = fullText.slice(lineStart, lineEndIdx < 0 ? fullText.length : lineEndIdx);
+    const cursorInLine = cursorOffset - lineStart;
+
+    // If the cursor is immediately after a closing curly quote, treat it as just-exited
+    const justAfterCurly = cursorInLine > 0 && lineText[cursorInLine - 1] === '\u201D';
+    // If the cursor is immediately after a closing straight quote (even count before means we just closed)
+    const beforeCursorStr = lineText.slice(0, cursorInLine);
+    const justAfterStraight = cursorInLine > 0 && lineText[cursorInLine - 1] === '"'
+      && (beforeCursorStr.match(/"/g) ?? []).length % 2 === 0;
+
+    // Try curly quotes: search up to and including the character before the cursor
+    const searchUpTo = (justAfterCurly ? cursorInLine - 1 : cursorInLine);
+    const openCurly = lineText.lastIndexOf('\u201C', searchUpTo - 1);
+    const closeCurly = justAfterCurly
+      ? cursorInLine - 1  // the closing quote is the char just before cursor
+      : lineText.indexOf('\u201D', cursorInLine);
+    if (openCurly >= 0 && closeCurly >= 0) {
+      return lineText.slice(openCurly + 1, closeCurly).trim() || null;
+    }
+
+    // Fall back to straight quotes
+    if (justAfterStraight) {
+      // Cursor is right after the closing quote; find the matching open quote
+      const closePos = cursorInLine - 1;
+      const openPos = beforeCursorStr.slice(0, closePos).lastIndexOf('"');
+      if (openPos >= 0) {
+        return lineText.slice(openPos + 1, closePos).trim() || null;
+      }
+    }
+
+    // Standard: odd count before cursor means we're inside a quote
+    const straightCount = (beforeCursorStr.match(/"/g) ?? []).length;
+    if (straightCount % 2 === 1) {
+      const openPos = beforeCursorStr.lastIndexOf('"');
+      const closePos = lineText.indexOf('"', cursorInLine);
+      if (closePos >= 0) {
+        return lineText.slice(openPos + 1, closePos).trim() || null;
+      }
+    }
+
+    return null;
+  }
+
+  openCtxMenu(): void {
+    const sel = window.getSelection();
+    const selectedText = sel ? sel.toString() : '';
+
+    const items: { id: string; label: string; icon: string }[] = [
+      { id: 'ai-action', label: selectedText ? 'AI Reword' : 'AI Insert', icon: 'auto_awesome' },
+    ];
+
+    const quoteText = this.detectCursorInQuote();
+    if (quoteText) {
+      this.ctxMenuCaptureText = quoteText;
+      items.push({ id: 'capture-quote', label: 'Capture quote', icon: 'record_voice_over' });
+    } else {
+      this.ctxMenuCaptureText = '';
+      const narratorText = selectedText || this.extractCurrentLine();
+      if (narratorText) {
+        this.ctxMenuNarratorCaptureText = narratorText;
+        items.push({ id: 'capture-narrator-quote', label: 'Capture Narrator Quote', icon: 'menu_book' });
+      } else {
+        this.ctxMenuNarratorCaptureText = '';
+      }
+    }
+
+    this.ctxMenuItems.set(items);
+    this.ctxMenuFocusedIndex.set(0);
+
+    // Position at cursor
+    const rect = this.getCursorRect();
+    const MENU_WIDTH = 200;
+    const MENU_HEIGHT_EST = items.length * 44 + 8;
+    const GAP = 6;
+
+    let top = 200;
+    let left = 40;
+
+    if (rect && (rect.width !== 0 || rect.height !== 0 || rect.top !== 0)) {
+      top = rect.bottom + GAP;
+      left = rect.left;
+      if (left + MENU_WIDTH > window.innerWidth - GAP) left = window.innerWidth - MENU_WIDTH - GAP;
+      left = Math.max(GAP, left);
+      if (top + MENU_HEIGHT_EST > window.innerHeight - GAP) top = rect.top - MENU_HEIGHT_EST - GAP;
+      top = Math.max(GAP, top);
+    } else {
+      const editorRect = this.contentEditorRef?.nativeElement?.getBoundingClientRect();
+      if (editorRect) { top = editorRect.top + 60; left = editorRect.left + 40; }
+    }
+
+    this.ctxMenuTop.set(top);
+    this.ctxMenuLeft.set(left);
+    this.ctxMenuVisible.set(true);
+  }
+
+  closeCtxMenu(): void {
+    this.ctxMenuVisible.set(false);
+  }
+
+  executeCtxMenuItem(item: { id: string; label: string; icon: string } | undefined): void {
+    if (!item) return;
+    this.closeCtxMenu();
+    if (item.id === 'ai-action') {
+      this.openInlineAiPrompt();
+    } else if (item.id === 'capture-quote') {
+      this.captureQuote();
+    } else if (item.id === 'capture-narrator-quote') {
+      this.captureNarratorQuote();
+    }
+  }
+
+  captureQuote(): void {
+    const quoteText = this.ctxMenuCaptureText;
+    const chapter = this.chapter();
+    if (!quoteText || !chapter || this.capturingQuote()) return;
+
+    this.capturingQuote.set(true);
+
+    const sel = window.getSelection();
+    let surroundingContext = '';
+    if (sel && sel.rangeCount > 0) {
+      surroundingContext = this.extractSurroundingText(sel.getRangeAt(0));
+    }
+
+    this.entityQuoteService.capture(chapter.id, quoteText, surroundingContext).subscribe({
+      next: ({ entityName }) => {
+        this.snackBar.open(`Quote captured for ${entityName}`, undefined, { duration: 3000 });
+        this.capturingQuote.set(false);
+      },
+      error: (err: { error?: { error?: string } }) => {
+        const msg = err?.error?.error ?? 'Could not identify speaker';
+        this.snackBar.open(`Failed: ${msg}`, undefined, { duration: 4000 });
+        this.capturingQuote.set(false);
+      },
+    });
+  }
+
+  captureNarratorQuote(): void {
+    const text = this.ctxMenuNarratorCaptureText;
+    if (!text || !this.seriesId || this.capturingQuote()) return;
+
+    this.capturingQuote.set(true);
+
+    this.entityService.getOrCreateNarrator(this.seriesId).subscribe({
+      next: (narrator) => {
+        this.entityQuoteService.create(narrator.id, text).subscribe({
+          next: () => {
+            this.snackBar.open('Narrator quote captured', undefined, { duration: 3000 });
+            this.capturingQuote.set(false);
+          },
+          error: () => {
+            this.snackBar.open('Failed to capture narrator quote', undefined, { duration: 4000 });
+            this.capturingQuote.set(false);
+          },
+        });
+      },
+      error: () => {
+        this.snackBar.open('Failed to find narrator', undefined, { duration: 4000 });
+        this.capturingQuote.set(false);
+      },
+    });
+  }
+
   openInlineAiPrompt(): void {
     const sel = window.getSelection();
     this.inlineAiCharBefore = '';
@@ -1387,23 +1739,65 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
       left = editorRect ? editorRect.left + 40 : 200;
     }
 
+    this.inlineAiAnchorRect = rect ?? null;
     this.inlineAiTop.set(top);
     this.inlineAiLeft.set(left);
     this.inlineAiAbove.set(above);
 
-    setTimeout(() => this.inlineAiInputEl?.nativeElement?.focus());
+    setTimeout(() => {
+      this.inlineAiInputEl?.nativeElement?.focus();
+      const panelEl = this.inlineAiPanelRef?.nativeElement;
+      if (panelEl) {
+        this.inlineAiResizeObserver?.disconnect();
+        this.inlineAiResizeObserver = new ResizeObserver(() => this.repositionInlineAiPanel());
+        this.inlineAiResizeObserver.observe(panelEl);
+      }
+    });
+  }
+
+  private repositionInlineAiPanel(): void {
+    const rect = this.inlineAiAnchorRect;
+    const panelEl = this.inlineAiPanelRef?.nativeElement;
+    if (!rect || !panelEl) return;
+    const GAP = 10;
+    const panelHeight = panelEl.offsetHeight;
+    let top: number;
+    let above: boolean;
+    if (rect.bottom + GAP + panelHeight <= window.innerHeight) {
+      top = rect.bottom + GAP;
+      above = false;
+    } else {
+      top = rect.top - GAP;
+      above = true;
+    }
+    top = Math.max(GAP, top);
+    this.inlineAiTop.set(top);
+    this.inlineAiAbove.set(above);
   }
 
   onInlineAiKeyDown(event: KeyboardEvent): void {
+    if (event.key === 'Tab' && this.ghostSuggestion()) {
+      event.preventDefault();
+      this.applyGhostComplete(this.ghostSuggestion()!);
+      return;
+    }
     if (event.key === 'Enter') {
       event.preventDefault();
       this.submitInlineAiPrompt();
     } else if (event.key === 'Escape') {
       this.dismissInlineAiPrompt();
-    } else if (event.key === 'a' && !this.inlineAiStreaming() && (this.inlineAiResponse() || this.inlineAiImageUrl())) {
+    } else if (event.key === 'a' && event.altKey && !this.inlineAiStreaming() && (this.inlineAiResponse() || this.inlineAiImageUrl())) {
       event.preventDefault();
       this.acceptInlineAiResponse();
     }
+  }
+
+  applyGhostComplete(item: GhostCompleteItem): void {
+    this.inlineAiInput.set(item.prompt);
+  }
+
+  onInlineAiInputChange(value: string): void {
+    this.inlineAiInput.set(value);
   }
 
   async submitInlineAiPrompt(): Promise<void> {
@@ -1567,12 +1961,17 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
       sel.addRange(range);
     }
     range.deleteContents();
-    const textNode = document.createTextNode(text);
-    range.insertNode(textNode);
+    const fragment = this.buildEntityAnnotatedFragment(text);
+    const lastInserted = fragment.lastChild;
+    range.insertNode(fragment);
 
     // Move cursor to end of inserted text
     const afterRange = document.createRange();
-    afterRange.setStartAfter(textNode);
+    if (lastInserted) {
+      afterRange.setStartAfter(lastInserted);
+    } else {
+      afterRange.setStart(range.startContainer, range.startOffset);
+    }
     afterRange.collapse(true);
     if (sel) {
       sel.removeAllRanges();
@@ -1597,6 +1996,9 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
 
   dismissInlineAiPrompt(restoreFocus = true): void {
     this.removeAiMarker();
+    this.inlineAiResizeObserver?.disconnect();
+    this.inlineAiResizeObserver = null;
+    this.inlineAiAnchorRect = null;
     this.inlineAiAbortController?.abort();
     this.inlineAiAbortController = null;
     this.inlineAiVisible.set(false);
@@ -2034,8 +2436,12 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     const text = this.grammarService.extractCheckableText(editor);
     if (!text.trim()) {
       this.unwrapGrammarMarks();
+      this.grammarLastCheckedText = '';
       return;
     }
+
+    // Skip if the checkable text hasn't changed since the last completed check
+    if (text === this.grammarLastCheckedText) return;
 
     // Abort any in-flight check before starting a new one
     this.grammarAbortController?.abort();
@@ -2049,6 +2455,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
 
     this.grammarChecking.set(false);
     this.grammarAbortController = null;
+    this.grammarLastCheckedText = text;
 
     // Remove stale marks and apply fresh ones
     this.unwrapGrammarMarks();
@@ -2097,6 +2504,136 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
       parent.removeChild(mark);
     });
     editor.normalize();
+  }
+
+  /** Returns the caret position as a plain-text character offset from the start
+   *  of the editor, or null if the editor does not have focus / no selection. */
+  private saveCaretOffset(editor: HTMLElement): number | null {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return null;
+    const range = sel.getRangeAt(0);
+    if (!editor.contains(range.startContainer)) return null;
+    const pre = document.createRange();
+    pre.setStart(editor, 0);
+    pre.setEnd(range.startContainer, range.startOffset);
+    return pre.toString().length;
+  }
+
+  /** Restores a caret position previously saved with saveCaretOffset. */
+  private restoreCaretOffset(editor: HTMLElement, targetOffset: number): void {
+    const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+    let remaining = targetOffset;
+    let node: Text | null;
+    while ((node = walker.nextNode() as Text | null)) {
+      if (remaining <= node.length) {
+        const range = document.createRange();
+        range.setStart(node, remaining);
+        range.collapse(true);
+        const sel = window.getSelection();
+        if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+        return;
+      }
+      remaining -= node.length;
+    }
+  }
+
+  private unwrapEntityQuotes(): void {
+    if (!this.contentEditorRef) return;
+    const editor = this.contentEditorRef.nativeElement;
+    const quotes = editor.querySelectorAll('span.entity-quote');
+    if (quotes.length === 0) return;
+    quotes.forEach(span => {
+      const parent = span.parentNode!;
+      while (span.firstChild) parent.insertBefore(span.firstChild, span);
+      parent.removeChild(span);
+    });
+    editor.normalize();
+  }
+
+  private applyEntityQuotes(): void {
+    if (!this.contentEditorRef) return;
+    const editor = this.contentEditorRef.nativeElement;
+
+    // Scan the whole editor as one unit to avoid block-detection edge cases
+    // (e.g. text sitting directly in the editor div alongside child blocks).
+    const refSpans = Array.from(editor.querySelectorAll<HTMLElement>('span.entity-reference[data-id]'));
+    if (refSpans.length === 0) return;
+
+    // Build a flat text map of all text nodes in the editor
+    interface TextSegment { node: Text; start: number; end: number; }
+    const segments: TextSegment[] = [];
+    const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+    let offset = 0;
+    let textNode: Text | null;
+    while ((textNode = walker.nextNode() as Text | null)) {
+      const len = textNode.length;
+      segments.push({ node: textNode, start: offset, end: offset + len });
+      offset += len;
+    }
+    const fullText = segments.map(s => s.node.textContent ?? '').join('');
+
+    // Determine the character start offset of each entity-reference span
+    const spanPositions: { entityId: string; charStart: number }[] = [];
+    for (const refSpan of refSpans) {
+      const sw = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+      let spanOffset = 0;
+      let sNode: Text | null;
+      while ((sNode = sw.nextNode() as Text | null)) {
+        if (refSpan.contains(sNode)) {
+          spanPositions.push({ entityId: refSpan.getAttribute('data-id')!, charStart: spanOffset });
+          break;
+        }
+        spanOffset += sNode.length;
+      }
+    }
+    spanPositions.sort((a, b) => a.charStart - b.charStart);
+
+    // Collect ALL quote matches, attributing each to the nearest preceding entity
+    const pending: { quoteStart: number; quoteEnd: number; entityId: string }[] = [];
+    const quoteRe = /“([^”]*)”|"([^"]*)"/g;
+    let match: RegExpExecArray | null;
+    while ((match = quoteRe.exec(fullText)) !== null) {
+      const quoteStart = match.index;
+      const quoteEnd = quoteStart + match[0].length;
+
+      let attributedEntityId: string | null = null;
+      for (let i = spanPositions.length - 1; i >= 0; i--) {
+        if (spanPositions[i].charStart < quoteStart) {
+          attributedEntityId = spanPositions[i].entityId;
+          break;
+        }
+      }
+      if (!attributedEntityId) continue;
+      pending.push({ quoteStart, quoteEnd, entityId: attributedEntityId });
+    }
+
+    if (pending.length === 0) return;
+
+    const findPos = (absPos: number): { node: Text; offset: number } | null => {
+      for (const seg of segments) {
+        if (absPos <= seg.end) return { node: seg.node, offset: absPos - seg.start };
+      }
+      return null;
+    };
+
+    // Apply rightmost first so earlier text-node splits don't invalidate later offsets
+    for (const { quoteStart, quoteEnd, entityId } of [...pending].reverse()) {
+      const startPos = findPos(quoteStart);
+      const endPos = findPos(quoteEnd);
+      if (!startPos || !endPos) continue;
+      if (startPos.node.parentElement?.closest('span.entity-quote')) continue;
+      try {
+        const range = document.createRange();
+        range.setStart(startPos.node, startPos.offset);
+        range.setEnd(endPos.node, endPos.offset);
+        const wrap = document.createElement('span');
+        wrap.className = 'entity-quote';
+        wrap.setAttribute('data-quoted-entity-id', entityId);
+        range.surroundContents(wrap);
+      } catch {
+        // range crosses element boundaries — skip
+      }
+    }
   }
 
   private applyGrammarMarks(errors: GrammarError[]): void {
@@ -2151,11 +2688,15 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     this.grammarPopoverError.set({ text: markEl.textContent ?? '', suggestion, message });
 
     const POPOVER_WIDTH = 280;
+    const POPOVER_HEIGHT_EST = 130;
+    const GAP = 6;
     const rect = markEl.getBoundingClientRect();
-    const top = rect.bottom + 6;
     const left = Math.max(8, Math.min(rect.left, window.innerWidth - POPOVER_WIDTH - 8));
+    const above = rect.bottom + GAP + POPOVER_HEIGHT_EST > window.innerHeight;
+    const top = above ? rect.top - GAP : rect.bottom + GAP;
     this.grammarPopoverTop.set(top);
     this.grammarPopoverLeft.set(left);
+    this.grammarPopoverAbove.set(above);
     this.grammarPopoverVisible.set(true);
   }
 

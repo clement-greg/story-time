@@ -1,0 +1,76 @@
+<div class="settings-page">
+  <h2>Settings</h2>
+
+  <!-- Ghost Complete Section -->
+  <section class="settings-section">
+    <div class="section-header">
+      <h3>Ghost Complete Items</h3>
+      <p class="section-desc">
+        These prompts appear as suggestions when you open the AI Insert panel (Ctrl+.).
+        Click any suggestion to instantly fill in the prompt.
+      </p>
+    </div>
+
+    <!-- Existing items -->
+    @if (items().length === 0) {
+    <p class="empty-state">No ghost complete items yet. Add one below to get started.</p>
+    }
+
+    <div class="items-list">
+      @for (item of items(); track item.id) {
+      <div class="ghost-item-card">
+        @if (editingId() === item.id) {
+        <!-- Edit mode -->
+        <div class="ghost-item-edit">
+          <mat-form-field appearance="outline" class="edit-field">
+            <mat-label>Label</mat-label>
+            <input matInput [value]="editLabel()" (input)="editLabel.set($any($event.target).value)" />
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="edit-field edit-field-prompt">
+            <mat-label>Prompt</mat-label>
+            <textarea matInput rows="2" [value]="editPrompt()" (input)="editPrompt.set($any($event.target).value)"></textarea>
+          </mat-form-field>
+          <div class="edit-actions">
+            <button mat-flat-button (click)="saveEdit()">Save</button>
+            <button mat-button (click)="cancelEdit()">Cancel</button>
+          </div>
+        </div>
+        } @else {
+        <!-- View mode -->
+        <div class="ghost-item-view">
+          <div class="ghost-item-info">
+            <span class="ghost-item-label">{{ item.label }}</span>
+            <span class="ghost-item-prompt">{{ item.prompt }}</span>
+          </div>
+          <div class="ghost-item-actions">
+            <button mat-icon-button (click)="startEdit(item)" title="Edit">
+              <mat-icon>edit</mat-icon>
+            </button>
+            <button mat-icon-button (click)="removeItem(item.id)" title="Delete">
+              <mat-icon>delete</mat-icon>
+            </button>
+          </div>
+        </div>
+        }
+      </div>
+      }
+    </div>
+
+    <!-- Add new item -->
+    <div class="add-item-form">
+      <h4>Add New Item</h4>
+      <mat-form-field appearance="outline" class="add-field">
+        <mat-label>Label</mat-label>
+        <input matInput placeholder="e.g. Describe setting" [value]="newLabel()" (input)="newLabel.set($any($event.target).value)" />
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="add-field add-field-prompt">
+        <mat-label>Prompt</mat-label>
+        <textarea matInput rows="2" placeholder="e.g. Write a vivid description of the current setting" [value]="newPrompt()" (input)="newPrompt.set($any($event.target).value)"></textarea>
+      </mat-form-field>
+      <button mat-flat-button (click)="addItem()">
+        <mat-icon>add</mat-icon>
+        Add
+      </button>
+    </div>
+  </section>
+</div>

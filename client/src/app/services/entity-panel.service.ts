@@ -9,6 +9,7 @@ export class EntityPanelService {
 
   isOpen = signal(false);
   seriesId = signal<string | null>(null);
+  narrator = signal<Entity | null>(null);
   entityList = signal<Entity[]>([]);
   editingEntity = signal<Entity | null>(null);
   isNewEntity = signal(false);
@@ -27,12 +28,20 @@ export class EntityPanelService {
     this.showingArchived.set(false);
     this.isOpen.set(true);
     this.loadEntities(seriesId);
+    this.loadNarrator(seriesId);
   }
 
   close(): void {
     this.isOpen.set(false);
     this.editingEntity.set(null);
     this.isNewEntity.set(false);
+  }
+
+  loadNarrator(seriesId: string): void {
+    this.entityService.getOrCreateNarrator(seriesId).subscribe({
+      next: (narrator) => this.narrator.set(narrator),
+      error: () => {},
+    });
   }
 
   loadEntities(seriesId: string): void {
@@ -42,7 +51,8 @@ export class EntityPanelService {
       : this.entityService.getBySeries(seriesId);
     fetch.subscribe({
       next: (data) => {
-        this.entityList.set(data);
+        // Keep narrator out of the main list (it has its own dedicated section)
+        this.entityList.set(data.filter(e => !e.isNarrator));
         this.entityLoading.set(false);
       },
       error: () => this.entityLoading.set(false),
@@ -94,9 +104,13 @@ export class EntityPanelService {
     } else {
       this.entityService.update(entity).subscribe({
         next: (updated) => {
-          this.entityList.update((list) =>
-            list.map((e) => (e.id === updated.id ? updated : e))
-          );
+          if (updated.isNarrator) {
+            this.narrator.set(updated);
+          } else {
+            this.entityList.update((list) =>
+              list.map((e) => (e.id === updated.id ? updated : e))
+            );
+          }
           this.editingEntity.set(null);
           this.lastUpdatedEntity.set(updated);
         },

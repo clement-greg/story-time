@@ -1,137 +1,221 @@
 <div class="entity-edit-form">
-    <div class="thumbnail-section">
-    <div class="thumbnail-preview">
-      @if (thumbnailPreview()) {
-        <img [src]="thumbnailPreview()!" alt="Thumbnail preview" />
-      } @else {
-        <mat-icon class="thumbnail-placeholder-icon">image</mat-icon>
-      }
-      @if (uploading() || generatingImage()) {
-        <div class="upload-overlay">
-          <mat-spinner diameter="36" />
-        </div>
-      }
-    </div>
-    <div class="thumbnail-actions" >
-      <button mat-stroked-button type="button" (click)="fileInput.click()" [disabled]="uploading() || generatingImage()" title="Upload image">
-        <mat-icon>upload</mat-icon>
-        Upload
-      </button>
-      <button mat-stroked-button type="button" (click)="openGenerateImageDialog()" [disabled]="uploading() || generatingImage()" title="Generate image with AI">
-        <mat-icon>auto_awesome</mat-icon>
-        Generate
-      </button>
-      <input #fileInput type="file" accept="image/*" hidden (change)="onFileSelected($event)" />
-    </div>
-  </div>
 
-  <mat-form-field appearance="outline" style="max-width: 200px;">
-    <mat-label>Type</mat-label>
-    <mat-select [ngModel]="draft()!.type"
-                (ngModelChange)="update('type', $event)">
-      @for (type of entityTypes; track type) {
-        <mat-option [value]="type">{{ type }}</mat-option>
-      }
-    </mat-select>
-  </mat-form-field>
+  <mat-tab-group animationDuration="150ms" class="entity-tabs">
 
-  <mat-form-field appearance="outline">
-    <mat-label>Name</mat-label>
-    <input matInput
-           [ngModel]="draft()!.name"
-           (ngModelChange)="update('name', $event)"
-           (blur)="onNameBlur()" />
-  </mat-form-field>
+    <!-- ── Details tab ─────────────────────────────── -->
+    <mat-tab label="Details">
+      <div class="tab-content">
 
-  @if (draft()!.type === 'PERSON') {
-    <mat-form-field appearance="outline" style="max-width: 150px;">
-      <mat-label>Title</mat-label>
-      <input matInput
-             [ngModel]="draft()!.title"
-             (ngModelChange)="update('title', $event)"
-             placeholder="Dr, Mr, Ms…" />
-    </mat-form-field>
+        @if (!isNarrator()) {
+          <div class="thumbnail-section">
+            <div class="thumbnail-preview">
+              @if (thumbnailPreview()) {
+                <img [src]="thumbnailPreview()!" alt="Thumbnail preview" />
+              } @else {
+                <mat-icon class="thumbnail-placeholder-icon">image</mat-icon>
+              }
+              @if (uploading() || generatingImage()) {
+                <div class="upload-overlay">
+                  <mat-spinner diameter="36" />
+                </div>
+              }
+            </div>
+            <div class="thumbnail-actions">
+              <button mat-stroked-button type="button" (click)="fileInput.click()" [disabled]="uploading() || generatingImage()" title="Upload image">
+                <mat-icon>upload</mat-icon>
+                Upload
+              </button>
+              <button mat-stroked-button type="button" (click)="openGenerateImageDialog()" [disabled]="uploading() || generatingImage()" title="Generate image with AI">
+                <mat-icon>auto_awesome</mat-icon>
+                Generate
+              </button>
+              <input #fileInput type="file" accept="image/*" hidden (change)="onFileSelected($event)" />
+            </div>
+          </div>
 
-    <mat-form-field appearance="outline">
-      <mat-label>First Name</mat-label>
-      <input matInput
-             [ngModel]="draft()!.firstName"
-             (ngModelChange)="update('firstName', $event)" />
-    </mat-form-field>
+          <mat-form-field appearance="outline" style="max-width: 200px;">
+            <mat-label>Type</mat-label>
+            <mat-select [ngModel]="draft()!.type" (ngModelChange)="update('type', $event)">
+              @for (type of entityTypes; track type) {
+                <mat-option [value]="type">{{ type }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
 
-    <mat-form-field appearance="outline">
-      <mat-label>Last Name</mat-label>
-      <input matInput
-             [ngModel]="draft()!.lastName"
-             (ngModelChange)="update('lastName', $event)" />
-    </mat-form-field>
-
-    <mat-form-field appearance="outline">
-      <mat-label>Nickname</mat-label>
-      <input matInput
-             [ngModel]="draft()!.nickname"
-             (ngModelChange)="update('nickname', $event)" />
-    </mat-form-field>
-
-    <mat-form-field appearance="outline" style="max-width: 250px;">
-      <mat-label>Preferred Reference</mat-label>
-      <mat-select [ngModel]="draft()!.preferredReference"
-                  (ngModelChange)="update('preferredReference', $event)">
-        @for (opt of referenceOptions; track opt.value) {
-          @if (!opt.requiresTitle || draft()!.title) {
-            <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
-          }
+          <mat-form-field appearance="outline">
+            <mat-label>Name</mat-label>
+            <input matInput [ngModel]="draft()!.name" (ngModelChange)="update('name', $event)" (blur)="onNameBlur()" />
+          </mat-form-field>
         }
-      </mat-select>
-    </mat-form-field>
 
-    <mat-form-field appearance="outline">
-      <mat-label>Personality</mat-label>
-      <textarea matInput
-                cdkTextareaAutosize
-                cdkAutosizeMinRows="4"
-                cdkAutosizeMaxRows="14"
-                [ngModel]="draft()!.personality"
-                (ngModelChange)="update('personality', $event)"
-                placeholder="Describe speech patterns, mannerisms, values, fears, quirks…"></textarea>
-      <mat-hint>Used by AI when writing dialog for this character.</mat-hint>
-    </mat-form-field>
+        @if (draft()!.type === 'PERSON' && !isNarrator()) {
+          <mat-form-field appearance="outline" style="max-width: 150px;">
+            <mat-label>Title</mat-label>
+            <input matInput [ngModel]="draft()!.title" (ngModelChange)="update('title', $event)" placeholder="Dr, Mr, Ms…" />
+          </mat-form-field>
 
-    <button mat-stroked-button (click)="generatePersonality()" [disabled]="generatingPersonality()">
-      @if (generatingPersonality()) {
-        <mat-spinner diameter="18" />
-      } @else {
-        <mat-icon>auto_awesome</mat-icon>
-      }
-      {{ generatingPersonality() ? 'Generating…' : 'Enhance with AI' }}
-    </button>
-  }
+          <mat-form-field appearance="outline">
+            <mat-label>First Name</mat-label>
+            <input matInput [ngModel]="draft()!.firstName" (ngModelChange)="update('firstName', $event)" />
+          </mat-form-field>
 
-  <mat-form-field appearance="outline" class="entity-edit-biography">
-    <mat-label>Short biography</mat-label>
-    <textarea matInput rows="3"
-              [ngModel]="draft()!.biography"
-              (ngModelChange)="update('biography', $event)"
-              placeholder="Enter a short biography"></textarea>
-  </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Last Name</mat-label>
+            <input matInput [ngModel]="draft()!.lastName" (ngModelChange)="update('lastName', $event)" />
+          </mat-form-field>
 
+          <mat-form-field appearance="outline">
+            <mat-label>Nickname</mat-label>
+            <input matInput [ngModel]="draft()!.nickname" (ngModelChange)="update('nickname', $event)" />
+          </mat-form-field>
 
+          <mat-form-field appearance="outline" style="max-width: 250px;">
+            <mat-label>Preferred Reference</mat-label>
+            <mat-select [ngModel]="draft()!.preferredReference" (ngModelChange)="update('preferredReference', $event)">
+              @for (opt of referenceOptions; track opt.value) {
+                @if (!opt.requiresTitle || draft()!.title) {
+                  <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
+                }
+              }
+            </mat-select>
+          </mat-form-field>
+
+        }
+
+        @if (draft()!.type === 'PERSON') {
+          <mat-form-field appearance="outline">
+            <mat-label>Personality</mat-label>
+            <textarea matInput cdkTextareaAutosize cdkAutosizeMinRows="4" cdkAutosizeMaxRows="14"
+                      [ngModel]="draft()!.personality" (ngModelChange)="update('personality', $event)"
+                      placeholder="Describe speech patterns, mannerisms, values, fears, quirks…"></textarea>
+            @if (isNarrator()) {
+              <mat-hint>Used by AI to set the prose style and narrative tone.</mat-hint>
+            } @else {
+              <mat-hint>Used by AI when writing dialog for this character.</mat-hint>
+            }
+          </mat-form-field>
+
+          <button mat-stroked-button (click)="generatePersonality()" [disabled]="generatingPersonality()">
+            @if (generatingPersonality()) {
+              <mat-spinner diameter="18" />
+            } @else {
+              <mat-icon>auto_awesome</mat-icon>
+            }
+            {{ generatingPersonality() ? 'Generating…' : 'Enhance with AI' }}
+          </button>
+        }
+
+        <mat-form-field appearance="outline" class="entity-edit-biography">
+          <mat-label>Short biography</mat-label>
+          <textarea matInput rows="3" [ngModel]="draft()!.biography" (ngModelChange)="update('biography', $event)"
+                    placeholder="Enter a short biography"></textarea>
+        </mat-form-field>
+
+      </div>
+    </mat-tab>
+
+    <!-- ── Quotes tab ──────────────────────────────── -->
+    @if (entity().id && entity().type === 'PERSON') {
+      <mat-tab>
+        <ng-template mat-tab-label>
+          Quotes
+          @if (quotes().length > 0) {
+            <span class="tab-badge">{{ quotes().length }}</span>
+          }
+        </ng-template>
+
+        <div class="tab-content quotes-tab">
+          @if (quotesLoading()) {
+            <div class="quotes-loading"><mat-spinner diameter="24" /></div>
+          } @else {
+            <p class="quotes-hint">
+              <mat-icon>record_voice_over</mat-icon>
+              @if (isNarrator()) {
+                Passages saved here are used as voice samples when the AI generates narrative prose.
+              } @else {
+                Quotes captured here are used as voice samples when the AI generates dialogue for this character.
+              }
+            </p>
+
+            @if (quotes().length > 0) {
+              <ul class="quotes-list">
+                @for (quote of quotes(); track quote.id) {
+                  <li class="quote-item">
+                    @if (editingQuoteId() === quote.id) {
+                      <div class="quote-edit-row">
+                        <textarea class="quote-edit-input" rows="2"
+                          [value]="editingQuoteText()"
+                          (input)="editingQuoteText.set($any($event.target).value)"
+                          (keydown.enter)="$event.preventDefault(); saveEditQuote(quote)"
+                          (keydown.escape)="cancelEditQuote()"></textarea>
+                        <div class="quote-edit-actions">
+                          <button mat-flat-button (click)="saveEditQuote(quote)" [disabled]="quoteSaving() || !editingQuoteText().trim()">Save</button>
+                          <button mat-button (click)="cancelEditQuote()">Cancel</button>
+                        </div>
+                      </div>
+                    } @else {
+                      <span class="quote-text">"{{ quote.text }}"</span>
+
+                      <button mat-icon-button class="quote-action-btn" (click)="startEditQuote(quote)" matTooltip="Edit quote">
+                        <mat-icon>edit</mat-icon>
+                      </button>
+                      <button mat-icon-button class="quote-action-btn quote-delete-btn" (click)="deleteQuote(quote)" matTooltip="Delete quote">
+                        <mat-icon>delete</mat-icon>
+                      </button>
+                    }
+                  </li>
+                }
+              </ul>
+            } @else {
+              <p class="quotes-empty">
+                No quotes yet. Add one manually or save a chapter containing attributed dialogue.
+              </p>
+            }
+
+            @if (addingQuote()) {
+              <div class="add-quote-form">
+                <textarea class="quote-edit-input" rows="2" placeholder="Enter quote text…"
+                  [value]="newQuoteText()"
+                  (input)="newQuoteText.set($any($event.target).value)"
+                  (keydown.enter)="$event.preventDefault(); saveNewQuote()"
+                  (keydown.escape)="cancelAddQuote()"></textarea>
+                <div class="quote-edit-actions">
+                  <button mat-flat-button (click)="saveNewQuote()" [disabled]="quoteSaving() || !newQuoteText().trim()">Add</button>
+                  <button mat-button (click)="cancelAddQuote()">Cancel</button>
+                </div>
+              </div>
+            } @else {
+              <button mat-button class="add-quote-btn" (click)="startAddQuote()">
+                <mat-icon>add</mat-icon> Add quote
+              </button>
+            }
+          }
+        </div>
+      </mat-tab>
+    }
+
+  </mat-tab-group>
+
+  <!-- Actions always visible below the tabs -->
   <div class="entity-edit-actions">
     <button mat-flat-button color="primary" (click)="onSave()" [disabled]="uploading() || generatingImage()">Save</button>
     <button mat-button (click)="onCancel()">Cancel</button>
     <span class="action-spacer"></span>
     @if (entity().id) {
-      @if (entity().archived) {
-        <button mat-button (click)="onUnarchive()" [disabled]="uploading() || generatingImage()" matTooltip="Restore this entity to the active list">
-          <mat-icon>unarchive</mat-icon>
-          Unarchive
-        </button>
-      } @else {
-        <button mat-button color="warn" (click)="onArchive()" [disabled]="uploading() || generatingImage()" matTooltip="Hide this entity from the entity list and chapter autocomplete">
-          <mat-icon>archive</mat-icon>
-          Archive
-        </button>
+      @if (!isNarrator()) {
+        @if (entity().archived) {
+          <button mat-button (click)="onUnarchive()" [disabled]="uploading() || generatingImage()" matTooltip="Restore this entity to the active list">
+            <mat-icon>unarchive</mat-icon>
+            Unarchive
+          </button>
+        } @else {
+          <button mat-button color="warn" (click)="onArchive()" [disabled]="uploading() || generatingImage()" matTooltip="Hide this entity from the entity list and chapter autocomplete">
+            <mat-icon>archive</mat-icon>
+            Archive
+          </button>
+        }
       }
     }
   </div>
+
 </div>
