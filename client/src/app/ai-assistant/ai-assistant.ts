@@ -38,6 +38,27 @@ export class AiAssistantComponent implements OnInit, AfterViewChecked {
   private shouldScrollToBottom = false;
   private scrollSmooth = false;
 
+  // Touch tracking — fixes iOS double-tap on draggable elements
+  private touchStartY = 0;
+  private lastTouchHandledAt = 0;
+
+  onSessionTouchStart(event: TouchEvent): void {
+    this.touchStartY = event.touches[0].clientY;
+  }
+
+  onSessionTouchEnd(id: string, event: TouchEvent): void {
+    const dy = Math.abs(event.changedTouches[0].clientY - this.touchStartY);
+    if (dy > 10) return; // was a scroll, not a tap
+    event.preventDefault(); // suppress the ghost click that follows
+    this.lastTouchHandledAt = Date.now();
+    this.openSession(id);
+  }
+
+  onSessionClick(id: string): void {
+    if (Date.now() - this.lastTouchHandledAt < 600) return; // already handled by touchend
+    this.openSession(id);
+  }
+
   readonly activeSessionId = computed(() => this.aiAssistant.activeSession()?.id ?? null);
 
   ngOnInit(): void {

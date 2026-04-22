@@ -32,7 +32,9 @@
              [class.session-active]="activeSessionId() === session.id"
              draggable="true"
              (dragstart)="onDragStart($event, session.id)"
-             (click)="openSession(session.id)">
+             (touchstart)="onSessionTouchStart($event)"
+             (touchend)="onSessionTouchEnd(session.id, $event)"
+             (click)="onSessionClick(session.id)">
           @if (renamingSessionId() === session.id) {
             <input class="session-rename-input"
                    [value]="renameValue()"
@@ -70,7 +72,9 @@
              [class.session-active]="activeSessionId() === session.id"
              draggable="true"
              (dragstart)="onDragStart($event, session.id)"
-             (click)="openSession(session.id)">
+             (touchstart)="onSessionTouchStart($event)"
+             (touchend)="onSessionTouchEnd(session.id, $event)"
+             (click)="onSessionClick(session.id)">
           @if (renamingSessionId() === session.id) {
             <input class="session-rename-input"
                    [value]="renameValue()"
