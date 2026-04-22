@@ -53,7 +53,7 @@ export interface ImageGenResult {
   styles: [`
     .prompt-field { width: 100%; }
     .model-field { width: 100%; margin-top: 8px; }
-    mat-dialog-content { min-width: 420px; }
+    mat-dialog-content { width: min(420px, 90vw); box-sizing: border-box; }
   `],
 })
 export class ImageGenDialogComponent {

@@ -1,6 +1,14 @@
 main {
   height: calc(100vh - 64px);
+  height: calc(100dvh - 64px); /* iOS Safari: use dynamic viewport height */
   overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  main {
+    height: calc(100vh - 56px);
+    height: calc(100dvh - 56px); /* iOS Safari: mobile toolbar is 56px */
+  }
 }
 
 .ai-btn-active {
