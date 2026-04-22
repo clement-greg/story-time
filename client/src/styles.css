@@ -12,6 +12,14 @@ html, body {
   overflow-x: hidden;
 }
 
+/* Prevent iOS Safari from auto-zooming when an input is focused.
+   iOS zooms whenever the focused input's font-size is below 16px. */
+@media screen and (-webkit-min-device-pixel-ratio: 0) {
+  input, textarea, select {
+    font-size: max(16px, 1em) !important;
+  }
+}
+
 @keyframes ai-marker-blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
