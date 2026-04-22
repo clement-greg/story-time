@@ -3,6 +3,11 @@ main {
   overflow: hidden;
 }
 
+.ai-btn-active {
+  background: rgba(255, 255, 255, 0.18) !important;
+  border-radius: 50%;
+}
+
 .update-banner {
   position: fixed;
   bottom: 0;

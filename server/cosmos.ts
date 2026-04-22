@@ -14,6 +14,7 @@ const standardContainerDefs = [
   { id: 'book-notes', partitionKey: { paths: ['/id'] } },
   { id: 'entities', partitionKey: { paths: ['/id'] } },
   { id: 'chat-history', partitionKey: { paths: ['/id'] } },
+  { id: 'chat-sessions', partitionKey: { paths: ['/id'] } },
   { id: 'chapter-versions', partitionKey: { paths: ['/chapterId'] } },
   { id: 'entity-relationships', partitionKey: { paths: ['/id'] } },
   { id: 'diagram-layouts', partitionKey: { paths: ['/id'] } },

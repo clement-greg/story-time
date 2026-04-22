@@ -1,0 +1,189 @@
+<div class="ai-panel" [class.ai-panel-open]="aiAssistant.isOpen()">
+
+  <!-- Sessions sidebar (desktop always visible; mobile overlay) -->
+  <aside class="ai-sessions-sidebar" [class.mobile-sidebar-open]="mobileSidebarOpen()">
+    <!-- Mobile close button -->
+    <button mat-icon-button class="mobile-sidebar-close" (click)="mobileSidebarOpen.set(false)">
+      <mat-icon>close</mat-icon>
+    </button>
+    <div class="ai-sessions-header">
+      <mat-icon class="ai-header-icon">smart_toy</mat-icon>
+      <span class="ai-header-title">AI Assistant</span>
+      <button mat-icon-button class="new-chat-btn" (click)="newChat()" matTooltip="New chat">
+        <mat-icon>add</mat-icon>
+      </button>
+    </div>
+
+    <!-- Drag-to-pin drop zone -->
+    <div class="pin-drop-zone"
+         [class.drag-active]="isDragOver()"
+         (dragover)="onDragOver($event)"
+         (dragleave)="onDragLeave()"
+         (drop)="onDropToPin($event)">
+      <mat-icon>push_pin</mat-icon>
+      <span>Drag to pin</span>
+    </div>
+
+    <!-- Pinned sessions -->
+    @if (aiAssistant.pinnedSessions().length > 0) {
+      <div class="sessions-section-label">Pinned</div>
+      @for (session of aiAssistant.pinnedSessions(); track session.id) {
+        <div class="session-item"
+             [class.session-active]="activeSessionId() === session.id"
+             draggable="true"
+             (dragstart)="onDragStart($event, session.id)"
+             (click)="openSession(session.id)">
+          @if (renamingSessionId() === session.id) {
+            <input class="session-rename-input"
+                   [value]="renameValue()"
+                   (input)="renameValue.set($any($event.target).value)"
+                   (keydown)="onRenameKeyDown($event, session.id)"
+                   (blur)="commitRename(session.id)"
+                   (click)="$event.stopPropagation()"
+                   autofocus />
+          } @else {
+            <span class="session-name">{{ session.name }}</span>
+          }
+          <div class="session-actions">
+            <button mat-icon-button class="session-action-btn"
+                    (click)="deleteSession(session.id, $event)"
+                    matTooltip="Delete">
+              <mat-icon>delete</mat-icon>
+            </button>
+          </div>
+        </div>
+      }
+    }
+
+    <!-- Recent sessions -->
+    @if (aiAssistant.recentSessions().length > 0) {
+      <div class="sessions-section-label unpin-drop-zone"
+           [class.drag-active]="isUnpinDragOver()"
+           (dragover)="onUnpinDragOver($event)"
+           (dragleave)="onUnpinDragLeave()"
+           (drop)="onDropToUnpin($event)">
+        Recents
+        <span class="unpin-drop-hint">drop to unpin</span>
+      </div>
+      @for (session of aiAssistant.recentSessions(); track session.id) {
+        <div class="session-item"
+             [class.session-active]="activeSessionId() === session.id"
+             draggable="true"
+             (dragstart)="onDragStart($event, session.id)"
+             (click)="openSession(session.id)">
+          @if (renamingSessionId() === session.id) {
+            <input class="session-rename-input"
+                   [value]="renameValue()"
+                   (input)="renameValue.set($any($event.target).value)"
+                   (keydown)="onRenameKeyDown($event, session.id)"
+                   (blur)="commitRename(session.id)"
+                   (click)="$event.stopPropagation()"
+                   autofocus />
+          } @else {
+            <span class="session-name">{{ session.name }}</span>
+          }
+          <div class="session-actions">
+            <button mat-icon-button class="session-action-btn"
+                    (click)="deleteSession(session.id, $event)"
+                    matTooltip="Delete">
+              <mat-icon>delete</mat-icon>
+            </button>
+          </div>
+        </div>
+      }
+    }
+
+    @if (aiAssistant.sessions().length === 0) {
+      <p class="sessions-empty">No previous sessions. Start a new chat!</p>
+    }
+  </aside>
+
+  <!-- Chat area -->
+  <div class="ai-chat-area">
+    <div class="ai-chat-header">
+      <!-- Mobile: sessions drawer toggle -->
+      <button mat-icon-button class="mobile-sessions-btn" (click)="mobileSidebarOpen.set(true)" matTooltip="Sessions">
+        <mat-icon>menu</mat-icon>
+      </button>
+      <span class="ai-chat-title">
+        {{ aiAssistant.activeSession()?.name ?? 'AI Assistant' }}
+      </span>
+      <button mat-icon-button class="ai-close-btn" (click)="aiAssistant.closePanel()" matTooltip="Close">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+
+    @if (!aiAssistant.activeSession()) {
+      <!-- Welcome state -->
+      <div class="ai-welcome">
+        <mat-icon class="ai-welcome-icon">smart_toy</mat-icon>
+        <p>Select a previous session or start a new one.</p>
+        <button mat-flat-button color="primary" (click)="newChat()">
+          <mat-icon>add</mat-icon>
+          New Chat
+        </button>
+      </div>
+    } @else {
+      <!-- Messages -->
+      <div class="ai-chat-messages" #messagesEl>
+        @if (aiAssistant.activeSession()!.messages.length === 0) {
+          <p class="chat-empty">Ask anything about your writing…</p>
+        }
+        @for (msg of aiAssistant.activeSession()!.messages; track $index; let last = $last) {
+          <div class="chat-message"
+               [class.user]="msg.role === 'user'"
+               [class.assistant]="msg.role === 'assistant'"
+               [class.streaming]="last && msg.role === 'assistant' && aiAssistant.streaming()">
+            <span class="chat-role">{{ msg.role === 'user' ? 'You' : 'AI' }}</span>
+            @if (msg.role === 'assistant') {
+              @if (msg.generatingImage) {
+                <div class="chat-image-generating">
+                  <mat-spinner diameter="20"></mat-spinner>
+                  <span>Generating image…</span>
+                </div>
+              } @else if (msg.imageUrl) {
+                <div class="chat-image-container">
+                  <img [src]="proxyUrl(msg.imageUrl)" alt="Generated image" class="chat-generated-image" />
+                  <a [href]="proxyUrl(msg.imageUrl)" download="generated-image.png"
+                     mat-stroked-button class="chat-image-download">
+                    <mat-icon>download</mat-icon>
+                    Download
+                  </a>
+                </div>
+              } @else {
+                <div class="chat-markdown" [innerHTML]="markdownToHtml(msg.text)"></div>
+              }
+            } @else {
+              <p>{{ msg.text }}</p>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- Input area -->
+      <div class="ai-chat-input-area">
+        <textarea class="chat-textarea"
+                  placeholder="Message AI… (Enter to send, Shift+Enter for new line)"
+                  rows="3"
+                  [value]="input()"
+                  (input)="input.set($any($event.target).value)"
+                  (keydown)="onKeyDown($event)"></textarea>
+        <button mat-icon-button class="chat-send-btn"
+                [disabled]="aiAssistant.streaming() || !input().trim()"
+                (click)="send()">
+          <mat-icon>{{ aiAssistant.streaming() ? 'hourglass_top' : 'send' }}</mat-icon>
+        </button>
+      </div>
+    }
+  </div>
+
+  <!-- Mobile sidebar backdrop: direct child of panel, covers chat area while drawer is open -->
+  @if (mobileSidebarOpen()) {
+    <div class="mobile-sidebar-backdrop" (click)="mobileSidebarOpen.set(false)"></div>
+  }
+</div>
+
+<!-- Backdrop -->
+@if (aiAssistant.isOpen()) {
+  <div class="ai-backdrop" (click)="aiAssistant.closePanel()"></div>
+}

@@ -9,10 +9,12 @@ import { AuthService } from './auth/auth.service';
 import { HeaderService } from './services/header.service';
 import { EntityPanelComponent } from './shared/entity-panel/entity-panel';
 import { UpdateCheckService } from './services/update-check.service';
+import { AiAssistantComponent } from './ai-assistant/ai-assistant';
+import { AiAssistantService } from './services/ai-assistant.service';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, MatToolbarModule, MatButtonModule, MatIconModule, MatMenuModule, MatDividerModule, EntityPanelComponent],
+  imports: [RouterOutlet, RouterLink, MatToolbarModule, MatButtonModule, MatIconModule, MatMenuModule, MatDividerModule, EntityPanelComponent, AiAssistantComponent],
   templateUrl: './app.html',
   styleUrl: './app.css'
 })
@@ -20,6 +22,7 @@ export class App implements OnInit, OnDestroy {
   auth = inject(AuthService);
   header = inject(HeaderService);
   updateCheck = inject(UpdateCheckService);
+  aiAssistant = inject(AiAssistantService);
   private router = inject(Router);
 
   backLink = computed(() => {

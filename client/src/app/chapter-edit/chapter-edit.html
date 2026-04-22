@@ -19,11 +19,6 @@
           }
 
 
-          <button mat-icon-button class="mobile-only mobile-ai-btn"
-            [class.active]="mobileSidebarOpen() && sidebarTabIndex() === 0" (click)="activateSidebarTab(0)"
-            title="AI Assistant">
-            <mat-icon>smart_toy</mat-icon>
-          </button>
           <button mat-flat-button (click)="save()" [disabled]="saving() || !chapter()">
             {{ saving() ? 'Saving…' : 'Save' }}
           </button>
@@ -113,109 +108,7 @@
           <mat-tab-group [selectedIndex]="sidebarTabIndex()" (selectedIndexChange)="onSidebarTabChange($event)"
             headerPosition="below" class="sidebar-tab-group">
 
-            <!-- Tab 0: AI Assistant -->
-            <mat-tab>
-              <ng-template mat-tab-label><mat-icon>smart_toy</mat-icon></ng-template>
-              <div class="sidebar-tab-content">
-                <div class="chat-header">
-                  <mat-icon>smart_toy</mat-icon>
-                  <span>AI Assistant</span>
-                  @if (chatMessages().length > 0) {
-                  <button mat-icon-button class="chat-clear-btn" title="Clear chat history" (click)="clearChat()">
-                    <mat-icon>delete_sweep</mat-icon>
-                  </button>
-                  }
-                </div>
-                <div class="chat-messages" #chatMessagesEl>
-                  @if (chatMessages().length === 0) {
-                  <p class="chat-empty">Ask anything about your chapter…</p>
-                  }
-                  @for (msg of chatMessages(); track $index; let last = $last; let msgIdx = $index) {
-                  <div class="chat-message" [class.user]="msg.role === 'user'"
-                    [class.assistant]="msg.role === 'assistant'"
-                    [class.streaming]="last && msg.role === 'assistant' && chatStreaming()">
-                    <span class="chat-role">{{ msg.role === 'user' ? 'You' : 'AI' }}</span>
-                    @if (msg.role === 'assistant') {
-                    @if (msg.generatingImage) {
-                    <div class="chat-image-generating">
-                      <mat-spinner diameter="20"></mat-spinner>
-                      <span>Generating image…</span>
-                    </div>
-                    } @else if (msg.imageUrl) {
-                    <div class="chat-image-container">
-                      <img [src]="proxyUrl(msg.imageUrl)" alt="Generated image" class="chat-generated-image" />
-                      <a [href]="proxyUrl(msg.imageUrl)" download="generated-image.png" class="chat-image-download"
-                        mat-stroked-button>
-                        <mat-icon>download</mat-icon>
-                        Download
-                      </a>
-                    </div>
-                    } @else if (msg.entitySuggestions && msg.entitySuggestions.length > 0) {
-                    <div class="entity-suggestion-list">
-                      <p class="entity-suggestion-intro">I noticed some new characters or places that aren't tracked yet:</p>
-                      @for (sug of msg.entitySuggestions; track sug.name; let sugIdx = $index) {
-                        @if (!sug.created) {
-                          <div class="entity-suggestion-card">
-                            <div class="entity-suggestion-header">
-                              <mat-icon class="entity-type-icon">{{ sug.type === 'PERSON' ? 'person' : sug.type === 'PLACE' ? 'place' : 'category' }}</mat-icon>
-                              <span class="entity-suggestion-name">{{ sug.draftEntity?.name ?? sug.name }}</span>
-                              <span class="entity-suggestion-type-badge">{{ sug.draftEntity?.type ?? sug.type }}</span>
-                            </div>
-                            <p class="entity-suggestion-desc">{{ sug.draftEntity?.biography ?? sug.description }}</p>
-                            @if (expandedSuggestion()?.msgIdx === msgIdx && expandedSuggestion()?.sugIdx === sugIdx) {
-                              <div class="entity-suggestion-inline-edit">
-                                <app-entity-edit
-                                  [entity]="sug.draftEntity!"
-                                  (save)="saveSuggestionDraft(msgIdx, sugIdx, $event)"
-                                  (cancel)="toggleSuggestionEdit(msgIdx, sugIdx)" />
-                              </div>
-                            }
-                            @if (!(expandedSuggestion()?.msgIdx === msgIdx && expandedSuggestion()?.sugIdx === sugIdx)) {
-                            <div class="entity-suggestion-actions">
-                              <button mat-flat-button [disabled]="sug.creating" (click)="createEntityFromSuggestion(msgIdx, sugIdx)">
-                                @if (sug.creating) {
-                                  <mat-spinner diameter="14" style="display:inline-block;vertical-align:middle;margin-right:4px"></mat-spinner>
-                                }
-                                Create
-                              </button>
-                              <button mat-button [disabled]="sug.creating" (click)="toggleSuggestionEdit(msgIdx, sugIdx)">
-                                <mat-icon>edit</mat-icon>
-                                Edit
-                              </button>
-                              <button mat-button [disabled]="sug.creating" (click)="dismissEntitySuggestion(msgIdx, sugIdx)">Dismiss</button>
-                            </div>
-                            }
-                          </div>
-                        } @else {
-                          <div class="entity-suggestion-done">
-                            <mat-icon>check_circle</mat-icon>
-                            <span>{{ sug.name }} tracked</span>
-                          </div>
-                        }
-                      }
-                    </div>
-                    } @else {
-                    <div class="chat-markdown" [innerHTML]="markdownToHtml(msg.text)"></div>
-                    }
-                    } @else {
-                    <p>{{ msg.text }}</p>
-                    }
-                  </div>
-                  }
-                </div>
-                <div class="chat-input-area">
-                  <textarea class="chat-textarea" placeholder="Message AI… (Enter to send, Shift+Enter for new line)"
-                    rows="3" [value]="chatInput()" (input)="chatInput.set($any($event.target).value)"
-                    (keydown)="onChatKeyDown($event)"></textarea>
-                  <button mat-icon-button class="chat-send-btn" [disabled]="chatStreaming() || !chatInput().trim()"
-                    (click)="sendChat()">
-                    <mat-icon>{{ chatStreaming() ? 'hourglass_top' : 'send' }}</mat-icon>
-                  </button>
-                </div>
-              </div>
-            </mat-tab>
-
-            <!-- Tab 1: Notes -->
+            <!-- Tab 0: Notes -->
             <mat-tab>
               <ng-template mat-tab-label><mat-icon>sticky_note_2</mat-icon></ng-template>
               <div class="sidebar-tab-content">

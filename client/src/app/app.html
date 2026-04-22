@@ -26,7 +26,16 @@
 
   <span class="toolbar-spacer"></span>
 
-  <!-- Desktop: combined context actions + user menu -->
+  <!-- AI Assistant toggle (shown when logged in) -->
+  @if (auth.currentUser()) {
+    <button mat-icon-button
+            (click)="aiAssistant.togglePanel()"
+            title="AI Assistant"
+            [style.color]="'#fff'"
+            [class.ai-btn-active]="aiAssistant.isOpen()">
+      <mat-icon>smart_toy</mat-icon>
+    </button>
+  }
   @if (auth.currentUser(); as user) {
     <button mat-button [matMenuTriggerFor]="desktopMenu" class="desktop-only" style="color: #fff;">
       <mat-icon>account_circle</mat-icon>
@@ -93,6 +102,10 @@
 </main>
 
 <app-entity-panel />
+
+@if (auth.currentUser()) {
+  <app-ai-assistant />
+}
 
 @if (updateCheck.updateAvailable()) {
   <div class="update-banner">

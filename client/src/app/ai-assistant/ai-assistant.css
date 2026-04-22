@@ -1,0 +1,549 @@
+/* ── Panel shell ─────────────────────────────────────────────────────────── */
+
+.ai-panel {
+  position: fixed;
+  top: 64px;               /* below the app toolbar */
+  right: 0;
+  bottom: 0;
+  width: 760px;
+  max-width: 100vw;
+  display: flex;
+  z-index: 300;
+  background: #fff;
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.18);
+  transform: translateX(100%);
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+
+.ai-panel.ai-panel-open {
+  transform: translateX(0);
+  pointer-events: all;
+}
+
+/* ── Backdrop ────────────────────────────────────────────────────────────── */
+
+.ai-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 299;
+  background: rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+}
+
+/* ── Sessions sidebar ───────────────────────────────────────────────────── */
+
+.ai-sessions-sidebar {
+  width: 220px;
+  min-width: 220px;
+  border-right: 1px solid #e0e0e0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  background: #f8f9fa;
+}
+
+.ai-sessions-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 12px 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #1565c0;
+  flex-shrink: 0;
+}
+
+.ai-header-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  color: #1565c0;
+}
+
+.ai-header-title {
+  flex: 1;
+}
+
+.new-chat-btn {
+  color: #1565c0 !important;
+  width: 32px !important;
+  height: 32px !important;
+  line-height: 32px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+}
+
+/* ── Drag-to-pin zone ───────────────────────────────────────────────────── */
+
+.pin-drop-zone {
+  margin: 4px 8px 8px;
+  border: 2px dashed #bdbdbd;
+  border-radius: 8px;
+  padding: 10px 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: #757575;
+  cursor: default;
+  transition: border-color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+
+.pin-drop-zone mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  color: #9e9e9e;
+}
+
+.pin-drop-zone.drag-active {
+  border-color: #1565c0;
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.pin-drop-zone.drag-active mat-icon {
+  color: #1565c0;
+}
+
+/* ── Section labels ─────────────────────────────────────────────────────── */
+
+.sessions-section-label {
+  padding: 6px 12px 2px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #9e9e9e;
+  flex-shrink: 0;
+}
+
+.unpin-drop-zone {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 6px;
+  margin: 2px 6px 0;
+  padding: 6px 6px 2px;
+  cursor: default;
+  transition: background 0.15s, color 0.15s, border 0.15s;
+  border: 2px dashed transparent;
+}
+
+.unpin-drop-zone .unpin-drop-hint {
+  display: none;
+  font-size: 0.65rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #9e9e9e;
+}
+
+.unpin-drop-zone.drag-active {
+  border-color: #1565c0;
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.unpin-drop-zone.drag-active .unpin-drop-hint {
+  display: inline;
+  color: #1565c0;
+}
+
+/* ── Session items ──────────────────────────────────────────────────────── */
+
+.session-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 8px 8px 12px;
+  cursor: pointer;
+  border-radius: 6px;
+  margin: 1px 6px;
+  transition: background 0.12s;
+  min-width: 0;
+}
+
+.session-item:hover {
+  background: #e8eaf6;
+}
+
+.session-item.session-active {
+  background: #e3f2fd;
+}
+
+.session-name {
+  flex: 1;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #212121;
+}
+
+.session-rename-input {
+  flex: 1;
+  font-size: 0.85rem;
+  border: 1px solid #1565c0;
+  border-radius: 4px;
+  padding: 2px 6px;
+  outline: none;
+  min-width: 0;
+}
+
+.session-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  visibility: hidden;
+}
+
+.session-item:hover .session-actions,
+.session-item.session-active .session-actions {
+  visibility: visible;
+}
+
+.session-action-btn {
+  width: 24px !important;
+  height: 24px !important;
+  line-height: 24px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: #757575 !important;
+  padding: 0 !important;
+}
+
+.session-action-btn mat-icon {
+  font-size: 16px !important;
+  width: 16px !important;
+  height: 16px !important;
+  line-height: 16px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.sessions-empty {
+  padding: 16px 12px;
+  font-size: 0.82rem;
+  color: #9e9e9e;
+  text-align: center;
+}
+
+/* ── Chat area ──────────────────────────────────────────────────────────── */
+
+.ai-chat-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.ai-chat-header {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px 10px 16px;
+  border-bottom: 1px solid #e0e0e0;
+  flex-shrink: 0;
+  background: #fff;
+}
+
+.ai-chat-title {
+  flex: 1;
+  font-size: 0.95rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #212121;
+}
+
+.ai-close-btn {
+  color: #757575 !important;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+}
+
+/* ── Welcome screen ─────────────────────────────────────────────────────── */
+
+.ai-welcome {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: #9e9e9e;
+  padding: 32px;
+  text-align: center;
+}
+
+.ai-welcome-icon {
+  font-size: 56px;
+  width: 56px;
+  height: 56px;
+  color: #bdbdbd;
+}
+
+.ai-welcome p {
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+/* ── Messages ────────────────────────────────────────────────────────────── */
+
+.ai-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chat-empty {
+  color: #9e9e9e;
+  font-size: 0.88rem;
+  text-align: center;
+  padding: 24px 0;
+}
+
+.chat-message {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 90%;
+}
+
+.chat-message.user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.chat-message.assistant {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+.chat-role {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #9e9e9e;
+}
+
+.chat-message.user .chat-role {
+  color: #1565c0;
+}
+
+.chat-message.user p {
+  background: #e3f2fd;
+  border-radius: 16px 16px 4px 16px;
+  padding: 10px 14px;
+  margin: 0;
+  font-size: 0.9rem;
+  color: #212121;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.chat-message.assistant .chat-markdown {
+  background: #f5f5f5;
+  border-radius: 16px 16px 16px 4px;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  color: #212121;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.chat-message.streaming .chat-markdown::after {
+  content: '▋';
+  display: inline-block;
+  animation: blink 0.7s steps(1) infinite;
+  margin-left: 2px;
+  color: #1565c0;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+/* ── Markdown styles inside assistant messages ───────────────────────────── */
+
+.chat-markdown :first-child { margin-top: 0; }
+.chat-markdown :last-child { margin-bottom: 0; }
+.chat-markdown p { margin: 0 0 8px; }
+.chat-markdown ul, .chat-markdown ol { margin: 4px 0 8px 20px; padding: 0; }
+.chat-markdown li { margin-bottom: 2px; }
+.chat-markdown h1, .chat-markdown h2, .chat-markdown h3 {
+  margin: 12px 0 4px;
+  font-size: 1em;
+  font-weight: 700;
+}
+.chat-markdown code {
+  background: #eeeeee;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 0.85em;
+}
+.chat-markdown pre {
+  background: #eeeeee;
+  padding: 8px 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 0.82em;
+  margin: 4px 0 8px;
+}
+.chat-markdown blockquote {
+  border-left: 3px solid #bdbdbd;
+  margin: 4px 0 8px;
+  padding-left: 12px;
+  color: #616161;
+}
+
+/* ── Image messages ─────────────────────────────────────────────────────── */
+
+.chat-image-generating {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f5f5f5;
+  border-radius: 16px 16px 16px 4px;
+  padding: 10px 14px;
+  font-size: 0.88rem;
+  color: #757575;
+}
+
+.chat-image-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chat-generated-image {
+  max-width: 320px;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+}
+
+.chat-image-download {
+  align-self: flex-start;
+}
+
+/* ── Input area ─────────────────────────────────────────────────────────── */
+
+.ai-chat-input-area {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid #e0e0e0;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.chat-textarea {
+  flex: 1;
+  resize: none;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  outline: none;
+  transition: border-color 0.15s;
+  background: #fafafa;
+  color: #212121;
+}
+
+.chat-textarea:focus {
+  border-color: #1565c0;
+  background: #fff;
+}
+
+.chat-send-btn {
+  color: #1565c0 !important;
+  flex-shrink: 0;
+  margin-bottom: 2px;
+}
+
+/* ── Mobile adjustments ─────────────────────────────────────────────────── */
+
+.mobile-sessions-btn,
+.mobile-sidebar-close {
+  display: none !important;
+}
+
+.mobile-sidebar-backdrop {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  .ai-panel {
+    width: 100vw;
+    top: 56px;
+  }
+
+  /* Sessions sidebar becomes an off-screen overlay on mobile */
+  .ai-sessions-sidebar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 260px;
+    z-index: 10;
+    transform: translateX(-100%);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 4px 0 16px rgba(0, 0, 0, 0.18);
+    border-right: none;
+  }
+
+  /* Clip the sidebar so it doesn't bleed outside the panel when the panel is closed */
+  .ai-panel {
+    overflow: hidden;
+  }
+
+  .ai-sessions-sidebar.mobile-sidebar-open {
+    transform: translateX(0);
+  }
+
+  /* Backdrop behind the mobile sidebar drawer, in front of the chat area */
+  .mobile-sidebar-backdrop {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 9;
+    background: rgba(0, 0, 0, 0.3);
+    /* sidebar is z-index:10 so it stays on top of this backdrop */
+  }
+
+  /* Show mobile-only controls */
+  .mobile-sessions-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    color: #424242 !important;
+    flex-shrink: 0;
+    margin-right: 2px;
+  }
+
+  .mobile-sidebar-close {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    color: #424242 !important;
+    align-self: flex-end;
+    margin: 4px 4px 0 0;
+    flex-shrink: 0;
+  }
+}

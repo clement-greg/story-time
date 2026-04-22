@@ -35,14 +35,6 @@ export interface SuggestedEntityCard extends SuggestedEntity {
   draftEntity?: Entity;
 }
 
-interface ChatMessage {
-  role: 'user' | 'assistant';
-  text: string;
-  imageUrl?: string;
-  generatingImage?: boolean;
-  entitySuggestions?: SuggestedEntityCard[];
-}
-
 @Component({
   selector: 'app-chapter-edit',
   imports: [
@@ -63,7 +55,6 @@ interface ChatMessage {
 })
 export class ChapterEditComponent implements OnInit, OnDestroy {
   @ViewChild('contentEditor') contentEditorRef!: ElementRef<HTMLDivElement>;
-  @ViewChild('chatMessagesEl') chatMessagesEl!: ElementRef<HTMLDivElement>;
   @ViewChild('inlineAiInputEl') inlineAiInputEl!: ElementRef<HTMLInputElement>;
   @ViewChild('inlineAiPanel') inlineAiPanelRef?: ElementRef<HTMLElement>;
   @ViewChild('noteInputEl') noteInputEl!: ElementRef<HTMLTextAreaElement>;
@@ -88,9 +79,6 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   chapter = signal<Chapter | null>(null);
   saving = signal(false);
   hasDraft = signal(false);
-  chatMessages = signal<ChatMessage[]>([]);
-  chatInput = signal('');
-  chatStreaming = signal(false);
   entities = signal<Entity[]>([]);
 
   // Entity quotes
@@ -211,8 +199,6 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   private inlineAiAnchorRect: DOMRect | null = null;
   private inlineAiResizeObserver: ResizeObserver | null = null;
   private noteSelectionRange: Range | null = null;
-
-  // Grammar checking
   grammarChecking = signal(false);
   grammarPopoverVisible = signal(false);
   grammarPopoverTop = signal(0);
@@ -223,9 +209,6 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   private grammarTimer: ReturnType<typeof setTimeout> | null = null;
   private grammarAbortController: AbortController | null = null;
   private grammarLastCheckedText = '';
-
-  // Inline entity edit within suggestion card
-  expandedSuggestion = signal<{ msgIdx: number; sugIdx: number } | null>(null);
 
   /** Tracks latest editor content without writing back to the DOM.
    *  The setter automatically strips grammar mark elements so they are
@@ -249,7 +232,6 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     }
   }
   private autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
-  private chatAbortController: AbortController | null = null;
   private longPressTimer: ReturnType<typeof setTimeout> | null = null;
   private seriesId = '';
   private suggestedEntityNames = new Set<string>();
@@ -272,7 +254,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     effect(() => {
       const idx = this.sidebarTabIndex();
       const chapter = this.chapter();
-      if (idx === 2 && chapter) {
+      if (idx === 1 && chapter) {
         untracked(() => {
           if (!this.historyLoading() && this.historyVersions().length === 0) {
             this.loadHistory(chapter.id);
@@ -303,9 +285,6 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
             this.contentEditorRef.nativeElement.innerHTML = content;
           }
         });
-
-        // Load chat history
-        this.loadChatHistory(data.id);
 
         // Load entities + register header breadcrumbs
         this.bookService.getById(data.bookId).subscribe({
@@ -350,7 +329,6 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     if (this.popupHideTimer) clearTimeout(this.popupHideTimer);
     if (this.grammarTimer) clearTimeout(this.grammarTimer);
     this.grammarAbortController?.abort();
-    this.chatAbortController?.abort();
     this.inlineAiAbortController?.abort();
     if (this.resizerDrag) {
       document.removeEventListener('mousemove', this.resizerDrag.moveHandler);
@@ -1339,7 +1317,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
 
   onSidebarTabChange(index: number): void {
     this.sidebarTabIndex.set(index);
-    if (index === 2) {
+    if (index === 1) {
       const chapter = this.chapter();
       if (chapter && !this.historyLoading() && this.historyVersions().length === 0) {
         this.loadHistory(chapter.id);
@@ -1357,7 +1335,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   }
 
   toggleHistory(): void {
-    this.activateSidebarTab(2);
+    this.activateSidebarTab(1);
   }
 
   loadHistory(chapterId: string): void {
@@ -2072,208 +2050,9 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     return fetch(input, { ...init, headers });
   }
 
-  private async loadChatHistory(chapterId: string): Promise<void> {
-    try {
-      const response = await this.authFetch(`/api/chat/${chapterId}/history`);
-      if (response.ok) {
-        const data = await response.json() as { messages: { role: 'user' | 'assistant'; text: string; imageUrl?: string }[] };
-        if (data.messages.length > 0) {
-          // Sanitize any stale generatingImage placeholder that was saved mid-generation
-          const messages = data.messages.map(m =>
-            (!m.imageUrl && !m.text) ? { ...m, text: '(Image generation was interrupted.)' } : m
-          );
-          this.chatMessages.set(messages);
-          this.scrollChatToBottom();
-        }
-      }
-    } catch {
-      // Proceed without history
-    }
-  }
-
-  private async saveChatHistory(): Promise<void> {
-    const chapter = this.chapter();
-    if (!chapter) return;
-    // Strip transient UI state before persisting
-    const messages = this.chatMessages()
-      .filter(m => !m.generatingImage && !m.entitySuggestions)
-      .map(({ role, text, imageUrl }) => ({ role, text, ...(imageUrl ? { imageUrl } : {}) }));
-    try {
-      await this.authFetch(`/api/chat/${chapter.id}/history`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages }),
-      });
-    } catch {
-      // Best-effort save
-    }
-  }
-
-  async clearChat(): Promise<void> {
-    const chapter = this.chapter();
-    if (!chapter) return;
-    this.chatMessages.set([]);
-    try {
-      await this.authFetch(`/api/chat/${chapter.id}/history`, { method: 'DELETE' });
-    } catch {
-      // Best-effort clear
-    }
-  }
-
-  onChatKeyDown(event: KeyboardEvent): void {
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault();
-      this.sendChat();
-    }
-  }
-
   private isImageRequest(text: string): boolean {
     return /\b(generate|create|draw|make|produce|illustrate)\b[\s\S]{0,60}\b(image|picture|illustration|artwork|photo|painting)\b/i.test(text) ||
            /\b(image|draw|illustrate|paint)\s*:/i.test(text);
-  }
-
-  async sendChat(): Promise<void> {
-    const text = this.chatInput().trim();
-    if (!text || this.chatStreaming()) return;
-
-    const chapter = this.chapter();
-    if (!chapter) return;
-
-    if (this.isImageRequest(text)) {
-      this.chatMessages.update(msgs => [...msgs, { role: 'user', text }]);
-      this.chatInput.set('');
-      this.chatStreaming.set(true);
-      this.chatMessages.update(msgs => [...msgs, { role: 'assistant', text: 'Generating image…', generatingImage: true }]);
-      this.scrollChatToBottom();
-      try {
-        const imgResponse = await this.authFetch('/api/image/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: text }),
-        });
-        if (imgResponse.ok) {
-          const imgData = await imgResponse.json() as { url: string; thumbnailUrl: string };
-          this.chatMessages.update(msgs => {
-            const updated = [...msgs];
-            updated[updated.length - 1] = { role: 'assistant', text: '', imageUrl: imgData.url };
-            return updated;
-          });
-        } else {
-          this.chatMessages.update(msgs => {
-            const updated = [...msgs];
-            updated[updated.length - 1] = { role: 'assistant', text: 'Error: image generation failed.' };
-            return updated;
-          });
-        }
-      } catch {
-        this.chatMessages.update(msgs => {
-          const updated = [...msgs];
-          updated[updated.length - 1] = { role: 'assistant', text: 'Error: could not connect to image generation service.' };
-          return updated;
-        });
-      } finally {
-        this.chatStreaming.set(false);
-        this.scrollChatToBottom();
-        this.saveChatHistory();
-      }
-      return;
-    }
-
-    // Add user message and clear input
-    this.chatMessages.update(msgs => [...msgs, { role: 'user', text }]);
-    this.chatInput.set('');
-    this.chatStreaming.set(true);
-
-    // Add empty assistant placeholder that will be filled in via streaming
-    this.chatMessages.update(msgs => [...msgs, { role: 'assistant', text: '' }]);
-    this.scrollChatToBottom();
-
-    // Build history (exclude the empty assistant message we just added)
-    const apiMessages = this.chatMessages()
-      .slice(0, -1)
-      .map(m => ({ role: m.role, content: m.text }));
-
-    this.chatAbortController = new AbortController();
-
-    try {
-      const response = await this.authFetch(`/api/chat/${chapter.id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: apiMessages }),
-        signal: this.chatAbortController.signal,
-      });
-
-      if (!response.ok || !response.body) {
-        this.chatMessages.update(msgs => {
-          const updated = [...msgs];
-          updated[updated.length - 1] = { role: 'assistant', text: 'Error: failed to get a response.' };
-          return updated;
-        });
-        return;
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const data = line.slice(6);
-          if (data === '[DONE]') continue;
-          try {
-            const parsed = JSON.parse(data) as { content?: string; error?: string };
-            if (parsed.error) {
-              this.chatMessages.update(msgs => {
-                const updated = [...msgs];
-                updated[updated.length - 1] = { role: 'assistant', text: `Error: ${parsed.error}` };
-                return updated;
-              });
-            } else if (parsed.content) {
-              this.chatMessages.update(msgs => {
-                const updated = [...msgs];
-                updated[updated.length - 1] = {
-                  role: 'assistant',
-                  text: updated[updated.length - 1].text + parsed.content,
-                };
-                return updated;
-              });
-              this.scrollChatToBottom();
-            }
-          } catch {
-            // Skip malformed SSE chunk
-          }
-        }
-      }
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name !== 'AbortError') {
-        this.chatMessages.update(msgs => {
-          const updated = [...msgs];
-          updated[updated.length - 1] = { role: 'assistant', text: 'Error: could not connect to AI.' };
-          return updated;
-        });
-      }
-    } finally {
-      this.chatStreaming.set(false);
-      this.chatAbortController = null;
-      this.scrollChatToBottom();
-      this.saveChatHistory();
-    }
-  }
-
-  private scrollChatToBottom(): void {
-    setTimeout(() => {
-      if (this.chatMessagesEl) {
-        const el = this.chatMessagesEl.nativeElement;
-        el.scrollTop = el.scrollHeight;
-      }
-    });
   }
 
   goBack(): void {
@@ -2379,7 +2158,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   }
 
   toggleNotesList(): void {
-    this.activateSidebarTab(1);
+    this.activateSidebarTab(0);
   }
 
   scrollToNote(noteId: string): void {
@@ -2463,33 +2242,9 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
       this.applyGrammarMarks(errors);
     }
 
-    // Surface any newly-discovered entities as a chat message
+    // Track newly-discovered entity names so they are not suggested again
     if (suggestedEntities.length > 0) {
-      const newSuggestions = suggestedEntities.filter(
-        s => !this.suggestedEntityNames.has(s.name.toLowerCase())
-      );
-      if (newSuggestions.length > 0) {
-        newSuggestions.forEach(s => this.suggestedEntityNames.add(s.name.toLowerCase()));
-        this.chatMessages.update(msgs => [
-          ...msgs,
-          {
-            role: 'assistant' as const,
-            text: '',
-            entitySuggestions: newSuggestions.map(s => ({
-              ...s,
-              draftEntity: {
-                id: crypto.randomUUID(),
-                name: s.name,
-                type: s.type,
-                seriesId: this.seriesId,
-                biography: s.description,
-                preferredReference: 'first-name' as EntityReference,
-              } satisfies Entity,
-            })),
-          },
-        ]);
-        this.scrollChatToBottom();
-      }
+      suggestedEntities.forEach(s => this.suggestedEntityNames.add(s.name.toLowerCase()));
     }
   }
 
@@ -2730,107 +2485,6 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     this.grammarPopoverVisible.set(false);
     this.grammarPopoverError.set(null);
     this.grammarPopoverMarkEl = null;
-  }
-
-  // ── Entity suggestions from grammar check ───────────────────────────────────
-
-  createEntityFromSuggestion(msgIdx: number, sugIdx: number): void {
-    if (!this.seriesId) return;
-    const suggestion = this.chatMessages()[msgIdx]?.entitySuggestions?.[sugIdx];
-    if (!suggestion || suggestion.creating || suggestion.created) return;
-
-    // Use the draftEntity (possibly edited by user) or fall back to defaults
-    const entityToCreate: Entity = suggestion.draftEntity ?? {
-      id: crypto.randomUUID(),
-      name: suggestion.name,
-      type: suggestion.type,
-      seriesId: this.seriesId,
-      biography: suggestion.description,
-      preferredReference: 'first-name',
-    };
-
-    this.expandedSuggestion.set(null);
-
-    this.chatMessages.update(msgs =>
-      msgs.map((m, mi) =>
-        mi !== msgIdx || !m.entitySuggestions ? m : {
-          ...m,
-          entitySuggestions: m.entitySuggestions.map((s, si) =>
-            si === sugIdx ? { ...s, creating: true } : s
-          ),
-        }
-      )
-    );
-
-    this.entityService.create(entityToCreate).subscribe({
-      next: (created) => {
-        this.entities.update(list => [...list, created]);
-        this.suggestedEntityNames.add(created.name.toLowerCase());
-        this.wrapEntityReferencesInEditor(created);
-        this.chatMessages.update(msgs =>
-          msgs.map((m, mi) =>
-            mi !== msgIdx || !m.entitySuggestions ? m : {
-              ...m,
-              entitySuggestions: m.entitySuggestions.map((s, si) =>
-                si === sugIdx ? { ...s, creating: false, created: true } : s
-              ),
-            }
-          )
-        );
-      },
-      error: () => {
-        this.chatMessages.update(msgs =>
-          msgs.map((m, mi) =>
-            mi !== msgIdx || !m.entitySuggestions ? m : {
-              ...m,
-              entitySuggestions: m.entitySuggestions.map((s, si) =>
-                si === sugIdx ? { ...s, creating: false } : s
-              ),
-            }
-          )
-        );
-      },
-    });
-  }
-
-  dismissEntitySuggestion(msgIdx: number, sugIdx: number): void {
-    const suggestion = this.chatMessages()[msgIdx]?.entitySuggestions?.[sugIdx];
-    if (suggestion) this.suggestedEntityNames.add(suggestion.name.toLowerCase());
-    this.chatMessages.update(msgs =>
-      msgs.map((m, mi) =>
-        mi !== msgIdx || !m.entitySuggestions ? m : {
-          ...m,
-          entitySuggestions: m.entitySuggestions.map((s, si) =>
-            si === sugIdx ? { ...s, created: true } : s
-          ),
-        }
-      )
-    );
-  }
-
-  toggleSuggestionEdit(msgIdx: number, sugIdx: number): void {
-    const current = this.expandedSuggestion();
-    if (current?.msgIdx === msgIdx && current?.sugIdx === sugIdx) {
-      this.expandedSuggestion.set(null);
-    } else {
-      this.expandedSuggestion.set({ msgIdx, sugIdx });
-    }
-  }
-
-  saveSuggestionDraft(msgIdx: number, sugIdx: number, entity: Entity): void {
-    this.chatMessages.update(msgs =>
-      msgs.map((m, mi) =>
-        mi !== msgIdx || !m.entitySuggestions ? m : {
-          ...m,
-          entitySuggestions: m.entitySuggestions.map((s, si) =>
-            si === sugIdx ? { ...s, draftEntity: entity, name: entity.name } : s
-          ),
-        }
-      )
-    );
-    this.expandedSuggestion.set(null);
-    // Save in editor = confirm creation immediately
-    this.createEntityFromSuggestion(msgIdx, sugIdx);
   }
 
   private wrapEntityReferencesInEditor(entity: Entity): void {
