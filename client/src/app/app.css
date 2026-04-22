@@ -33,6 +33,21 @@ main {
   border: 1px solid rgba(255, 255, 255, 0.7);
 }
 
+.toolbar-user-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px;
+}
+
+.toolbar-user-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  flex-shrink: 0;
+}
+
 .toolbar-spacer {
   flex: 1 1 auto;
 }

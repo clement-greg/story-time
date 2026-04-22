@@ -1,6 +1,56 @@
 <div class="settings-page">
   <h2>Settings</h2>
 
+  <!-- Profile Section -->
+  <section class="settings-section">
+    <div class="section-header">
+      <h3>Profile</h3>
+      <p class="section-desc">Your name and avatar appear on notes and saved versions.</p>
+    </div>
+    <div class="profile-row">
+      <div class="profile-avatar-wrap">
+        @if (avatarUrl()) {
+          <img class="profile-avatar" [src]="avatarUrl()" alt="Profile picture" />
+          <button mat-icon-button class="profile-avatar-remove" (click)="removeAvatar()" title="Remove photo">
+            <mat-icon>close</mat-icon>
+          </button>
+        } @else {
+          <div class="profile-avatar-placeholder">
+            <mat-icon>person</mat-icon>
+          </div>
+        }
+        <button mat-stroked-button class="profile-avatar-upload-btn" (click)="triggerAvatarUpload()">
+          <mat-icon>upload</mat-icon>
+          {{ avatarUrl() ? 'Change photo' : 'Upload photo' }}
+        </button>
+        <input #avatarFileInput type="file" accept="image/*" class="hidden-file-input"
+          (change)="onAvatarFileChange($event)" />
+      </div>
+      <div class="profile-name-wrap">
+        <mat-form-field appearance="outline" class="profile-name-field">
+          <mat-label>Display name</mat-label>
+          <input matInput placeholder="Your name" [value]="displayNameDraft()"
+            (input)="displayNameDraft.set($any($event.target).value)" />
+        </mat-form-field>
+        <button mat-flat-button (click)="saveProfile()">Save</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Appearance Section -->
+  <section class="settings-section">
+    <div class="section-header">
+      <h3>Appearance</h3>
+    </div>
+    <div class="appearance-row">
+      <div class="appearance-label">
+        <span>Dark Mode</span>
+        <span class="section-desc">Switch between light and dark theme</span>
+      </div>
+      <mat-slide-toggle [checked]="darkMode()" (change)="toggleDarkMode($event.checked)"></mat-slide-toggle>
+    </div>
+  </section>
+
   <!-- Ghost Complete Section -->
   <section class="settings-section">
     <div class="section-header">

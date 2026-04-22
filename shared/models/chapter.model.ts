@@ -3,6 +3,8 @@ export interface ChapterNote {
     noteText: string;
     selectedText: string;
     createdAt: string;
+    createdByName?: string;
+    createdByAvatar?: string;
 }
 
 import { AuditedRecord } from './audited-record';
@@ -24,4 +26,6 @@ export interface ChapterVersion {
     content: string;  // HTML snapshot of chapter content
     owner?: string;
     createdBy?: string;
+    createdByName?: string;
+    createdByAvatar?: string;
 }

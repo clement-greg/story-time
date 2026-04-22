@@ -37,9 +37,13 @@
     </button>
   }
   @if (auth.currentUser(); as user) {
-    <button mat-button [matMenuTriggerFor]="desktopMenu" class="desktop-only" style="color: #fff;">
-      <mat-icon>account_circle</mat-icon>
-      {{ user.name }}
+    <button mat-button [matMenuTriggerFor]="desktopMenu" class="desktop-only toolbar-user-btn" style="color: #fff;">
+      @if (settings.avatarUrl()) {
+        <img class="toolbar-user-avatar" [src]="settings.avatarUrl()" alt="Profile" />
+      } @else {
+        <mat-icon>account_circle</mat-icon>
+      }
+      {{ settings.displayName() || user.name }}
     </button>
     <mat-menu #desktopMenu="matMenu">
       @if (header.menuActions().length > 0) {

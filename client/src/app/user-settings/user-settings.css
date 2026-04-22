@@ -4,6 +4,85 @@
   padding: 24px 16px;
 }
 
+/* ── Profile section ─────────────────────────────── */
+.profile-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.profile-avatar-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+}
+
+.profile-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--mat-sys-outline-variant, #ddd);
+}
+
+.profile-avatar-placeholder {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: var(--mat-sys-surface-variant, #e8e8e8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--mat-sys-outline-variant, #ddd);
+}
+
+.profile-avatar-placeholder mat-icon {
+  font-size: 40px;
+  width: 40px;
+  height: 40px;
+  color: var(--mat-sys-on-surface-variant, #888);
+}
+
+.profile-avatar-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 24px !important;
+  height: 24px !important;
+  background: var(--mat-sys-surface-container, #f0f0f0) !important;
+  border: 1px solid var(--mat-sys-outline-variant, #ddd);
+}
+
+.profile-avatar-remove mat-icon {
+  font-size: 14px;
+  width: 14px;
+  height: 14px;
+  line-height: 14px;
+}
+
+.hidden-file-input {
+  display: none;
+}
+
+.profile-name-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 200px;
+}
+
+.profile-name-field {
+  width: 100%;
+}
+
+
 .settings-page h2 {
   font-size: 1.6rem;
   font-weight: 600;
@@ -124,4 +203,22 @@
 
 .add-field-prompt textarea {
   resize: vertical;
+}
+
+.appearance-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.appearance-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.appearance-label span:first-child {
+  font-size: 0.9rem;
+  font-weight: 500;
 }

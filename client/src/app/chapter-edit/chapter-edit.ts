@@ -1247,7 +1247,12 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     this.chapterService.update(toSave).subscribe({
       next: async () => {
         // Snapshot this version to history
-        this.chapterVersionService.create(chapter.id, this.editorContent).subscribe();
+        this.chapterVersionService.create(
+          chapter.id,
+          this.editorContent,
+          this.userSettings.displayName() || undefined,
+          this.userSettings.avatarUrl() || undefined,
+        ).subscribe();
         if (this.historyVisible()) {
           this.loadHistory(chapter.id);
         }
@@ -2124,6 +2129,8 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
       noteText: text,
       selectedText,
       createdAt: new Date().toISOString(),
+      createdByName: this.userSettings.displayName() || undefined,
+      createdByAvatar: this.userSettings.avatarUrl() || undefined,
     };
     this.notes.update(ns => [...ns, note]);
 

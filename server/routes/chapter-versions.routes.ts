@@ -43,6 +43,8 @@ router.post('/', async (req: Request, res: Response) => {
       content: body.content,
       owner: req.user!.email,
       createdBy: req.user!.email,
+      createdByName: body.createdByName,
+      createdByAvatar: body.createdByAvatar,
     };
     const { resource } = await container.items.create<ChapterVersion>(version);
     res.status(201).json(resource);

@@ -125,6 +125,18 @@
                   @for (note of notes(); track note.id) {
                   <div class="note-item" [class.note-item-highlighted]="highlightedNoteId() === note.id"
                     (click)="scrollToNote(note.id)">
+                    @if (note.createdByName || note.createdByAvatar) {
+                    <div class="note-author">
+                      @if (note.createdByAvatar) {
+                        <img class="note-author-avatar" [src]="note.createdByAvatar" [alt]="note.createdByName || 'Author'" />
+                      } @else {
+                        <span class="note-author-avatar-placeholder"><mat-icon style="font-size:14px;width:14px;height:14px;line-height:14px">person</mat-icon></span>
+                      }
+                      @if (note.createdByName) {
+                        <span class="note-author-name">{{ note.createdByName }}</span>
+                      }
+                    </div>
+                    }
                     <div class="note-selected-text">&ldquo;{{ note.selectedText }}&rdquo;</div>
                     <div class="note-text">{{ note.noteText }}</div>
                     <button class="note-delete-btn" mat-icon-button
@@ -157,7 +169,19 @@
                   @for (version of historyVersions(); track version.id) {
                   <button class="history-version-item" [class.selected]="selectedVersion()?.id === version.id"
                     (click)="selectVersion(version)">
-                    {{ formatVersionDate(version.savedAt) }}
+                    @if (version.createdByAvatar || version.createdByName) {
+                    <span class="version-author">
+                      @if (version.createdByAvatar) {
+                        <img class="version-author-avatar" [src]="version.createdByAvatar" [alt]="version.createdByName || 'Author'" />
+                      } @else {
+                        <span class="version-author-avatar-placeholder"><mat-icon style="font-size:14px;width:14px;height:14px;line-height:14px">person</mat-icon></span>
+                      }
+                      @if (version.createdByName) {
+                        <span class="version-author-name">{{ version.createdByName }}</span>
+                      }
+                    </span>
+                    }
+                    <span class="version-date">{{ formatVersionDate(version.savedAt) }}</span>
                   </button>
                   }
                   }

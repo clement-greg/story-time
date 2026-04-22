@@ -36,3 +36,17 @@ body {
   margin: 0;
   height: 100%;
 }
+
+// Dark theme overrides — toggled via the .dark-theme class on <body>
+body.dark-theme {
+  @include mat.theme(
+    (
+      color: (
+        primary: mat.$azure-palette,
+        tertiary: mat.$blue-palette,
+        theme-type: dark,
+      ),
+    )
+  );
+  color-scheme: dark;
+}

@@ -1,9 +1,10 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import { Component, inject, signal, computed, ElementRef, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { UserSettingsService, GhostCompleteItem } from '../services/user-settings.service';
 import { HeaderService } from '../services/header.service';
@@ -16,6 +17,7 @@ import { HeaderService } from '../services/header.service';
     MatIconModule,
     MatInputModule,
     MatFormFieldModule,
+    MatSlideToggleModule,
   ],
   templateUrl: './user-settings.html',
   styleUrl: './user-settings.css',
@@ -25,7 +27,52 @@ export class UserSettingsComponent {
   private snackBar = inject(MatSnackBar);
   private headerService = inject(HeaderService);
 
+  @ViewChild('avatarFileInput') avatarFileInput!: ElementRef<HTMLInputElement>;
+
   readonly items = this.settingsService.ghostCompleteItems;
+  readonly darkMode = this.settingsService.darkMode;
+  readonly avatarUrl = this.settingsService.avatarUrl;
+
+  // Profile
+  displayNameDraft = signal(this.settingsService.displayName());
+
+  saveProfile(): void {
+    this.settingsService.setDisplayName(this.displayNameDraft().trim());
+    this.snackBar.open('Profile saved.', undefined, { duration: 2000 });
+  }
+
+  triggerAvatarUpload(): void {
+    this.avatarFileInput.nativeElement.click();
+  }
+
+  onAvatarFileChange(event: Event): void {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const img = new Image();
+      img.onload = () => {
+        const SIZE = 96;
+        const canvas = document.createElement('canvas');
+        canvas.width = SIZE;
+        canvas.height = SIZE;
+        const ctx = canvas.getContext('2d')!;
+        const min = Math.min(img.width, img.height);
+        const sx = (img.width - min) / 2;
+        const sy = (img.height - min) / 2;
+        ctx.drawImage(img, sx, sy, min, min, 0, 0, SIZE, SIZE);
+        this.settingsService.setAvatarUrl(canvas.toDataURL('image/jpeg', 0.85));
+        this.snackBar.open('Avatar updated.', undefined, { duration: 2000 });
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  removeAvatar(): void {
+    this.settingsService.clearAvatarUrl();
+  }
 
   // New item form
   newLabel = signal('');
@@ -80,5 +127,9 @@ export class UserSettingsComponent {
   removeItem(id: string): void {
     this.settingsService.removeItem(id);
     this.snackBar.open('Item removed.', undefined, { duration: 2000 });
+  }
+
+  toggleDarkMode(value: boolean): void {
+    this.settingsService.setDarkMode(value);
   }
 }
