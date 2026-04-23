@@ -19,7 +19,7 @@ declare const google: {
   selector: 'app-login',
   imports: [MatCardModule],
   templateUrl: './login.html',
-  styleUrl: './login.css',
+  styleUrl: './login.scss',
 })
 export class LoginComponent implements AfterViewInit {
   @ViewChild('googleBtn') googleBtnRef!: ElementRef<HTMLDivElement>;

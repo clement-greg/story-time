@@ -36,7 +36,7 @@ import { SlideOutPanelContainer } from '../shared/slide-out-panel-container/slid
     SlideOutPanelContainer,
   ],
   templateUrl: './series.html',
-  styleUrl: './series.css',
+  styleUrl: './series.scss',
 })
 export class SeriesComponent implements OnInit {
   private seriesService = inject(SeriesService);

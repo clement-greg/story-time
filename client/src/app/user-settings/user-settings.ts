@@ -20,7 +20,7 @@ import { HeaderService } from '../services/header.service';
     MatSlideToggleModule,
   ],
   templateUrl: './user-settings.html',
-  styleUrl: './user-settings.css',
+  styleUrl: './user-settings.scss',
 })
 export class UserSettingsComponent {
   private settingsService = inject(UserSettingsService);

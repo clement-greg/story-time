@@ -37,7 +37,7 @@ import { BookNotesComponent } from '../book-notes/book-notes';
     BookNotesComponent,
   ],
   templateUrl: './book-detail.html',
-  styleUrl: './book-detail.css',
+  styleUrl: './book-detail.scss',
 })
 export class BookDetailComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);

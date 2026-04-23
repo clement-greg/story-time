@@ -24,7 +24,7 @@ import { v4 as uuidv4 } from 'uuid';
     DragDropModule,
   ],
   templateUrl: './book-notes.html',
-  styleUrl: './book-notes.css',
+  styleUrl: './book-notes.scss',
 })
 export class BookNotesComponent implements OnInit, OnDestroy {
   @ViewChild('noteEditorEl') noteEditorRef!: ElementRef<HTMLDivElement>;

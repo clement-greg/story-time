@@ -32,7 +32,7 @@ import { ImageGenDialogComponent, ImageGenResult } from './image-gen-dialog';
     TextFieldModule,
   ],
   templateUrl: './entity-edit.html',
-  styleUrl: './entity-edit.css',
+  styleUrl: './entity-edit.scss',
 })
 export class EntityEditComponent {
   private entityService = inject(EntityService);

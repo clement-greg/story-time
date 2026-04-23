@@ -15,7 +15,7 @@ import { ChatMessageHighlight, ChatSessionMessage, ChatSessionSummary } from '@s
   selector: 'app-ai-assistant',
   imports: [FormsModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatTooltipModule],
   templateUrl: './ai-assistant.html',
-  styleUrl: './ai-assistant.css',
+  styleUrl: './ai-assistant.scss',
 })
 export class AiAssistantComponent implements OnInit, AfterViewChecked, OnDestroy {
   @ViewChild('messagesEl') messagesEl?: ElementRef<HTMLDivElement>;

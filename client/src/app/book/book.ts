@@ -26,7 +26,7 @@ import { v4 as uuidv4 } from 'uuid';
     MatSelectModule,
   ],
   templateUrl: './book.html',
-  styleUrl: './book.css',
+  styleUrl: './book.scss',
 })
 export class BookComponent implements OnInit {
   private bookService = inject(BookService);

@@ -26,7 +26,7 @@ import { v4 as uuidv4 } from 'uuid';
     MatSelectModule,
   ],
   templateUrl: './chapter.html',
-  styleUrl: './chapter.css',
+  styleUrl: './chapter.scss',
 })
 export class ChapterComponent implements OnInit {
   private chapterService = inject(ChapterService);

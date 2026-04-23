@@ -51,7 +51,7 @@ export interface SuggestedEntityCard extends SuggestedEntity {
     EntityEditComponent,
   ],
   templateUrl: './chapter-edit.html',
-  styleUrl: './chapter-edit.css',
+  styleUrl: './chapter-edit.scss',
 })
 export class ChapterEditComponent implements OnInit, OnDestroy {
   @ViewChild('contentEditor') contentEditorRef!: ElementRef<HTMLDivElement>;

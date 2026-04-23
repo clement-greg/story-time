@@ -39,7 +39,7 @@ import { EntityPanelService } from '../services/entity-panel.service';
     SlideOutPanelContainer,
   ],
   templateUrl: './series-detail.html',
-  styleUrl: './series-detail.css',
+  styleUrl: './series-detail.scss',
 })
 export class SeriesDetailComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);

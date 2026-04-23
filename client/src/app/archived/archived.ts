@@ -26,7 +26,7 @@ import { forkJoin } from 'rxjs';
     MatTooltipModule,
   ],
   templateUrl: './archived.html',
-  styleUrl: './archived.css',
+  styleUrl: './archived.scss',
 })
 export class ArchivedComponent implements OnInit {
   private seriesService = inject(SeriesService);

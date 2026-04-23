@@ -14,7 +14,7 @@ import { EntityEditComponent } from '../../entity-edit/entity-edit';
     EntityEditComponent,
   ],
   templateUrl: './entity-panel.html',
-  styleUrl: './entity-panel.css',
+  styleUrl: './entity-panel.scss',
 })
 export class EntityPanelComponent {
   panel = inject(EntityPanelService);

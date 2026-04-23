@@ -29,7 +29,7 @@ const NODE_HEIGHT = 100;
   selector: 'app-entity-relationship-diagram',
   imports: [MatButtonModule, MatIconModule],
   templateUrl: './entity-relationship-diagram.html',
-  styleUrl: './entity-relationship-diagram.css',
+  styleUrl: './entity-relationship-diagram.scss',
 })
 export class EntityRelationshipDiagramComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
