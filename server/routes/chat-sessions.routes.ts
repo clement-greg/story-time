@@ -21,6 +21,7 @@ router.get('/', async (req: Request, res: Response) => {
         query: `SELECT c.id, c.name, c.pinned, c.updatedAt FROM c
                 WHERE c.owner = @owner
                   AND (NOT IS_DEFINED(c.deleted) OR c.deleted = false)
+                  AND (NOT IS_DEFINED(c.archived) OR c.archived = false)
                 ORDER BY c.updatedAt DESC`,
         parameters: [{ name: '@owner', value: req.user!.email }],
       })
@@ -29,6 +30,27 @@ router.get('/', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('Error listing chat sessions:', err);
     res.status(500).json({ error: 'Failed to list sessions' });
+  }
+});
+
+// GET /archived — list archived sessions for the authenticated user
+router.get('/archived', async (req: Request, res: Response) => {
+  try {
+    const container = getContainer('chat-sessions');
+    const { resources } = await container.items
+      .query({
+        query: `SELECT c.id, c.name, c.updatedAt FROM c
+                WHERE c.owner = @owner
+                  AND (NOT IS_DEFINED(c.deleted) OR c.deleted = false)
+                  AND c.archived = true
+                ORDER BY c.updatedAt DESC`,
+        parameters: [{ name: '@owner', value: req.user!.email }],
+      })
+      .fetchAll();
+    res.json(resources);
+  } catch (err) {
+    console.error('Error listing archived chat sessions:', err);
+    res.status(500).json({ error: 'Failed to list archived sessions' });
   }
 });
 
@@ -96,7 +118,7 @@ router.put('/:id', async (req: Request, res: Response) => {
   }
 });
 
-// DELETE /:id — soft-delete a session
+// DELETE /:id — permanent soft-delete a session (called from archive screen)
 router.delete('/:id', async (req: Request, res: Response) => {
   const id = req.params['id'] as string;
   try {
@@ -115,6 +137,51 @@ router.delete('/:id', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('Error deleting chat session:', err);
     res.status(500).json({ error: 'Failed to delete session' });
+  }
+});
+
+// POST /:id/archive — move session to archive
+router.post('/:id/archive', async (req: Request, res: Response) => {
+  const id = req.params['id'] as string;
+  try {
+    const container = getContainer('chat-sessions');
+    const { resource } = await container.item(id, id).read<any>();
+    if (!resource || resource.deleted || resource.owner !== req.user!.email) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+    await container.items.upsert({
+      ...resource,
+      archived: true,
+      pinned: false,
+      archivedAt: new Date().toISOString(),
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Error archiving chat session:', err);
+    res.status(500).json({ error: 'Failed to archive session' });
+  }
+});
+
+// POST /:id/restore — restore session from archive
+router.post('/:id/restore', async (req: Request, res: Response) => {
+  const id = req.params['id'] as string;
+  try {
+    const container = getContainer('chat-sessions');
+    const { resource } = await container.item(id, id).read<any>();
+    if (!resource || resource.deleted || resource.owner !== req.user!.email) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+    await container.items.upsert({
+      ...resource,
+      archived: false,
+      archivedAt: undefined,
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Error restoring chat session:', err);
+    res.status(500).json({ error: 'Failed to restore session' });
   }
 });
 

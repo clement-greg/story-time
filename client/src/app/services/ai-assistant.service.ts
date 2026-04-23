@@ -1,5 +1,7 @@
 import { Injectable, signal, computed } from '@angular/core';
-import { ChatSession, ChatSessionMessage, ChatSessionSummary } from '@shared/models';
+import { ChatMessageHighlight, ChatSession, ChatSessionMessage, ChatSessionSummary } from '@shared/models';
+
+const PENDING_ID = '__pending__';
 
 @Injectable({ providedIn: 'root' })
 export class AiAssistantService {
@@ -14,6 +16,9 @@ export class AiAssistantService {
 
   // True while streaming a response
   readonly streaming = signal(false);
+
+  // True when the active session hasn't been saved to the DB yet
+  readonly isPendingSession = computed(() => this.activeSession()?.id === PENDING_ID);
 
   readonly pinnedSessions = computed(() =>
     this.sessions().filter(s => s.pinned).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
@@ -52,6 +57,20 @@ export class AiAssistantService {
     } catch {
       // Best-effort
     }
+  }
+
+  /** Show an empty chat locally without hitting the DB yet. */
+  startPendingSession(): void {
+    const now = new Date().toISOString();
+    const session: ChatSession = {
+      id: PENDING_ID,
+      name: 'New Chat',
+      pinned: false,
+      messages: [],
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.activeSession.set(session);
   }
 
   async createSession(): Promise<ChatSession | null> {
@@ -129,8 +148,13 @@ export class AiAssistantService {
   }
 
   async deleteSession(sessionId: string): Promise<void> {
+    // If the session was never saved, just clear it locally
+    if (sessionId === PENDING_ID) {
+      this.activeSession.set(null);
+      return;
+    }
     try {
-      await this.authFetch(`/api/chat-sessions/${sessionId}`, { method: 'DELETE' });
+      await this.authFetch(`/api/chat-sessions/${sessionId}/archive`, { method: 'POST' });
       this.sessions.update(list => list.filter(s => s.id !== sessionId));
       if (this.activeSession()?.id === sessionId) {
         this.activeSession.set(null);
@@ -138,6 +162,24 @@ export class AiAssistantService {
     } catch {
       // Best-effort
     }
+  }
+
+  async getArchivedSessions(): Promise<ChatSessionSummary[]> {
+    try {
+      const res = await this.authFetch('/api/chat-sessions/archived');
+      if (res.ok) return await res.json() as ChatSessionSummary[];
+    } catch {
+      // Best-effort
+    }
+    return [];
+  }
+
+  async unarchiveSession(sessionId: string): Promise<void> {
+    await this.authFetch(`/api/chat-sessions/${sessionId}/restore`, { method: 'POST' });
+  }
+
+  async deleteChatSessionPermanent(sessionId: string): Promise<void> {
+    await this.authFetch(`/api/chat-sessions/${sessionId}`, { method: 'DELETE' });
   }
 
   private abortController: AbortController | null = null;
@@ -148,8 +190,18 @@ export class AiAssistantService {
   }
 
   async sendMessage(text: string): Promise<void> {
-    const session = this.activeSession();
+    let session = this.activeSession();
     if (!session || this.streaming()) return;
+
+    // Materialise a pending session before sending the first message
+    if (session.id === PENDING_ID) {
+      const created = await this.createSession();
+      if (!created) {
+        this.updateLastAssistantMessage('Error: could not create chat session.');
+        return;
+      }
+      session = created;
+    }
 
     const userMsg: ChatSessionMessage = { role: 'user', text };
     const updatedMessages: ChatSessionMessage[] = [...session.messages, userMsg];
@@ -193,7 +245,8 @@ export class AiAssistantService {
     this.activeSession.set({ ...session, messages: [...updatedMessages, assistantPlaceholder] });
     this.streaming.set(true);
 
-    const apiMessages = updatedMessages.map(m => ({ role: m.role, content: m.text }));
+    // Keep context lean: last 3 prior exchanges (6 messages) + current user message = 7 max
+    const apiMessages = updatedMessages.slice(-7).map(m => ({ role: m.role, content: m.text }));
 
     this.abortController = new AbortController();
 
@@ -255,12 +308,39 @@ export class AiAssistantService {
     }
   }
 
+  async addHighlight(messageIndex: number, highlight: ChatMessageHighlight): Promise<void> {
+    const session = this.activeSession();
+    if (!session) return;
+    const updated = session.messages.map((m, i) =>
+      i === messageIndex ? { ...m, highlights: [...(m.highlights ?? []), highlight] } : m
+    );
+    this.activeSession.set({ ...session, messages: updated });
+    await this.persistSessionMessages(session.id);
+  }
+
+  async removeHighlightsInRange(messageIndex: number, startOffset: number, endOffset: number): Promise<void> {
+    const session = this.activeSession();
+    if (!session) return;
+    const updated = session.messages.map((m, i) => {
+      if (i !== messageIndex || !m.highlights?.length) return m;
+      const filtered = m.highlights.filter(h => h.endOffset <= startOffset || h.startOffset >= endOffset);
+      return { ...m, highlights: filtered };
+    });
+    this.activeSession.set({ ...session, messages: updated });
+    await this.persistSessionMessages(session.id);
+  }
+
   private async persistSessionMessages(sessionId: string): Promise<void> {
     const finalSession = this.activeSession();
     if (!finalSession) return;
     const persistMessages = finalSession.messages
       .filter(m => m.text || m.imageUrl)
-      .map(({ role, text, imageUrl }) => ({ role, text, ...(imageUrl ? { imageUrl } : {}) }));
+      .map(({ role, text, imageUrl, highlights }) => ({
+        role,
+        text,
+        ...(imageUrl ? { imageUrl } : {}),
+        ...(highlights?.length ? { highlights } : {}),
+      }));
     try {
       await this.authFetch(`/api/chat-sessions/${sessionId}`, {
         method: 'PUT',

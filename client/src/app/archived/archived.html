@@ -111,4 +111,35 @@
       }
     </div>
   </section>
+
+  <!-- Archived Chat Sessions -->
+  <section class="archived-section">
+    <h3 class="section-title">AI Chat Sessions</h3>
+    @if (!loading() && archivedChatSessions().length === 0) {
+      <p class="empty">No archived chat sessions.</p>
+    }
+    <div class="archived-list">
+      @for (session of archivedChatSessions(); track session.id) {
+        <div class="archived-item">
+          <div class="item-thumb">
+            <mat-icon>smart_toy</mat-icon>
+          </div>
+          <div class="item-info">
+            <span class="item-title">{{ session.name }}</span>
+            <span class="item-type">Chat session</span>
+          </div>
+          <div class="item-actions">
+            <button mat-stroked-button (click)="unarchiveChatSession(session.id)" matTooltip="Restore this session">
+              <mat-icon>unarchive</mat-icon>
+              Restore
+            </button>
+            <button mat-stroked-button color="warn" (click)="deleteChatSession(session)" matTooltip="Permanently delete">
+              <mat-icon>delete</mat-icon>
+              Delete
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+  </section>
 </div>

@@ -49,8 +49,8 @@
           <div class="session-actions">
             <button mat-icon-button class="session-action-btn"
                     (click)="deleteSession(session.id, $event)"
-                    matTooltip="Delete">
-              <mat-icon>delete</mat-icon>
+                    matTooltip="Archive">
+              <mat-icon>archive</mat-icon>
             </button>
           </div>
         </div>
@@ -89,8 +89,8 @@
           <div class="session-actions">
             <button mat-icon-button class="session-action-btn"
                     (click)="deleteSession(session.id, $event)"
-                    matTooltip="Delete">
-              <mat-icon>delete</mat-icon>
+                    matTooltip="Archive">
+              <mat-icon>archive</mat-icon>
             </button>
           </div>
         </div>
@@ -112,6 +112,15 @@
       <span class="ai-chat-title">
         {{ aiAssistant.activeSession()?.name ?? 'AI Assistant' }}
       </span>
+      @if (allHighlights().length > 0) {
+        <button mat-icon-button class="ai-highlights-toggle-btn"
+                [class.highlights-toggle-active]="showHighlightsSummary()"
+                (click)="showHighlightsSummary.set(!showHighlightsSummary())"
+                [matTooltip]="showHighlightsSummary() ? 'Hide highlights' : allHighlights().length + ' highlight' + (allHighlights().length === 1 ? '' : 's')">
+          <mat-icon>bookmark</mat-icon>
+          <span class="highlights-badge">{{ allHighlights().length }}</span>
+        </button>
+      }
       <button mat-icon-button class="ai-close-btn" (click)="aiAssistant.closePanel()" matTooltip="Close">
         <mat-icon>close</mat-icon>
       </button>
@@ -128,13 +137,42 @@
         </button>
       </div>
     } @else {
+      <!-- Highlights summary tray -->
+      @if (showHighlightsSummary() && allHighlights().length > 0) {
+        <div class="ai-highlights-tray">
+          <div class="ai-highlights-tray-header">
+            <span class="ai-highlights-tray-title">Highlights</span>
+            <div class="ai-highlights-nav">
+              <button mat-icon-button class="hl-nav-btn" (click)="navigateToPrevHighlight()" matTooltip="Previous">
+                <mat-icon>keyboard_arrow_up</mat-icon>
+              </button>
+              <button mat-icon-button class="hl-nav-btn" (click)="navigateToNextHighlight()" matTooltip="Next">
+                <mat-icon>keyboard_arrow_down</mat-icon>
+              </button>
+            </div>
+          </div>
+          <div class="ai-highlights-list">
+            @for (entry of allHighlights(); track entry.highlight.id) {
+              <div class="highlight-entry"
+                   [class.highlight-entry-active]="activeHighlightId() === entry.highlight.id"
+                   (click)="navigateToHighlight(entry.messageIndex, entry.highlight.id)">
+                <span class="highlight-entry-swatch" [style.background]="entry.highlight.color"></span>
+                <span class="highlight-entry-text">{{ entry.excerpt }}</span>
+                <mat-icon class="highlight-entry-goto">chevron_right</mat-icon>
+              </div>
+            }
+          </div>
+        </div>
+      }
+
       <!-- Messages -->
-      <div class="ai-chat-messages" #messagesEl>
+      <div class="ai-chat-messages" #messagesEl (mouseup)="onMessagesMouseUp()" (scroll)="onMessagesScroll()">
         @if (aiAssistant.activeSession()!.messages.length === 0) {
           <p class="chat-empty">Ask anything about your writing…</p>
         }
         @for (msg of aiAssistant.activeSession()!.messages; track $index; let last = $last) {
           <div class="chat-message"
+               [attr.data-msg-index]="$index"
                [class.user]="msg.role === 'user'"
                [class.assistant]="msg.role === 'assistant'"
                [class.streaming]="last && msg.role === 'assistant' && aiAssistant.streaming()">
@@ -155,7 +193,7 @@
                   </a>
                 </div>
               } @else {
-                <div class="chat-markdown" [innerHTML]="markdownToHtml(msg.text)"></div>
+                <div class="chat-markdown" [innerHTML]="renderMessageHtml(msg, $index)"></div>
               }
             } @else {
               <p>{{ msg.text }}</p>
@@ -166,7 +204,7 @@
 
       <!-- Input area -->
       <div class="ai-chat-input-area">
-        <textarea class="chat-textarea"
+        <textarea class="chat-textarea" #chatInputEl
                   placeholder="Message AI… (Enter to send, Shift+Enter for new line)"
                   rows="3"
                   [value]="input()"
@@ -186,6 +224,29 @@
     <div class="mobile-sidebar-backdrop" (click)="mobileSidebarOpen.set(false)"></div>
   }
 </div>
+
+<!-- Highlight toolbar (fixed, viewport-aware) -->
+@if (highlightToolbar()) {
+  <div class="highlight-toolbar"
+       [style.left.px]="highlightToolbar()!.x"
+       [style.top.px]="highlightToolbar()!.y">
+    @for (c of highlightColors; track c.value) {
+      <button class="highlight-color-btn"
+              [style.background]="c.value"
+              [title]="c.label"
+              (mousedown)="$event.preventDefault()"
+              (click)="addHighlight(c.value)">
+      </button>
+    }
+    <div class="highlight-toolbar-divider"></div>
+    <button class="highlight-erase-btn"
+            title="Remove highlights in selection"
+            (mousedown)="$event.preventDefault()"
+            (click)="eraseHighlights()">
+      <mat-icon>format_color_reset</mat-icon>
+    </button>
+  </div>
+}
 
 <!-- Backdrop -->
 @if (aiAssistant.isOpen()) {

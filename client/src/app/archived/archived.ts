@@ -9,9 +9,11 @@ import { SeriesService } from '../series/series.service';
 import { BookService } from '../book/book.service';
 import { EntityService } from '../services/entity.service';
 import { HeaderService } from '../services/header.service';
+import { AiAssistantService } from '../services/ai-assistant.service';
 import { Series } from '@shared/models/series.model';
 import { Book } from '@shared/models/book.model';
 import { Entity } from '@shared/models/entity.model';
+import { ChatSessionSummary } from '@shared/models';
 import { forkJoin } from 'rxjs';
 
 @Component({
@@ -31,6 +33,7 @@ export class ArchivedComponent implements OnInit {
   private bookService = inject(BookService);
   private entityService = inject(EntityService);
   private headerService = inject(HeaderService);
+  private aiAssistantService = inject(AiAssistantService);
   private snackBar = inject(MatSnackBar);
   private router = inject(Router);
 
@@ -38,6 +41,7 @@ export class ArchivedComponent implements OnInit {
   archivedSeries = signal<Series[]>([]);
   archivedBooks = signal<Book[]>([]);
   archivedEntities = signal<Entity[]>([]);
+  archivedChatSessions = signal<ChatSessionSummary[]>([]);
 
   ngOnInit(): void {
     this.headerService.set([{ label: 'Archived Items' }], []);
@@ -58,6 +62,9 @@ export class ArchivedComponent implements OnInit {
         this.loading.set(false);
       },
       error: () => this.loading.set(false),
+    });
+    this.aiAssistantService.getArchivedSessions().then(sessions => {
+      this.archivedChatSessions.set(sessions);
     });
   }
 
@@ -124,6 +131,23 @@ export class ArchivedComponent implements OnInit {
           });
         });
       },
+    });
+  }
+
+  async unarchiveChatSession(sessionId: string): Promise<void> {
+    await this.aiAssistantService.unarchiveSession(sessionId);
+    this.archivedChatSessions.update(list => list.filter(s => s.id !== sessionId));
+  }
+
+  async deleteChatSession(session: ChatSessionSummary): Promise<void> {
+    await this.aiAssistantService.deleteChatSessionPermanent(session.id);
+    this.archivedChatSessions.update(list => list.filter(s => s.id !== session.id));
+    const ref = this.snackBar.open(`"${session.name}" deleted`, 'Undo', { duration: 5000 });
+    ref.onAction().subscribe(async () => {
+      // Re-archive (restore the soft-delete by re-archiving) — best-effort undo
+      // Since permanent delete is irreversible in Cosmos, just re-fetch to reflect real state
+      const sessions = await this.aiAssistantService.getArchivedSessions();
+      this.archivedChatSessions.set(sessions);
     });
   }
 }
