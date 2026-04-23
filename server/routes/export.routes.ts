@@ -63,6 +63,18 @@ function safeFilename(title: string): string {
   return title.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_') || 'book';
 }
 
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+}
+
 // ---------------------------------------------------------------------------
 // Docx helpers
 // ---------------------------------------------------------------------------
@@ -74,7 +86,7 @@ function parseRuns(html: string): TextRun[] {
     .replace(/<strong>([\s\S]*?)<\/strong>/gi, '<b>$1</b>')
     .replace(/<em>([\s\S]*?)<\/em>/gi, '<i>$1</i>');
 
-  const tokenRegex = /<(\/?)([bi])>|([^<]+)/gi;
+  const tokenRegex = /<(\/?)([bi])>|<[^>]*>|([^<]+)/gi;
   let isBold = false;
   let isItalic = false;
   let m: RegExpExecArray | null;
@@ -85,9 +97,9 @@ function parseRuns(html: string): TextRun[] {
       if (tag.toLowerCase() === 'b') isBold = !closing;
       if (tag.toLowerCase() === 'i') isItalic = !closing;
     } else if (text) {
-      const clean = text.replace(/<[^>]+>/g, '');
+      const clean = decodeHtmlEntities(text.replace(/<[^>]+>/g, ''));
       if (clean) {
-        runs.push(new TextRun({ text: clean, bold: isBold, italics: isItalic }));
+        runs.push(new TextRun({ text: clean, bold: isBold, italics: isItalic, size: 24 }));
       }
     }
   }
@@ -99,20 +111,22 @@ function htmlToParagraphs(html: string): Paragraph[] {
   if (!html?.trim()) return [];
 
   const paragraphs: Paragraph[] = [];
-  const pTagRegex = /<p[^>]*>([\s\S]*?)<\/p>/gi;
+  const pTagRegex = /<(p|div)[^>]*>([\s\S]*?)<\/\1>/gi;
   let hasParagraphs = false;
   let m: RegExpExecArray | null;
 
   while ((m = pTagRegex.exec(html)) !== null) {
     hasParagraphs = true;
-    const runs = parseRuns(m[1]);
-    paragraphs.push(new Paragraph({ children: runs.length ? runs : [new TextRun('')] }));
+    const runs = parseRuns(m[2]);
+    if (runs.length) {
+      paragraphs.push(new Paragraph({ children: runs }));
+    }
   }
 
   if (!hasParagraphs) {
-    const stripped = html.replace(/<[^>]+>/g, '').trim();
+    const stripped = decodeHtmlEntities(html.replace(/<[^>]+>/g, '')).trim();
     if (stripped) {
-      paragraphs.push(new Paragraph({ children: [new TextRun(stripped)] }));
+      paragraphs.push(new Paragraph({ children: [new TextRun({ text: stripped, size: 24 })] }));
     }
   }
 
@@ -290,13 +304,13 @@ router.get('/books/:bookId/pdf', async (req: Request, res: Response) => {
       doc.fontSize(12).font('Helvetica');
 
       if (chapter.content?.trim()) {
-        const pTagRegex = /<p[^>]*>([\s\S]*?)<\/p>/gi;
         let m: RegExpExecArray | null;
         let hasParagraphs = false;
+        const pTagRegex = /<(p|div)[^>]*>([\s\S]*?)<\/\1>/gi;
 
         while ((m = pTagRegex.exec(chapter.content)) !== null) {
           hasParagraphs = true;
-          const text = stripHtmlTags(m[1]).trim();
+          const text = decodeHtmlEntities(stripHtmlTags(m[2])).trim();
           if (text) {
             doc.text(text, { align: 'justify', lineGap: 4 });
             doc.moveDown(0.5);
@@ -304,7 +318,7 @@ router.get('/books/:bookId/pdf', async (req: Request, res: Response) => {
         }
 
         if (!hasParagraphs) {
-          const text = stripHtmlTags(chapter.content).trim();
+          const text = decodeHtmlEntities(stripHtmlTags(chapter.content)).trim();
           if (text) doc.text(text, { align: 'justify', lineGap: 4 });
         }
       }
