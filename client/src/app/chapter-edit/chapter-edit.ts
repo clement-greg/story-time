@@ -235,6 +235,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   private longPressTimer: ReturnType<typeof setTimeout> | null = null;
   private seriesId = '';
   private suggestedEntityNames = new Set<string>();
+  pendingSuggestions = signal<SuggestedEntityCard[]>([]);
 
   constructor() {
     effect(() => {
@@ -254,7 +255,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     effect(() => {
       const idx = this.sidebarTabIndex();
       const chapter = this.chapter();
-      if (idx === 1 && chapter) {
+      if (idx === 2 && chapter) {
         untracked(() => {
           if (!this.historyLoading() && this.historyVersions().length === 0) {
             this.loadHistory(chapter.id);
@@ -1320,9 +1321,46 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     this.editingEntity.set(null);
   }
 
+  openSuggestionInlineEdit(index: number): void {
+    const card = this.pendingSuggestions()[index];
+    if (!card) return;
+    const draft: Entity = {
+      id: crypto.randomUUID(),
+      name: card.name,
+      type: card.type,
+      seriesId: this.seriesId,
+      biography: card.description,
+    } as Entity;
+    this.pendingSuggestions.update(list =>
+      list.map((c, i) => i === index ? { ...c, creating: true, draftEntity: draft } : c)
+    );
+  }
+
+  cancelSuggestionInlineEdit(index: number): void {
+    this.pendingSuggestions.update(list =>
+      list.map((c, i) => i === index ? { ...c, creating: false, draftEntity: undefined } : c)
+    );
+  }
+
+  acceptSuggestedEntity(index: number, entity: Entity): void {
+    this.entityService.create(entity).subscribe({
+      next: (created) => {
+        this.entities.update(list => [...list, created]);
+        this.pendingSuggestions.update(list =>
+          list.map((c, i) => i === index ? { ...c, creating: false, created: true } : c)
+        );
+        this.wrapEntityReferencesInEditor(created);
+      },
+    });
+  }
+
+  dismissSuggestion(index: number): void {
+    this.pendingSuggestions.update(list => list.filter((_, i) => i !== index));
+  }
+
   onSidebarTabChange(index: number): void {
     this.sidebarTabIndex.set(index);
-    if (index === 1) {
+    if (index === 2) {
       const chapter = this.chapter();
       if (chapter && !this.historyLoading() && this.historyVersions().length === 0) {
         this.loadHistory(chapter.id);
@@ -1340,7 +1378,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   }
 
   toggleHistory(): void {
-    this.activateSidebarTab(1);
+    this.activateSidebarTab(2);
   }
 
   loadHistory(chapterId: string): void {
@@ -2250,7 +2288,27 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     }
 
     // Track newly-discovered entity names so they are not suggested again
+    const fullText = (editor.innerText ?? '').toLowerCase();
+
+    // Prune suggestions whose name no longer appears in the editor text
+    this.pendingSuggestions.update(prev =>
+      prev.filter(c => c.created || c.creating || fullText.includes(c.name.toLowerCase()))
+    );
+
     if (suggestedEntities.length > 0) {
+      const knownLower = new Set(
+        this.entities().flatMap(e =>
+          [e.name, e.firstName, e.lastName, e.nickname].filter((n): n is string => !!n).map(n => n.toLowerCase())
+        )
+      );
+      const newCards = suggestedEntities.filter(s => {
+        const lower = s.name.toLowerCase();
+        return !this.suggestedEntityNames.has(lower) && !knownLower.has(lower);
+      });
+      if (newCards.length > 0) {
+        this.pendingSuggestions.update(prev => [...prev, ...newCards]);
+        this.activateSidebarTab(1);
+      }
       suggestedEntities.forEach(s => this.suggestedEntityNames.add(s.name.toLowerCase()));
     }
   }

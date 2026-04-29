@@ -15,6 +15,8 @@ const standardContainerDefs = [
   { id: 'entities', partitionKey: { paths: ['/id'] } },
   { id: 'chat-history', partitionKey: { paths: ['/id'] } },
   { id: 'chat-sessions', partitionKey: { paths: ['/id'] } },
+  { id: 'chat-folders', partitionKey: { paths: ['/id'] } },
+  { id: 'chat-folder-files', partitionKey: { paths: ['/id'] } },
   { id: 'chapter-versions', partitionKey: { paths: ['/chapterId'] } },
   { id: 'entity-relationships', partitionKey: { paths: ['/id'] } },
   { id: 'diagram-layouts', partitionKey: { paths: ['/id'] } },

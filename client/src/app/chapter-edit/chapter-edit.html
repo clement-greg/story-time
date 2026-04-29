@@ -117,6 +117,7 @@
                   <span>Notes</span>
                   <span class="notes-panel-count">({{ notes().length }})</span>
                 </div>
+
                 <div class="notes-list">
                   @if (notes().length === 0) {
                   <p class="notes-empty">No notes yet. Select text and click <mat-icon
@@ -146,6 +147,65 @@
                   </div>
                   }
                 </div>
+              </div>
+            </mat-tab>
+
+            <!-- Tab 1: Entity Suggestions -->
+            <mat-tab>
+              <ng-template mat-tab-label>
+                <span class="entity-suggestion-tab-label">
+                  <mat-icon>person_add</mat-icon>
+                  @if (pendingSuggestions().length > 0) {
+                  <span class="entity-suggestion-tab-badge">{{ pendingSuggestions().length }}</span>
+                  }
+                </span>
+              </ng-template>
+              <div class="sidebar-tab-content">
+                <div class="notes-panel-header">
+                  <mat-icon>person_add</mat-icon>
+                  <span>New Entities</span>
+                </div>
+                @if (pendingSuggestions().length === 0) {
+                <p class="notes-empty">No new entities detected yet. Keep writing — characters, places, and things will appear here as they're recognized.</p>
+                } @else {
+                <div class="entity-suggestion-list">
+                  @for (card of pendingSuggestions(); track $index; let i = $index) {
+                  <div class="entity-suggestion-card" [class.is-editing]="card.creating && !!card.draftEntity">
+                    @if (card.created) {
+                    <div class="entity-suggestion-done">
+                      <mat-icon>check_circle</mat-icon>
+                      <span>{{ card.name }} added</span>
+                    </div>
+                    } @else if (card.creating && card.draftEntity) {
+                    <div class="entity-suggestion-header">
+                      <mat-icon class="entity-type-icon">{{ card.type === 'PERSON' ? 'person' : card.type === 'PLACE' ? 'place' : 'category' }}</mat-icon>
+                      <span class="entity-suggestion-name">{{ card.name }}</span>
+                      <span class="entity-suggestion-type-badge">{{ card.type }}</span>
+                      <button mat-icon-button class="entity-suggestion-close-btn" (click)="cancelSuggestionInlineEdit(i)" title="Close">
+                        <mat-icon>close</mat-icon>
+                      </button>
+                    </div>
+                    <div class="entity-suggestion-inline-edit">
+                      <app-entity-edit [entity]="card.draftEntity" [isNew]="true" (save)="acceptSuggestedEntity(i, $event)" (cancel)="cancelSuggestionInlineEdit(i)" />
+                    </div>
+                    } @else {
+                    <div class="entity-suggestion-header">
+                      <mat-icon class="entity-type-icon">{{ card.type === 'PERSON' ? 'person' : card.type === 'PLACE' ? 'place' : 'category' }}</mat-icon>
+                      <span class="entity-suggestion-name">{{ card.name }}</span>
+                      <span class="entity-suggestion-type-badge">{{ card.type }}</span>
+                    </div>
+                    <p class="entity-suggestion-desc">{{ card.description }}</p>
+                    <div class="entity-suggestion-actions">
+                      <button mat-stroked-button (click)="openSuggestionInlineEdit(i)">Add Entity</button>
+                      <button mat-icon-button (click)="dismissSuggestion(i)" title="Dismiss">
+                        <mat-icon>close</mat-icon>
+                      </button>
+                    </div>
+                    }
+                  </div>
+                  }
+                </div>
+                }
               </div>
             </mat-tab>
 

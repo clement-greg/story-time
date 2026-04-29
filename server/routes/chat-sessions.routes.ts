@@ -18,7 +18,7 @@ router.get('/', async (req: Request, res: Response) => {
     const container = getContainer('chat-sessions');
     const { resources } = await container.items
       .query({
-        query: `SELECT c.id, c.name, c.pinned, c.updatedAt FROM c
+        query: `SELECT c.id, c.name, c.pinned, c.folderId, c.updatedAt FROM c
                 WHERE c.owner = @owner
                   AND (NOT IS_DEFINED(c.deleted) OR c.deleted = false)
                   AND (NOT IS_DEFINED(c.archived) OR c.archived = false)
@@ -62,6 +62,7 @@ router.post('/', async (req: Request, res: Response) => {
     owner: req.user!.email,
     name: 'New Chat',
     pinned: false,
+    folderId: req.body.folderId ?? null,
     messages: [],
     createdAt: now,
     updatedAt: now,
@@ -108,6 +109,7 @@ router.put('/:id', async (req: Request, res: Response) => {
       ...(req.body.name !== undefined && { name: req.body.name }),
       ...(req.body.pinned !== undefined && { pinned: req.body.pinned }),
       ...(req.body.messages !== undefined && { messages: req.body.messages }),
+      ...(req.body.folderId !== undefined && { folderId: req.body.folderId }),
       updatedAt: new Date().toISOString(),
     };
     await container.items.upsert(updated);

@@ -201,7 +201,7 @@
     <button mat-flat-button color="primary" (click)="onSave()" [disabled]="uploading() || generatingImage()">Save</button>
     <button mat-button (click)="onCancel()">Cancel</button>
     <span class="action-spacer"></span>
-    @if (entity().id) {
+    @if (entity().id && !isNew()) {
       @if (!isNarrator()) {
         @if (entity().archived) {
           <button mat-button (click)="onUnarchive()" [disabled]="uploading() || generatingImage()" matTooltip="Restore this entity to the active list">

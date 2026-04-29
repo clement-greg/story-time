@@ -41,6 +41,7 @@ export class EntityEditComponent {
   private router = inject(Router);
 
   entity = input.required<Entity>();
+  isNew = input(false);
   save = output<Entity>();
   cancel = output<void>();
   archive = output<string>();

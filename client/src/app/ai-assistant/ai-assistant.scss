@@ -5,7 +5,7 @@
   top: 64px;               /* below the app toolbar */
   right: 0;
   bottom: 0;
-  width: 760px;
+  width: 1050px;
   max-width: 100vw;
   display: flex;
   z-index: 300;
@@ -39,7 +39,7 @@
 /* ── Sessions sidebar ───────────────────────────────────────────────────── */
 
 .ai-sessions-sidebar {
-  width: 220px;
+  width: 300px;
   min-width: 220px;
   border-right: 1px solid #e0e0e0;
   display: flex;
@@ -81,40 +81,6 @@
   padding: 0 !important;
 }
 
-/* ── Drag-to-pin zone ───────────────────────────────────────────────────── */
-
-.pin-drop-zone {
-  margin: 4px 8px 8px;
-  border: 2px dashed #bdbdbd;
-  border-radius: 8px;
-  padding: 10px 8px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.8rem;
-  color: #757575;
-  cursor: default;
-  transition: border-color 0.15s, background 0.15s;
-  flex-shrink: 0;
-}
-
-.pin-drop-zone mat-icon {
-  font-size: 16px;
-  width: 16px;
-  height: 16px;
-  color: #9e9e9e;
-}
-
-.pin-drop-zone.drag-active {
-  border-color: #1565c0;
-  background: #e3f2fd;
-  color: #1565c0;
-}
-
-.pin-drop-zone.drag-active mat-icon {
-  color: #1565c0;
-}
-
 /* ── Section labels ─────────────────────────────────────────────────────── */
 
 .sessions-section-label {
@@ -125,38 +91,6 @@
   letter-spacing: 0.06em;
   color: #9e9e9e;
   flex-shrink: 0;
-}
-
-.unpin-drop-zone {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  border-radius: 6px;
-  margin: 2px 6px 0;
-  padding: 6px 6px 2px;
-  cursor: default;
-  transition: background 0.15s, color 0.15s, border 0.15s;
-  border: 2px dashed transparent;
-}
-
-.unpin-drop-zone .unpin-drop-hint {
-  display: none;
-  font-size: 0.65rem;
-  font-weight: 400;
-  text-transform: none;
-  letter-spacing: 0;
-  color: #9e9e9e;
-}
-
-.unpin-drop-zone.drag-active {
-  border-color: #1565c0;
-  background: #e3f2fd;
-  color: #1565c0;
-}
-
-.unpin-drop-zone.drag-active .unpin-drop-hint {
-  display: inline;
-  color: #1565c0;
 }
 
 /* ── Session items ──────────────────────────────────────────────────────── */
@@ -239,6 +173,153 @@
   font-size: 0.82rem;
   color: #9e9e9e;
   text-align: center;
+}
+
+/* ── Sidebar root drop zone ─────────────────────────────────────────────── */
+
+.sidebar-root-drop-zone {
+  flex: 1;
+  min-height: 40px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 12px;
+  border-radius: 8px;
+  margin: 4px 6px;
+  transition: background 0.15s, border-color 0.15s;
+  border: 2px dashed transparent;
+}
+
+.sidebar-root-drop-zone.drag-active {
+  background: #e3f2fd;
+  border-color: #1565c0;
+}
+
+.sidebar-root-drop-hint {
+  font-size: 0.75rem;
+  color: #1565c0;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+/* ── Folder items ───────────────────────────────────────────────────────── */
+
+.folder-item {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 8px 6px 8px;
+  cursor: pointer;
+  border-radius: 6px;
+  margin: 1px 6px;
+  transition: background 0.12s;
+  min-width: 0;
+  user-select: none;
+}
+
+.folder-item:hover {
+  background: #e8eaf6;
+}
+
+.folder-item.folder-drop-target {
+  background: #e3f2fd;
+  outline: 2px dashed #1565c0;
+  outline-offset: -2px;
+}
+
+.folder-item.folder-selected {
+  background: #ede7f6;
+}
+
+.folder-item.folder-selected:hover {
+  background: #d1c4e9;
+}
+
+/* ── Folder context menu ─────────────────────────────────────────────────── */
+
+.folder-context-menu {
+  position: fixed;
+  z-index: 500;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.16);
+  padding: 4px 0;
+  min-width: 168px;
+  display: flex;
+  flex-direction: column;
+}
+
+.folder-ctx-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: #212121;
+  text-align: left;
+  transition: background 0.12s;
+}
+
+.folder-ctx-item:hover {
+  background: #f5f5f5;
+}
+
+.folder-ctx-item mat-icon {
+  font-size: 18px !important;
+  width: 18px !important;
+  height: 18px !important;
+  color: #757575;
+  flex-shrink: 0;
+}
+
+.folder-ctx-divider {
+  height: 1px;
+  background: #e0e0e0;
+  margin: 4px 0;
+}
+
+.folder-ctx-danger {
+  color: #c62828;
+}
+
+.folder-ctx-danger mat-icon {
+  color: #c62828;
+}
+
+.folder-chevron {
+  font-size: 16px !important;
+  width: 16px !important;
+  height: 16px !important;
+  color: #9e9e9e;
+  flex-shrink: 0;
+  transition: color 0.12s;
+}
+
+.folder-item:hover .folder-chevron {
+  color: #616161;
+}
+
+.folder-icon {
+  font-size: 16px !important;
+  width: 16px !important;
+  height: 16px !important;
+  color: #1565c0;
+  flex-shrink: 0;
+}
+
+.folder-name {
+  flex: 1;
+  font-size: 0.85rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #212121;
+  min-width: 0;
 }
 
 /* ── Chat area ──────────────────────────────────────────────────────────── */
@@ -434,6 +515,268 @@ mark.chat-highlight.highlight-flash {
 }
 
 
+
+/* ── File explorer ───────────────────────────────────────────────────────── */
+
+.file-explorer {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+.file-explorer-drag-over {
+  outline: 3px dashed #1565c0;
+  outline-offset: -3px;
+  background: #e3f2fd;
+}
+
+.file-explorer-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 16px 8px 12px;
+  border-bottom: 1px solid #e0e0e0;
+  flex-shrink: 0;
+  background: #f8f9fa;
+}
+
+.file-explorer-folder-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  color: #1565c0;
+  flex-shrink: 0;
+}
+
+.file-explorer-folder-name {
+  flex: 1;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #212121;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fe-toolbar-btn {
+  color: #616161 !important;
+  width: 32px !important;
+  height: 32px !important;
+  flex-shrink: 0;
+}
+
+.fe-loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fe-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.fe-grid {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.fe-drop-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  color: #1565c0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.fe-drop-hint mat-icon {
+  font-size: 36px;
+  width: 36px;
+  height: 36px;
+}
+
+.fe-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.12s;
+  min-width: 0;
+}
+
+.fe-item:hover {
+  background: #f0f0f0;
+}
+
+.fe-item.fe-item-selected {
+  background: #e3f2fd;
+}
+
+.fe-item-folder .fe-item-icon,
+.fe-item-chat .fe-item-icon {
+  color: #1565c0;
+}
+
+.fe-item-icon {
+  font-size: 20px !important;
+  width: 20px !important;
+  height: 20px !important;
+  flex-shrink: 0;
+  color: #757575;
+}
+
+.fe-item-name {
+  flex: 1;
+  font-size: 0.87rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #212121;
+  min-width: 0;
+}
+
+.fe-item-size {
+  font-size: 0.75rem;
+  color: #9e9e9e;
+  flex-shrink: 0;
+}
+
+.fe-rename-input {
+  flex: 1;
+  font-size: 0.87rem;
+  border: 1px solid #1565c0;
+  border-radius: 4px;
+  padding: 2px 6px;
+  outline: none;
+  min-width: 0;
+}
+
+.fe-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 48px 16px;
+  color: #bdbdbd;
+  text-align: center;
+}
+
+.fe-empty mat-icon {
+  font-size: 40px;
+  width: 40px;
+  height: 40px;
+}
+
+.fe-empty p {
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+/* ── File preview pane ───────────────────────────────────────────────────── */
+
+.fe-preview {
+  width: 340px;
+  min-width: 240px;
+  max-width: 50%;
+  border-left: 1px solid #e0e0e0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #fafafa;
+}
+
+.fe-preview-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 6px 6px 12px;
+  border-bottom: 1px solid #e0e0e0;
+  flex-shrink: 0;
+}
+
+.fe-preview-name {
+  flex: 1;
+  font-size: 0.82rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #212121;
+  min-width: 0;
+}
+
+.fe-preview-download,
+.fe-preview-close {
+  color: #757575 !important;
+  width: 30px !important;
+  height: 30px !important;
+  flex-shrink: 0;
+}
+
+.fe-preview-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  flex: 1;
+  padding: 12px;
+}
+
+.fe-preview-frame {
+  flex: 1;
+  border: none;
+  width: 100%;
+}
+
+.fe-preview-download-only {
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px 16px;
+  text-align: center;
+}
+
+.fe-dl-icon {
+  font-size: 48px !important;
+  width: 48px !important;
+  height: 48px !important;
+  color: #9e9e9e;
+}
+
+.fe-dl-name {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #212121;
+  word-break: break-word;
+  margin: 0;
+}
+
+.fe-dl-size {
+  font-size: 0.78rem;
+  color: #9e9e9e;
+  margin: 0;
+}
+
+.fe-dl-btn {
+  margin-top: 8px;
+  text-decoration: none;
+}
 
 .ai-welcome {
   flex: 1;

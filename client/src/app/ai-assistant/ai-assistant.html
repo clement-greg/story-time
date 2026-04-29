@@ -1,105 +1,97 @@
 <div class="ai-panel" [class.ai-panel-open]="aiAssistant.isOpen()">
 
   <!-- Sessions sidebar (desktop always visible; mobile overlay) -->
-  <aside class="ai-sessions-sidebar" [class.mobile-sidebar-open]="mobileSidebarOpen()">
+  <aside class="ai-sessions-sidebar" [class.mobile-sidebar-open]="mobileSidebarOpen()"
+         (click)="selectedFolderId.set(null)">
     <!-- Mobile close button -->
     <button mat-icon-button class="mobile-sidebar-close" (click)="mobileSidebarOpen.set(false)">
       <mat-icon>close</mat-icon>
     </button>
     <div class="ai-sessions-header">
       <mat-icon class="ai-header-icon">smart_toy</mat-icon>
-      <span class="ai-header-title">AI Assistant</span>
+      <span class="ai-header-title">Resource Manager</span>
+      <button mat-icon-button class="new-chat-btn" (click)="createFolderFromHeader()"
+              [matTooltip]="selectedFolderId() ? 'New subfolder inside selected folder' : 'New folder'">
+        <mat-icon>create_new_folder</mat-icon>
+      </button>
       <button mat-icon-button class="new-chat-btn" (click)="newChat()" matTooltip="New chat">
         <mat-icon>add</mat-icon>
       </button>
     </div>
 
-    <!-- Drag-to-pin drop zone -->
-    <div class="pin-drop-zone"
-         [class.drag-active]="isDragOver()"
-         (dragover)="onDragOver($event)"
-         (dragleave)="onDragLeave()"
-         (drop)="onDropToPin($event)">
-      <mat-icon>push_pin</mat-icon>
-      <span>Drag to pin</span>
+    <!-- Folder tree -->
+    @if (sidebarItems().length > 0) {
+      <div class="sessions-section-label">Folders</div>
+      @for (item of sidebarItems(); track item.trackId) {
+        @if (item.kind === 'folder') {
+          <!-- Folder row -->
+          <div class="folder-item"
+               [style.padding-left.px]="8 + item.depth * 16"
+               [class.folder-drop-target]="folderDropTargetId() === item.folder.id"
+               [class.folder-selected]="selectedFolderId() === item.folder.id"
+               draggable="true"
+               (dragstart)="onFolderDragStart($event, item.folder.id)"
+               (dragover)="onFolderDragOver($event, item.folder.id)"
+               (dragleave)="onFolderDragLeave(item.folder.id)"
+               (drop)="onDropToFolder($event, item.folder.id)"
+               (contextmenu)="onFolderContextMenu($event, item.folder.id, item.folder.name)"
+               (click)="toggleFolderExpanded(item.folder.id); $event.stopPropagation()">
+            <mat-icon class="folder-chevron">
+              {{ expandedFolderIds().has(item.folder.id) ? 'expand_more' : 'chevron_right' }}
+            </mat-icon>
+            <mat-icon class="folder-icon">
+              {{ expandedFolderIds().has(item.folder.id) ? 'folder_open' : 'folder' }}
+            </mat-icon>
+            @if (renamingFolderId() === item.folder.id) {
+              <input class="session-rename-input folder-rename-input"
+                     [value]="renameFolderValue()"
+                     (input)="renameFolderValue.set($any($event.target).value)"
+                     (keydown)="onRenameFolderKeyDown($event, item.folder.id)"
+                     (blur)="commitFolderRename(item.folder.id)"
+                     (click)="$event.stopPropagation()"
+                     autofocus />
+            } @else {
+              <span class="folder-name">{{ item.folder.name }}</span>
+            }
+            <div class="session-actions">
+              <button mat-icon-button class="session-action-btn"
+                      (click)="createSubfolder(item.folder.id, $event)"
+                      matTooltip="New subfolder">
+                <mat-icon>create_new_folder</mat-icon>
+              </button>
+              <button mat-icon-button class="session-action-btn"
+                      (click)="startRenameFolder(item.folder.id, item.folder.name, $event)"
+                      matTooltip="Rename">
+                <mat-icon>edit</mat-icon>
+              </button>
+              @if (isFolderEmpty(item.folder.id)) {
+                <button mat-icon-button class="session-action-btn"
+                        (click)="deleteFolder(item.folder.id, $event)"
+                        matTooltip="Delete folder (or press Delete key)">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              }
+            </div>
+          </div>
+        }
+      }
+    }
+
+    @if (aiAssistant.folders().length === 0) {
+      <p class="sessions-empty">Create a folder to get started.</p>
+    }
+
+    <!-- Empty-space drop zone: drag a folder here to move it to root -->
+    <div class="sidebar-root-drop-zone"
+         [class.drag-active]="isSidebarRootDragOver()"
+         (dragover)="onSidebarRootDragOver($event)"
+         (dragleave)="onSidebarRootDragLeave()"
+         (drop)="onDropToSidebarRoot($event)"
+         (click)="selectedFolderId.set(null); $event.stopPropagation()">
+      @if (isSidebarRootDragOver()) {
+        <span class="sidebar-root-drop-hint">Move to root</span>
+      }
     </div>
-
-    <!-- Pinned sessions -->
-    @if (aiAssistant.pinnedSessions().length > 0) {
-      <div class="sessions-section-label">Pinned</div>
-      @for (session of aiAssistant.pinnedSessions(); track session.id) {
-        <div class="session-item"
-             [class.session-active]="activeSessionId() === session.id"
-             draggable="true"
-             (dragstart)="onDragStart($event, session.id)"
-             (touchstart)="onSessionTouchStart($event)"
-             (touchend)="onSessionTouchEnd(session.id, $event)"
-             (click)="onSessionClick(session.id)">
-          @if (renamingSessionId() === session.id) {
-            <input class="session-rename-input"
-                   [value]="renameValue()"
-                   (input)="renameValue.set($any($event.target).value)"
-                   (keydown)="onRenameKeyDown($event, session.id)"
-                   (blur)="commitRename(session.id)"
-                   (click)="$event.stopPropagation()"
-                   autofocus />
-          } @else {
-            <span class="session-name">{{ session.name }}</span>
-          }
-          <div class="session-actions">
-            <button mat-icon-button class="session-action-btn"
-                    (click)="deleteSession(session.id, $event)"
-                    matTooltip="Archive">
-              <mat-icon>archive</mat-icon>
-            </button>
-          </div>
-        </div>
-      }
-    }
-
-    <!-- Recent sessions -->
-    @if (aiAssistant.recentSessions().length > 0) {
-      <div class="sessions-section-label unpin-drop-zone"
-           [class.drag-active]="isUnpinDragOver()"
-           (dragover)="onUnpinDragOver($event)"
-           (dragleave)="onUnpinDragLeave()"
-           (drop)="onDropToUnpin($event)">
-        Recents
-        <span class="unpin-drop-hint">drop to unpin</span>
-      </div>
-      @for (session of aiAssistant.recentSessions(); track session.id) {
-        <div class="session-item"
-             [class.session-active]="activeSessionId() === session.id"
-             draggable="true"
-             (dragstart)="onDragStart($event, session.id)"
-             (touchstart)="onSessionTouchStart($event)"
-             (touchend)="onSessionTouchEnd(session.id, $event)"
-             (click)="onSessionClick(session.id)">
-          @if (renamingSessionId() === session.id) {
-            <input class="session-rename-input"
-                   [value]="renameValue()"
-                   (input)="renameValue.set($any($event.target).value)"
-                   (keydown)="onRenameKeyDown($event, session.id)"
-                   (blur)="commitRename(session.id)"
-                   (click)="$event.stopPropagation()"
-                   autofocus />
-          } @else {
-            <span class="session-name">{{ session.name }}</span>
-          }
-          <div class="session-actions">
-            <button mat-icon-button class="session-action-btn"
-                    (click)="deleteSession(session.id, $event)"
-                    matTooltip="Archive">
-              <mat-icon>archive</mat-icon>
-            </button>
-          </div>
-        </div>
-      }
-    }
-
-    @if (aiAssistant.sessions().length === 0) {
-      <p class="sessions-empty">No previous sessions. Start a new chat!</p>
-    }
   </aside>
 
   <!-- Chat area -->
@@ -110,7 +102,7 @@
         <mat-icon>menu</mat-icon>
       </button>
       <span class="ai-chat-title">
-        {{ aiAssistant.activeSession()?.name ?? 'AI Assistant' }}
+        {{ aiAssistant.activeSession()?.name ?? 'Resource Manager' }}
       </span>
       @if (allHighlights().length > 0) {
         <button mat-icon-button class="ai-highlights-toggle-btn"
@@ -126,17 +118,146 @@
       </button>
     </div>
 
-    @if (!aiAssistant.activeSession()) {
-      <!-- Welcome state -->
-      <div class="ai-welcome">
-        <mat-icon class="ai-welcome-icon">smart_toy</mat-icon>
-        <p>Select a previous session or start a new one.</p>
-        <button mat-flat-button color="primary" (click)="newChat()">
-          <mat-icon>add</mat-icon>
-          New Chat
-        </button>
-      </div>
-    } @else {
+    @if (selectedFolderId() && !aiAssistant.activeSession()) {
+      <!-- ── File explorer ── -->
+        <div class="file-explorer"
+             [class.file-explorer-drag-over]="fileDragOver()"
+             (dragover)="onExplorerDragOver($event)"
+             (dragleave)="onExplorerDragLeave()"
+             (drop)="onExplorerDrop($event)">
+
+          <!-- Toolbar -->
+          <div class="file-explorer-toolbar">
+            <mat-icon class="file-explorer-folder-icon">folder_open</mat-icon>
+            <span class="file-explorer-folder-name">{{ selectedFolderName() }}</span>
+            <button mat-icon-button class="fe-toolbar-btn" (click)="triggerFileUpload()" matTooltip="Upload files">
+              <mat-icon>upload_file</mat-icon>
+            </button>
+            <button mat-icon-button class="fe-toolbar-btn" (click)="newChat()" matTooltip="New chat in this folder">
+              <mat-icon>add_comment</mat-icon>
+            </button>
+          </div>
+
+          <!-- Loading -->
+          @if (filesLoading()) {
+            <div class="fe-loading"><mat-spinner diameter="28"></mat-spinner></div>
+          } @else {
+
+            <!-- Split: file grid on left, preview on right -->
+            <div class="fe-body">
+              <div class="fe-grid">
+                <!-- Drop hint when dragging -->
+                @if (fileDragOver()) {
+                  <div class="fe-drop-hint">
+                    <mat-icon>upload_file</mat-icon>
+                    <span>Drop files to upload</span>
+                  </div>
+                }
+
+                <!-- Sub-folders -->
+                @for (folder of aiAssistant.folders(); track folder.id) {
+                  @if ((folder.parentFolderId ?? null) === selectedFolderId()) {
+                    <div class="fe-item fe-item-folder"
+                         [class.folder-drop-target]="folderDropTargetId() === folder.id"
+                         (click)="toggleFolderExpanded(folder.id); selectedFolderId.set(folder.id); $event.stopPropagation()"
+                         (contextmenu)="onFolderContextMenu($event, folder.id, folder.name)"
+                         (dragover)="onFolderDragOver($event, folder.id)"
+                         (dragleave)="onFolderDragLeave(folder.id)"
+                         (drop)="onDropToFolder($event, folder.id)">
+                      <mat-icon class="fe-item-icon">folder</mat-icon>
+                      <span class="fe-item-name">{{ folder.name }}</span>
+                    </div>
+                  }
+                }
+
+                <!-- Chat sessions in this folder -->
+                @for (session of aiAssistant.recentSessions(); track session.id) {
+                  @if (session.folderId === selectedFolderId()) {
+                    <div class="fe-item fe-item-chat"
+                         [class.fe-item-selected]="activeSessionId() === session.id"
+                         draggable="true"
+                         (dragstart)="onDragStart($event, session.id)"
+                         (click)="openSession(session.id)">
+                      <mat-icon class="fe-item-icon">chat</mat-icon>
+                      <span class="fe-item-name">{{ session.name }}</span>
+                    </div>
+                  }
+                }
+
+                <!-- Files -->
+                @for (file of folderFiles(); track file.id) {
+                  <div class="fe-item"
+                       [class.fe-item-selected]="selectedFileId() === file.id"
+                       draggable="true"
+                       (dragstart)="onFileDragStart($event, file.id)"
+                       (click)="selectFile(file)"
+                       (contextmenu)="onFileContextMenu($event, file)">
+                    <mat-icon class="fe-item-icon">{{ fileIcon(file.contentType) }}</mat-icon>
+                    @if (renamingFileId() === file.id) {
+                      <input class="fe-rename-input file-rename-input"
+                             [value]="renameFileValue()"
+                             (input)="renameFileValue.set($any($event.target).value)"
+                             (keydown)="onRenameFileKeyDown($event, file.id)"
+                             (blur)="commitFileRename(file.id)"
+                             (click)="$event.stopPropagation()"
+                             autofocus />
+                    } @else {
+                      <span class="fe-item-name">{{ file.name }}</span>
+                    }
+                    <span class="fe-item-size">{{ formatFileSize(file.size) }}</span>
+                  </div>
+                }
+
+                @if (!filesLoading() && folderFiles().length === 0 &&
+                     !aiAssistant.folders().some(f => (f.parentFolderId ?? null) === selectedFolderId()) &&
+                     !aiAssistant.recentSessions().some(s => s.folderId === selectedFolderId())) {
+                  <div class="fe-empty">
+                    <mat-icon>folder_open</mat-icon>
+                    <p>Drag files here or click Upload</p>
+                  </div>
+                }
+              </div>
+
+              <!-- Preview pane -->
+              @if (previewFile()) {
+                <div class="fe-preview">
+                  <div class="fe-preview-header">
+                    <span class="fe-preview-name">{{ previewFile()!.name }}</span>
+                    <a [href]="downloadUrl(previewFile()!)" download mat-icon-button class="fe-preview-download" matTooltip="Download">
+                      <mat-icon>download</mat-icon>
+                    </a>
+                    <button mat-icon-button class="fe-preview-close" (click)="previewFile.set(null); selectedFileId.set(null)" matTooltip="Close preview">
+                      <mat-icon>close</mat-icon>
+                    </button>
+                  </div>
+                  @if (previewFile()!.contentType.startsWith('image/')) {
+                    <img class="fe-preview-image" [src]="previewObjectUrl() ?? ''" [alt]="previewFile()!.name" />
+                  } @else if (previewFile()!.contentType === 'application/pdf' || previewFile()!.contentType.startsWith('text/')) {
+                    @if (safePreviewObjectUrl()) {
+                      <iframe class="fe-preview-frame" [src]="safePreviewObjectUrl()!" [title]="previewFile()!.name"></iframe>
+                    }
+                  }
+                </div>
+              } @else if (selectedFileId() && !previewFile()) {
+                <!-- Non-previewable file selected -->
+                @for (file of folderFiles(); track file.id) {
+                  @if (file.id === selectedFileId()) {
+                    <div class="fe-preview fe-preview-download-only">
+                      <mat-icon class="fe-dl-icon">{{ fileIcon(file.contentType) }}</mat-icon>
+                      <p class="fe-dl-name">{{ file.name }}</p>
+                      <p class="fe-dl-size">{{ formatFileSize(file.size) }}</p>
+                      <a [href]="downloadUrl(file)" download mat-flat-button color="primary" class="fe-dl-btn">
+                        <mat-icon>download</mat-icon>
+                        Download
+                      </a>
+                    </div>
+                  }
+                }
+              }
+            </div>
+          }
+        </div>
+    } @else if (aiAssistant.activeSession()) {
       <!-- Highlights summary tray -->
       @if (showHighlightsSummary() && allHighlights().length > 0) {
         <div class="ai-highlights-tray">
@@ -216,6 +337,16 @@
           <mat-icon>{{ aiAssistant.streaming() ? 'hourglass_top' : 'send' }}</mat-icon>
         </button>
       </div>
+    } @else {
+      <!-- Welcome state (no folder selected, no active session) -->
+      <div class="ai-welcome">
+        <mat-icon class="ai-welcome-icon">smart_toy</mat-icon>
+        <p>Select a previous session or start a new one.</p>
+        <button mat-flat-button color="primary" (click)="newChat()">
+          <mat-icon>add</mat-icon>
+          New Chat
+        </button>
+      </div>
     }
   </div>
 
@@ -251,4 +382,44 @@
 <!-- Backdrop -->
 @if (aiAssistant.isOpen()) {
   <div class="ai-backdrop" (click)="aiAssistant.closePanel()"></div>
+}
+
+<!-- Folder context menu (outside sidebar to avoid overflow clipping) -->
+@if (folderContextMenu()) {
+  <div class="folder-context-menu"
+       [style.left.px]="folderContextMenu()!.x"
+       [style.top.px]="folderContextMenu()!.y">
+    <button class="folder-ctx-item" (mousedown)="startRenameFolder(folderContextMenu()!.folderId, folderContextMenu()!.folderName, $event)">
+      <mat-icon>edit</mat-icon> Rename
+    </button>
+    <button class="folder-ctx-item" (mousedown)="createSubfolder(folderContextMenu()!.folderId, $event); folderContextMenu.set(null)">
+      <mat-icon>create_new_folder</mat-icon> New subfolder
+    </button>
+    @if (isFolderEmpty(folderContextMenu()!.folderId)) {
+      <div class="folder-ctx-divider"></div>
+      <button class="folder-ctx-item folder-ctx-danger" (mousedown)="deleteFolder(folderContextMenu()!.folderId, $event); folderContextMenu.set(null)">
+        <mat-icon>delete</mat-icon> Delete
+      </button>
+    }
+  </div>
+}
+
+<!-- File context menu -->
+@if (fileContextMenu()) {
+  <div class="folder-context-menu file-context-menu"
+       [style.left.px]="fileContextMenu()!.x"
+       [style.top.px]="fileContextMenu()!.y">
+    <button class="folder-ctx-item" (mousedown)="startRenameFile(fileContextMenu()!.file)">
+      <mat-icon>edit</mat-icon> Rename
+    </button>
+    <a class="folder-ctx-item" [href]="downloadUrl(fileContextMenu()!.file)" download
+       (mousedown)="fileContextMenu.set(null)">
+      <mat-icon>download</mat-icon> Download
+    </a>
+    <div class="folder-ctx-divider"></div>
+    <button class="folder-ctx-item folder-ctx-danger"
+            (mousedown)="deleteFile(fileContextMenu()!.file.id, fileContextMenu()!.file.folderId); fileContextMenu.set(null)">
+      <mat-icon>delete</mat-icon> Delete
+    </button>
+  </div>
 }

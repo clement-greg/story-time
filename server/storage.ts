@@ -51,3 +51,14 @@ export async function downloadBlob(filename: string): Promise<CachedBlob> {
   blobCache.set(filename, entry);
   return entry;
 }
+
+export async function deleteBlob(filename: string): Promise<void> {
+  const blockBlobClient = containerClient.getBlockBlobClient(filename);
+  await blockBlobClient.deleteIfExists();
+  blobCache.delete(filename);
+}
+
+export async function getBlobUrl(filename: string): Promise<string> {
+  const blockBlobClient = containerClient.getBlockBlobClient(filename);
+  return blockBlobClient.url;
+}

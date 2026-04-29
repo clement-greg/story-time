@@ -1,5 +1,5 @@
 import {
-  Component, inject, signal, computed, ViewChild, ElementRef, AfterViewChecked, OnInit, OnDestroy, HostListener, effect,
+  Component, inject, signal, computed, untracked, ViewChild, ElementRef, AfterViewChecked, OnInit, OnDestroy, HostListener, effect,
 } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { parse as parseMarkdown } from 'marked';
@@ -9,7 +9,9 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AiAssistantService } from '../services/ai-assistant.service';
-import { ChatMessageHighlight, ChatSessionMessage, ChatSessionSummary } from '@shared/models';
+import { ChatFolder, ChatMessageHighlight, ChatSessionMessage, ChatSessionSummary, FolderFile } from '@shared/models';
+
+type SidebarItem = { kind: 'folder'; folder: ChatFolder; depth: number; trackId: string };
 
 @Component({
   selector: 'app-ai-assistant',
@@ -28,10 +30,60 @@ export class AiAssistantComponent implements OnInit, AfterViewChecked, OnDestroy
   readonly renamingSessionId = signal<string | null>(null);
   readonly renameValue = signal('');
 
-  // Drag-to-pin state
-  readonly isDragOver = signal(false);
-  readonly isUnpinDragOver = signal(false);
+  // Drag state
   private draggingSessionId: string | null = null;
+  private draggingFolderId: string | null = null;
+  private draggingFileId: string | null = null;
+  private draggingKind: 'session' | 'folder' | 'file' | null = null;
+
+  // Folder state
+  readonly expandedFolderIds = signal(new Set<string>());
+  readonly selectedFolderId = signal<string | null>(null);
+  readonly selectedFolderName = computed(() => {
+    const id = this.selectedFolderId();
+    if (!id) return null;
+    return this.aiAssistant.folders().find(f => f.id === id)?.name ?? null;
+  });
+  readonly renamingFolderId = signal<string | null>(null);
+  readonly renameFolderValue = signal('');
+  readonly folderDropTargetId = signal<string | null>(null);
+
+  // Folder context menu
+  readonly folderContextMenu = signal<{ x: number; y: number; folderId: string; folderName: string } | null>(null);
+
+  // File explorer
+  readonly folderFiles = signal<FolderFile[]>([]);
+  readonly filesLoading = signal(false);
+  readonly selectedFileId = signal<string | null>(null);
+  readonly previewFile = signal<FolderFile | null>(null);
+  readonly renamingFileId = signal<string | null>(null);
+  readonly renameFileValue = signal('');
+  readonly fileContextMenu = signal<{ x: number; y: number; file: FolderFile } | null>(null);
+  readonly fileDragOver = signal(false);
+  readonly previewObjectUrl = signal<string | null>(null);
+  private fileInputEl: HTMLInputElement | null = null;
+
+  // Flat ordered list of sidebar items (folders only)
+  readonly sidebarItems = computed((): SidebarItem[] => {
+    const folders = this.aiAssistant.folders();
+    const expanded = this.expandedFolderIds();
+    const items: SidebarItem[] = [];
+
+    const buildLevel = (parentId: string | null, depth: number) => {
+      folders
+        .filter(f => (f.parentFolderId ?? null) === parentId)
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .forEach(folder => {
+          items.push({ kind: 'folder', folder, depth, trackId: 'f-' + folder.id });
+          if (expanded.has(folder.id)) {
+            buildLevel(folder.id, depth + 1);
+          }
+        });
+    };
+
+    buildLevel(null, 0);
+    return items;
+  });
 
   // Mobile sidebar drawer
   readonly mobileSidebarOpen = signal(false);
@@ -82,6 +134,50 @@ export class AiAssistantComponent implements OnInit, AfterViewChecked, OnDestroy
         this.stopStreamScroll();
       }
     });
+
+    // Auto-select-all text in rename input whenever a folder rename starts
+    effect(() => {
+      const id = this.renamingFolderId();
+      if (!id) return;
+      setTimeout(() => {
+        const el = document.querySelector<HTMLInputElement>('.folder-rename-input');
+        el?.select();
+      });
+    });
+
+    // Auto-select-all text when a file rename starts
+    effect(() => {
+      const id = this.renamingFileId();
+      if (!id) return;
+      setTimeout(() => {
+        const el = document.querySelector<HTMLInputElement>('.file-rename-input');
+        el?.select();
+      });
+    });
+
+    // Load files whenever the selected folder changes
+    effect(() => {
+      const folderId = this.selectedFolderId();
+      if (folderId) {
+        this.loadFolderFiles(folderId);
+      } else {
+        this.folderFiles.set([]);
+        this.previewFile.set(null);
+      }
+    });
+
+    // Fetch preview blob with auth headers whenever previewFile changes
+    effect(() => {
+      const file = this.previewFile();
+      // Read previous URL without creating a reactive dependency (avoids infinite loop)
+      const prev = untracked(() => this.previewObjectUrl());
+      if (prev) URL.revokeObjectURL(prev);
+      this.previewObjectUrl.set(null);
+      if (!file) return;
+      this.aiAssistant.fetchFolderFileBlob(file.folderId, file.id).then(blob => {
+        this.previewObjectUrl.set(URL.createObjectURL(blob));
+      });
+    });
   }
 
   // Touch tracking — fixes iOS double-tap on draggable elements
@@ -90,11 +186,47 @@ export class AiAssistantComponent implements OnInit, AfterViewChecked, OnDestroy
 
   @HostListener('document:mousedown', ['$event'])
   onDocumentMouseDown(event: MouseEvent): void {
+    // Ignore right-clicks — they open the context menu, not close it
+    if (event.button === 2) return;
+
     const toolbarEl = document.querySelector('.highlight-toolbar');
     if (toolbarEl && !toolbarEl.contains(event.target as Node)) {
       window.getSelection()?.removeAllRanges();
       this.highlightToolbar.set(null);
       this.pendingSelection = null;
+    }
+    // Close folder context menu when clicking outside it
+    const menuEl = document.querySelector('.folder-context-menu');
+    if (menuEl && !menuEl.contains(event.target as Node)) {
+      this.folderContextMenu.set(null);
+    }
+    // Close file context menu when clicking outside it
+    const fileMenuEl = document.querySelector('.file-context-menu');
+    if (fileMenuEl && !fileMenuEl.contains(event.target as Node)) {
+      this.fileContextMenu.set(null);
+    }
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  onDocumentKeyDown(event: KeyboardEvent): void {
+    if (event.key !== 'Delete') return;
+    // Delete selected file
+    const fileId = this.selectedFileId();
+    if (fileId && !this.renamingFileId()) {
+      const folderId = this.selectedFolderId();
+      if (folderId) {
+        event.preventDefault();
+        this.deleteFile(fileId, folderId);
+        return;
+      }
+    }
+    // Delete selected empty folder
+    const folderId = this.selectedFolderId();
+    if (!folderId) return;
+    if (this.renamingFolderId() || this.renamingSessionId()) return;
+    if (this.isFolderEmpty(folderId)) {
+      event.preventDefault();
+      this.deleteFolder(folderId);
     }
   }
 
@@ -119,10 +251,13 @@ export class AiAssistantComponent implements OnInit, AfterViewChecked, OnDestroy
 
   ngOnInit(): void {
     this.aiAssistant.loadSessions();
+    this.aiAssistant.loadFolders();
   }
 
   ngOnDestroy(): void {
     this.stopStreamScroll();
+    const url = this.previewObjectUrl();
+    if (url) URL.revokeObjectURL(url);
   }
 
   ngAfterViewChecked(): void {
@@ -134,7 +269,8 @@ export class AiAssistantComponent implements OnInit, AfterViewChecked, OnDestroy
   }
 
   async newChat(): Promise<void> {
-    this.aiAssistant.startPendingSession();
+    this.aiAssistant.startPendingSession(this.selectedFolderId());
+    this.selectedFolderId.set(null);
     this.input.set('');
     this.mobileSidebarOpen.set(false);
     this.showHighlightsSummary.set(false);
@@ -145,6 +281,9 @@ export class AiAssistantComponent implements OnInit, AfterViewChecked, OnDestroy
 
   async openSession(id: string): Promise<void> {
     await this.aiAssistant.openSession(id);
+    // Keep the session's folder selected so it stays highlighted in the sidebar
+    const session = this.aiAssistant.activeSession();
+    this.selectedFolderId.set(session?.folderId ?? null);
     this.input.set('');
     this.mobileSidebarOpen.set(false);
     this.showHighlightsSummary.set(false);
@@ -212,62 +351,395 @@ export class AiAssistantComponent implements OnInit, AfterViewChecked, OnDestroy
     }
   }
 
-  // ── Drag to pin ──────────────────────────────────────────────────────────
+  // ── Session drag (from file explorer) ──────────────────────────────────
 
   onDragStart(event: DragEvent, sessionId: string): void {
     this.draggingSessionId = sessionId;
+    this.draggingFolderId = null;
+    this.draggingFileId = null;
+    this.draggingKind = 'session';
     if (event.dataTransfer) {
       event.dataTransfer.effectAllowed = 'move';
       event.dataTransfer.setData('text/plain', sessionId);
     }
   }
 
-  onDragOver(event: DragEvent): void {
-    event.preventDefault();
-    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-    this.isDragOver.set(true);
-  }
-
-  onDragLeave(): void {
-    this.isDragOver.set(false);
-  }
-
-  onUnpinDragOver(event: DragEvent): void {
-    event.preventDefault();
-    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-    this.isUnpinDragOver.set(true);
-  }
-
-  onUnpinDragLeave(): void {
-    this.isUnpinDragOver.set(false);
-  }
-
-  async onDropToPin(event: DragEvent): Promise<void> {
-    event.preventDefault();
-    this.isDragOver.set(false);
-    const id = this.draggingSessionId;
-    if (!id) return;
-    const session = this.aiAssistant.sessions().find(s => s.id === id);
-    if (session && !session.pinned) {
-      await this.aiAssistant.togglePin(id);
-    }
+  onFileDragStart(event: DragEvent, fileId: string): void {
+    event.stopPropagation();
+    this.draggingFileId = fileId;
     this.draggingSessionId = null;
-  }
-
-  async onDropToUnpin(event: DragEvent): Promise<void> {
-    event.preventDefault();
-    this.isUnpinDragOver.set(false);
-    const id = this.draggingSessionId;
-    if (!id) return;
-    const session = this.aiAssistant.sessions().find(s => s.id === id);
-    if (session && session.pinned) {
-      await this.aiAssistant.togglePin(id);
+    this.draggingFolderId = null;
+    this.draggingKind = 'file';
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', fileId);
     }
-    this.draggingSessionId = null;
   }
 
-  proxyUrl(azureUrl: string | undefined): string | null {
-    if (!azureUrl) return null;
+  // ── Sidebar root drop zone (empty space below items) ────────────────────
+
+  readonly isSidebarRootDragOver = signal(false);
+
+  onSidebarRootDragOver(event: DragEvent): void {
+    if (this.draggingKind !== 'folder') return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    this.isSidebarRootDragOver.set(true);
+  }
+
+  onSidebarRootDragLeave(): void {
+    this.isSidebarRootDragOver.set(false);
+  }
+
+  async onDropToSidebarRoot(event: DragEvent): Promise<void> {
+    event.preventDefault();
+    event.stopPropagation();
+    this.isSidebarRootDragOver.set(false);
+    if (this.draggingKind === 'folder' && this.draggingFolderId) {
+      await this.aiAssistant.moveFolderToFolder(this.draggingFolderId, null);
+      this.draggingFolderId = null;
+      this.draggingKind = null;
+    }
+  }
+
+
+
+  // ── Folder drag ─────────────────────────────────────────────────────────
+
+  onFolderDragStart(event: DragEvent, folderId: string): void {
+    event.stopPropagation();
+    this.draggingFolderId = folderId;
+    this.draggingSessionId = null;
+    this.draggingKind = 'folder';
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', folderId);
+    }
+  }
+
+  onFolderDragOver(event: DragEvent, folderId: string): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.draggingKind === 'folder') {
+      const dragId = this.draggingFolderId;
+      if (!dragId || dragId === folderId || this.isFolderDescendant(folderId, dragId)) return;
+    }
+    if (this.draggingKind === null && !event.dataTransfer?.types.includes('Files')) return;
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    this.folderDropTargetId.set(folderId);
+  }
+
+  onFolderDragLeave(folderId: string): void {
+    if (this.folderDropTargetId() === folderId) {
+      this.folderDropTargetId.set(null);
+    }
+  }
+
+  async onDropToFolder(event: DragEvent, folderId: string): Promise<void> {
+    event.preventDefault();
+    event.stopPropagation();
+    this.folderDropTargetId.set(null);
+
+    // OS file drop
+    if (event.dataTransfer?.types.includes('Files') && this.draggingKind === null) {
+      await this.onFolderDropFiles(event, folderId);
+      return;
+    }
+
+    if (this.draggingKind === 'session' && this.draggingSessionId) {
+      await this.aiAssistant.moveSessionToFolder(this.draggingSessionId, folderId);
+      if (folderId === this.selectedFolderId()) {
+        // Reload file explorer content for current folder
+        this.loadFolderFiles(folderId);
+      }
+      this.expandedFolderIds.update(s => { const n = new Set(s); n.add(folderId); return n; });
+      this.draggingSessionId = null;
+    } else if (this.draggingKind === 'file' && this.draggingFileId) {
+      const fileId = this.draggingFileId;
+      const currentFolderId = this.folderFiles().find(f => f.id === fileId)?.folderId
+        ?? this.selectedFolderId() ?? '';
+      if (currentFolderId !== folderId) {
+        await this.aiAssistant.moveFolderFile(currentFolderId, fileId, folderId);
+        // Remove from current folder view
+        this.folderFiles.update(fs => fs.filter(f => f.id !== fileId));
+        if (this.selectedFileId() === fileId) this.selectedFileId.set(null);
+        if (this.previewFile()?.id === fileId) { this.previewFile.set(null); }
+      }
+      this.draggingFileId = null;
+    } else if (this.draggingKind === 'folder' && this.draggingFolderId) {
+      const dragId = this.draggingFolderId;
+      if (dragId !== folderId && !this.isFolderDescendant(folderId, dragId)) {
+        await this.aiAssistant.moveFolderToFolder(dragId, folderId);
+        this.expandedFolderIds.update(s => { const n = new Set(s); n.add(folderId); return n; });
+      }
+      this.draggingFolderId = null;
+    }
+    this.draggingKind = null;
+  }
+
+  /** Returns true if `potentialDescendantId` is a descendant of `ancestorId`. */
+  private isFolderDescendant(potentialDescendantId: string, ancestorId: string): boolean {
+    const folders = this.aiAssistant.folders();
+    let current = folders.find(f => f.id === potentialDescendantId);
+    while (current?.parentFolderId) {
+      if (current.parentFolderId === ancestorId) return true;
+      current = folders.find(f => f.id === current!.parentFolderId!);
+    }
+    return false;
+  }
+
+  // ── Folder CRUD ──────────────────────────────────────────────────────────
+
+  /** Creates a folder. If a folder is currently selected, creates a subfolder inside it. */
+  async createFolderFromHeader(): Promise<void> {
+    const parentId = this.selectedFolderId();
+    if (parentId) {
+      this.expandedFolderIds.update(s => { const n = new Set(s); n.add(parentId); return n; });
+    }
+    const folder = await this.aiAssistant.createFolder('New Folder', parentId);
+    if (folder) {
+      this.renamingFolderId.set(folder.id);
+      this.renameFolderValue.set('New Folder');
+    }
+  }
+
+  async createSubfolder(parentFolderId: string, event: Event): Promise<void> {
+    event.stopPropagation();
+    this.expandedFolderIds.update(s => { const n = new Set(s); n.add(parentFolderId); return n; });
+    const folder = await this.aiAssistant.createFolder('New Folder', parentFolderId);
+    if (folder) {
+      this.renamingFolderId.set(folder.id);
+      this.renameFolderValue.set('New Folder');
+    }
+  }
+
+  startRenameFolder(folderId: string, currentName: string, event: Event): void {
+    event.stopPropagation();
+    this.folderContextMenu.set(null);
+    this.renamingFolderId.set(folderId);
+    this.renameFolderValue.set(currentName);
+  }
+
+  onFolderContextMenu(event: MouseEvent, folderId: string, folderName: string): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.selectedFolderId.set(folderId);
+    this.folderContextMenu.set({ x: event.clientX, y: event.clientY, folderId, folderName });
+  }
+
+  async commitFolderRename(folderId: string): Promise<void> {
+    const name = this.renameFolderValue().trim();
+    if (name) await this.aiAssistant.renameFolder(folderId, name);
+    this.renamingFolderId.set(null);
+  }
+
+  cancelFolderRename(): void {
+    this.renamingFolderId.set(null);
+  }
+
+  onRenameFolderKeyDown(event: KeyboardEvent, folderId: string): void {
+    if (event.key === 'Enter') { event.preventDefault(); this.commitFolderRename(folderId); }
+    else if (event.key === 'Escape') { this.cancelFolderRename(); }
+  }
+
+  async deleteFolder(folderId: string, event?: Event): Promise<void> {
+    event?.stopPropagation();
+    await this.aiAssistant.deleteFolder(folderId);
+    this.expandedFolderIds.update(s => { const n = new Set(s); n.delete(folderId); return n; });
+    if (this.selectedFolderId() === folderId) this.selectedFolderId.set(null);
+  }
+
+  isFolderEmpty(folderId: string): boolean {
+    const hasChildFolder = this.aiAssistant.folders().some(f => f.parentFolderId === folderId);
+    const hasSession = this.aiAssistant.sessions().some(s => s.folderId === folderId);
+    return !hasChildFolder && !hasSession;
+  }
+
+  toggleFolderExpanded(folderId: string): void {
+    this.selectedFolderId.set(folderId);
+    this.aiAssistant.closeActiveSession();
+    this.expandedFolderIds.update(s => {
+      const n = new Set(s);
+      if (n.has(folderId)) n.delete(folderId); else n.add(folderId);
+      return n;
+    });
+  }
+
+  // ── File explorer ────────────────────────────────────────────────────────
+
+  async loadFolderFiles(folderId: string): Promise<void> {
+    this.filesLoading.set(true);
+    this.previewFile.set(null);
+    this.selectedFileId.set(null);
+    const files = await this.aiAssistant.listFolderFiles(folderId);
+    this.folderFiles.set(files);
+    this.filesLoading.set(false);
+  }
+
+  triggerFileUpload(): void {
+    if (!this.fileInputEl) {
+      this.fileInputEl = document.createElement('input');
+      this.fileInputEl.type = 'file';
+      this.fileInputEl.multiple = true;
+      this.fileInputEl.addEventListener('change', async () => {
+        const files = Array.from(this.fileInputEl!.files ?? []);
+        await this.uploadFiles(files);
+        this.fileInputEl!.value = '';
+      });
+    }
+    this.fileInputEl.click();
+  }
+
+  async uploadFiles(files: File[]): Promise<void> {
+    const folderId = this.selectedFolderId();
+    if (!folderId || !files.length) return;
+    this.filesLoading.set(true);
+    const results = await Promise.all(files.map(f => this.aiAssistant.uploadFolderFile(folderId, f)));
+    this.folderFiles.update(list => [
+      ...list,
+      ...(results.filter((r): r is FolderFile => r !== null)),
+    ]);
+    this.filesLoading.set(false);
+  }
+
+  onExplorerDragOver(event: DragEvent): void {
+    if (event.dataTransfer?.types.includes('Files')) {
+      event.preventDefault();
+      this.fileDragOver.set(true);
+    }
+  }
+
+  onExplorerDragLeave(): void {
+    this.fileDragOver.set(false);
+  }
+
+  async onExplorerDrop(event: DragEvent): Promise<void> {
+    event.preventDefault();
+    this.fileDragOver.set(false);
+    const files = Array.from(event.dataTransfer?.files ?? []);
+    await this.uploadFiles(files);
+  }
+
+  // Sidebar folder row drop: accept OS files dragged onto a folder
+  async onFolderDropFiles(event: DragEvent, folderId: string): Promise<void> {
+    if (!event.dataTransfer?.types.includes('Files')) return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.folderDropTargetId.set(null);
+    const files = Array.from(event.dataTransfer.files);
+    if (!files.length) return;
+    // Temporarily switch selected folder so uploads go to the right place
+    const prev = this.selectedFolderId();
+    this.selectedFolderId.set(folderId);
+    this.expandedFolderIds.update(s => { const n = new Set(s); n.add(folderId); return n; });
+    this.filesLoading.set(true);
+    const results = await Promise.all(files.map(f => this.aiAssistant.uploadFolderFile(folderId, f)));
+    if (prev === folderId) {
+      this.folderFiles.update(list => [
+        ...list,
+        ...(results.filter((r): r is FolderFile => r !== null)),
+      ]);
+    }
+    this.filesLoading.set(false);
+  }
+
+  selectFile(file: FolderFile): void {
+    this.selectedFileId.set(file.id);
+    if (this.isBrowserPreviewable(file.contentType)) {
+      this.previewFile.set(file);
+    } else {
+      this.previewFile.set(null);
+    }
+  }
+
+  isBrowserPreviewable(contentType: string): boolean {
+    return (
+      contentType.startsWith('image/') ||
+      contentType === 'application/pdf' ||
+      contentType.startsWith('text/') ||
+      contentType === 'text/html'
+    );
+  }
+
+  fileIcon(contentType: string): string {
+    if (contentType.startsWith('image/')) return 'image';
+    if (contentType === 'application/pdf') return 'picture_as_pdf';
+    if (contentType.startsWith('text/')) return 'article';
+    if (contentType.includes('word')) return 'description';
+    if (contentType.includes('spreadsheet') || contentType.includes('excel')) return 'table_chart';
+    if (contentType.includes('zip') || contentType.includes('compressed')) return 'folder_zip';
+    if (contentType.includes('audio')) return 'audio_file';
+    if (contentType.includes('video')) return 'video_file';
+    return 'insert_drive_file';
+  }
+
+  formatFileSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  async deleteFile(fileId: string, folderId: string): Promise<void> {
+    await this.aiAssistant.deleteFolderFile(folderId, fileId);
+    this.folderFiles.update(list => list.filter(f => f.id !== fileId));
+    if (this.selectedFileId() === fileId) {
+      this.selectedFileId.set(null);
+      this.previewFile.set(null);
+    }
+  }
+
+  onFileContextMenu(event: MouseEvent, file: FolderFile): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.selectedFileId.set(file.id);
+    this.fileContextMenu.set({ x: event.clientX, y: event.clientY, file });
+  }
+
+  startRenameFile(file: FolderFile): void {
+    this.fileContextMenu.set(null);
+    this.renamingFileId.set(file.id);
+    this.renameFileValue.set(file.name);
+  }
+
+  async commitFileRename(fileId: string): Promise<void> {
+    const name = this.renameFileValue().trim();
+    if (name) {
+      const folderId = this.folderFiles().find(f => f.id === fileId)?.folderId;
+      if (folderId) {
+        await this.aiAssistant.renameFolderFile(folderId, fileId, name);
+        this.folderFiles.update(list => list.map(f => f.id === fileId ? { ...f, name } : f));
+        const prev = this.previewFile();
+        if (prev?.id === fileId) this.previewFile.set({ ...prev, name });
+      }
+    }
+    this.renamingFileId.set(null);
+  }
+
+  cancelFileRename(): void {
+    this.renamingFileId.set(null);
+  }
+
+  onRenameFileKeyDown(event: KeyboardEvent, fileId: string): void {
+    if (event.key === 'Enter') { event.preventDefault(); this.commitFileRename(fileId); }
+    else if (event.key === 'Escape') { this.cancelFileRename(); }
+  }
+
+  previewUrl(file: FolderFile): string {
+    return this.aiAssistant.folderFilePreviewUrl(file.folderId, file.id);
+  }
+
+  safePreviewObjectUrl(): SafeHtml | null {
+    const url = this.previewObjectUrl();
+    if (!url) return null;
+    return this.sanitizer.bypassSecurityTrustResourceUrl(url);
+  }
+
+  downloadUrl(file: FolderFile): string {
+    return this.aiAssistant.folderFileDownloadUrl(file.folderId, file.id);
+  }
+
+  proxyUrl(azureUrl: string | undefined): string | null {    if (!azureUrl) return null;
     const filename = azureUrl.split('/').pop();
     return filename ? `/api/image/${filename}` : null;
   }

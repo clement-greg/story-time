@@ -1,5 +1,5 @@
 import { Injectable, signal, computed } from '@angular/core';
-import { ChatMessageHighlight, ChatSession, ChatSessionMessage, ChatSessionSummary } from '@shared/models';
+import { ChatFolder, ChatMessageHighlight, ChatSession, ChatSessionMessage, ChatSessionSummary, FolderFile } from '@shared/models';
 
 const PENDING_ID = '__pending__';
 
@@ -10,6 +10,9 @@ export class AiAssistantService {
 
   // All session summaries (used for the sidebar list)
   readonly sessions = signal<ChatSessionSummary[]>([]);
+
+  // All chat folders
+  readonly folders = signal<ChatFolder[]>([]);
 
   // The currently active full session
   readonly activeSession = signal<ChatSession | null>(null);
@@ -59,13 +62,106 @@ export class AiAssistantService {
     }
   }
 
+  async loadFolders(): Promise<void> {
+    try {
+      const res = await this.authFetch('/api/chat-folders');
+      if (res.ok) {
+        const data = await res.json() as ChatFolder[];
+        this.folders.set(data);
+      }
+    } catch {
+      // Best-effort
+    }
+  }
+
+  async createFolder(name: string, parentFolderId: string | null): Promise<ChatFolder | null> {
+    try {
+      const res = await this.authFetch('/api/chat-folders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, parentFolderId }),
+      });
+      if (res.ok) {
+        const folder = await res.json() as ChatFolder;
+        this.folders.update(list => [...list, folder]);
+        return folder;
+      }
+    } catch {
+      // Best-effort
+    }
+    return null;
+  }
+
+  async renameFolder(folderId: string, name: string): Promise<void> {
+    try {
+      await this.authFetch(`/api/chat-folders/${folderId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      this.folders.update(list => list.map(f => f.id === folderId ? { ...f, name } : f));
+    } catch {
+      // Best-effort
+    }
+  }
+
+  async deleteFolder(folderId: string): Promise<void> {
+    try {
+      const folder = this.folders().find(f => f.id === folderId);
+      const parentFolderId = folder?.parentFolderId ?? null;
+      await this.authFetch(`/api/chat-folders/${folderId}`, { method: 'DELETE' });
+      // Re-parent child folders and sessions optimistically
+      this.folders.update(list =>
+        list
+          .filter(f => f.id !== folderId)
+          .map(f => f.parentFolderId === folderId ? { ...f, parentFolderId } : f)
+      );
+      this.sessions.update(list =>
+        list.map(s => s.folderId === folderId ? { ...s, folderId: parentFolderId } : s)
+      );
+    } catch {
+      // Best-effort
+    }
+  }
+
+  async moveFolderToFolder(folderId: string, parentFolderId: string | null): Promise<void> {
+    try {
+      await this.authFetch(`/api/chat-folders/${folderId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parentFolderId }),
+      });
+      this.folders.update(list =>
+        list.map(f => f.id === folderId ? { ...f, parentFolderId } : f)
+      );
+    } catch {
+      // Best-effort
+    }
+  }
+
+  async moveSessionToFolder(sessionId: string, folderId: string | null): Promise<void> {
+    try {
+      await this.authFetch(`/api/chat-sessions/${sessionId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folderId }),
+      });
+      this.sessions.update(list =>
+        list.map(s => s.id === sessionId ? { ...s, folderId } : s)
+      );
+    } catch {
+      // Best-effort
+    }
+  }
+
   /** Show an empty chat locally without hitting the DB yet. */
-  startPendingSession(): void {
+  startPendingSession(folderId?: string | null): void {
     const now = new Date().toISOString();
     const session: ChatSession = {
       id: PENDING_ID,
       name: 'New Chat',
       pinned: false,
+      folderId: folderId ?? null,
       messages: [],
       createdAt: now,
       updatedAt: now,
@@ -74,11 +170,12 @@ export class AiAssistantService {
   }
 
   async createSession(): Promise<ChatSession | null> {
+    const folderId = this.activeSession()?.folderId ?? null;
     try {
       const res = await this.authFetch('/api/chat-sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ folderId }),
       });
       if (res.ok) {
         const session = await res.json() as ChatSession;
@@ -86,6 +183,7 @@ export class AiAssistantService {
           id: session.id,
           name: session.name,
           pinned: session.pinned,
+          folderId: session.folderId,
           updatedAt: session.updatedAt,
         };
         this.sessions.update(list => [summary, ...list]);
@@ -145,6 +243,10 @@ export class AiAssistantService {
     } catch {
       // Best-effort
     }
+  }
+
+  closeActiveSession(): void {
+    this.activeSession.set(null);
   }
 
   async deleteSession(sessionId: string): Promise<void> {
@@ -420,6 +522,66 @@ export class AiAssistantService {
       msgs[msgs.length - 1] = { ...last, text: last.text + delta };
       return { ...s, messages: msgs };
     });
+  }
+
+  // ── Folder files ──────────────────────────────────────────────────────────
+
+  async listFolderFiles(folderId: string): Promise<FolderFile[]> {
+    try {
+      const res = await this.authFetch(`/api/folder-files/${folderId}`);
+      if (res.ok) return await res.json() as FolderFile[];
+    } catch { /* best-effort */ }
+    return [];
+  }
+
+  async uploadFolderFile(folderId: string, file: File): Promise<FolderFile | null> {
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await this.authFetch(`/api/folder-files/${folderId}`, { method: 'POST', body: form });
+      if (res.ok) return await res.json() as FolderFile;
+    } catch { /* best-effort */ }
+    return null;
+  }
+
+  async renameFolderFile(folderId: string, fileId: string, name: string): Promise<void> {
+    try {
+      await this.authFetch(`/api/folder-files/${folderId}/${fileId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+    } catch { /* best-effort */ }
+  }
+
+  async moveFolderFile(fromFolderId: string, fileId: string, toFolderId: string): Promise<void> {
+    try {
+      await this.authFetch(`/api/folder-files/${fromFolderId}/${fileId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folderId: toFolderId }),
+      });
+    } catch { /* best-effort */ }
+  }
+
+  async deleteFolderFile(folderId: string, fileId: string): Promise<void> {
+    try {
+      await this.authFetch(`/api/folder-files/${folderId}/${fileId}`, { method: 'DELETE' });
+    } catch { /* best-effort */ }
+  }
+
+  folderFilePreviewUrl(folderId: string, fileId: string): string {
+    return `/api/folder-files/${folderId}/${fileId}/preview`;
+  }
+
+  async fetchFolderFileBlob(folderId: string, fileId: string): Promise<Blob> {
+    const res = await this.authFetch(`/api/folder-files/${folderId}/${fileId}/preview`);
+    if (!res.ok) throw new Error(`Failed to fetch file: ${res.status}`);
+    return res.blob();
+  }
+
+  folderFileDownloadUrl(folderId: string, fileId: string): string {
+    return `/api/folder-files/${folderId}/${fileId}/download`;
   }
 
   private authFetch(input: string, init: RequestInit = {}): Promise<Response> {
