@@ -20,6 +20,7 @@ import exportRoutes from './routes/export.routes';
 import bookNotesRoutes from './routes/book-notes.routes';
 import grammarRoutes from './routes/grammar.routes';
 import entityQuotesRoutes from './routes/entity-quotes.routes';
+import backfillRoutes from './routes/backfill.routes';
 
 const app = express();
 const PORT = process.env['PORT'] || 3200;
@@ -65,6 +66,7 @@ app.use('/api/export', exportRoutes);
 app.use('/api/book-notes', bookNotesRoutes);
 app.use('/api/grammar', grammarRoutes);
 app.use('/api/entity-quotes', entityQuotesRoutes);
+app.use('/api/backfill', backfillRoutes);
 
 // Serve Angular static files
 app.use(express.static(path.join(__dirname, '../../client/dist/client/browser')));

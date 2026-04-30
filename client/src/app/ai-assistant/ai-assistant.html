@@ -11,12 +11,28 @@
       <mat-icon class="ai-header-icon">smart_toy</mat-icon>
       <span class="ai-header-title">Resource Manager</span>
       <button mat-icon-button class="new-chat-btn" (click)="createFolderFromHeader()"
+              [disabled]="!aiAssistant.selectedSeriesId()"
               [matTooltip]="selectedFolderId() ? 'New subfolder inside selected folder' : 'New folder'">
         <mat-icon>create_new_folder</mat-icon>
       </button>
-      <button mat-icon-button class="new-chat-btn" (click)="newChat()" matTooltip="New chat">
+      <button mat-icon-button class="new-chat-btn" (click)="newChat()"
+              [disabled]="!aiAssistant.selectedSeriesId()"
+              matTooltip="New chat">
         <mat-icon>add</mat-icon>
       </button>
+    </div>
+
+    <!-- Series selector -->
+    <div class="ai-series-selector" (click)="$event.stopPropagation()">
+      <mat-icon class="ai-series-icon">auto_stories</mat-icon>
+      <mat-select class="ai-series-select"
+                  [value]="aiAssistant.selectedSeriesId()"
+                  (valueChange)="aiAssistant.setSeriesId($event)"
+                  placeholder="Select a series">
+        @for (s of aiAssistant.allSeries(); track s.id) {
+          <mat-option [value]="s.id">{{ s.title }}</mat-option>
+        }
+      </mat-select>
     </div>
 
     <!-- Folder tree -->
@@ -77,8 +93,11 @@
       }
     }
 
-    @if (aiAssistant.folders().length === 0) {
+    @if (aiAssistant.folders().length === 0 && aiAssistant.selectedSeriesId()) {
       <p class="sessions-empty">Create a folder to get started.</p>
+    }
+    @if (!aiAssistant.selectedSeriesId() && aiAssistant.allSeries().length > 0) {
+      <p class="sessions-empty">Select a series above to get started.</p>
     }
 
     <!-- Empty-space drop zone: drag a folder here to move it to root -->

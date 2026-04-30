@@ -8,14 +8,16 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatSelectModule } from '@angular/material/select';
 import { AiAssistantService } from '../services/ai-assistant.service';
+import { SeriesContextService } from '../services/series-context.service';
 import { ChatFolder, ChatMessageHighlight, ChatSessionMessage, ChatSessionSummary, FolderFile } from '@shared/models';
 
 type SidebarItem = { kind: 'folder'; folder: ChatFolder; depth: number; trackId: string };
 
 @Component({
   selector: 'app-ai-assistant',
-  imports: [FormsModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatTooltipModule],
+  imports: [FormsModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatTooltipModule, MatSelectModule],
   templateUrl: './ai-assistant.html',
   styleUrl: './ai-assistant.scss',
 })
@@ -25,6 +27,7 @@ export class AiAssistantComponent implements OnInit, AfterViewChecked, OnDestroy
 
   readonly aiAssistant = inject(AiAssistantService);
   private sanitizer = inject(DomSanitizer);
+  private seriesContext = inject(SeriesContextService);
 
   readonly input = signal('');
   readonly renamingSessionId = signal<string | null>(null);
@@ -250,8 +253,10 @@ export class AiAssistantComponent implements OnInit, AfterViewChecked, OnDestroy
   readonly activeSessionId = computed(() => this.aiAssistant.activeSession()?.id ?? null);
 
   ngOnInit(): void {
-    this.aiAssistant.loadSessions();
-    this.aiAssistant.loadFolders();
+    this.aiAssistant.loadAllSeries().then(() => {
+      // Auto-detect series from the page the user is currently viewing
+      this.aiAssistant.autoDetectSeries(this.seriesContext.currentSeriesId());
+    });
   }
 
   ngOnDestroy(): void {

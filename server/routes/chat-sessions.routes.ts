@@ -16,14 +16,21 @@ const client = new AzureOpenAI({
 router.get('/', async (req: Request, res: Response) => {
   try {
     const container = getContainer('chat-sessions');
+    const seriesId = req.query['seriesId'] as string | undefined;
+    const params: any[] = [{ name: '@owner', value: req.user!.email }];
+    let seriesFilter = '';
+    if (seriesId) {
+      seriesFilter = ' AND c.seriesId = @seriesId';
+      params.push({ name: '@seriesId', value: seriesId });
+    }
     const { resources } = await container.items
       .query({
-        query: `SELECT c.id, c.name, c.pinned, c.folderId, c.updatedAt FROM c
+        query: `SELECT c.id, c.name, c.pinned, c.folderId, c.seriesId, c.updatedAt FROM c
                 WHERE c.owner = @owner
                   AND (NOT IS_DEFINED(c.deleted) OR c.deleted = false)
-                  AND (NOT IS_DEFINED(c.archived) OR c.archived = false)
+                  AND (NOT IS_DEFINED(c.archived) OR c.archived = false)${seriesFilter}
                 ORDER BY c.updatedAt DESC`,
-        parameters: [{ name: '@owner', value: req.user!.email }],
+        parameters: params,
       })
       .fetchAll();
     res.json(resources);
@@ -63,6 +70,7 @@ router.post('/', async (req: Request, res: Response) => {
     name: 'New Chat',
     pinned: false,
     folderId: req.body.folderId ?? null,
+    seriesId: req.body.seriesId ?? null,
     messages: [],
     createdAt: now,
     updatedAt: now,

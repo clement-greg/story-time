@@ -28,6 +28,7 @@ import { EntityEditComponent } from '../entity-edit/entity-edit';
 import { HeaderService } from '../services/header.service';
 import { EntityPanelService } from '../services/entity-panel.service';
 import { UserSettingsService, GhostCompleteItem } from '../services/user-settings.service';
+import { SeriesContextService } from '../services/series-context.service';
 
 export interface SuggestedEntityCard extends SuggestedEntity {
   creating?: boolean;
@@ -75,6 +76,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   private entityPanel = inject(EntityPanelService);
   private grammarService = inject(GrammarCheckService);
   private userSettings = inject(UserSettingsService);
+  private seriesContext = inject(SeriesContextService);
 
   chapter = signal<Chapter | null>(null);
   saving = signal(false);
@@ -291,6 +293,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
         this.bookService.getById(data.bookId).subscribe({
           next: (book) => {
             this.seriesId = book.seriesId;
+            this.seriesContext.set(book.seriesId);
             this.seriesService.getById(book.seriesId).subscribe({
               next: (series) => {
                 this.headerService.set(

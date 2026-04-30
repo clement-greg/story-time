@@ -1,5 +1,6 @@
 import { Injectable, signal, computed } from '@angular/core';
 import { ChatFolder, ChatMessageHighlight, ChatSession, ChatSessionMessage, ChatSessionSummary, FolderFile } from '@shared/models';
+import { Series } from '@shared/models/series.model';
 
 const PENDING_ID = '__pending__';
 
@@ -23,6 +24,13 @@ export class AiAssistantService {
   // True when the active session hasn't been saved to the DB yet
   readonly isPendingSession = computed(() => this.activeSession()?.id === PENDING_ID);
 
+  // Series selector
+  readonly allSeries = signal<Series[]>([]);
+  readonly selectedSeriesId = signal<string | null>(null);
+  readonly selectedSeries = computed(() =>
+    this.allSeries().find(s => s.id === this.selectedSeriesId()) ?? null
+  );
+
   readonly pinnedSessions = computed(() =>
     this.sessions().filter(s => s.pinned).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
   );
@@ -31,18 +39,44 @@ export class AiAssistantService {
     this.sessions().filter(s => !s.pinned).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
   );
 
+  /** Auto-selects the series from context (e.g. current page) if none is selected yet. */
+  autoDetectSeries(contextSeriesId: string | null): void {
+    if (!this.selectedSeriesId() && contextSeriesId) {
+      this.setSeriesId(contextSeriesId);
+    }
+  }
+
+  async setSeriesId(id: string | null): Promise<void> {
+    if (this.selectedSeriesId() === id) return;
+    this.selectedSeriesId.set(id);
+    this.sessions.set([]);
+    this.folders.set([]);
+    this.activeSession.set(null);
+    if (id) {
+      await Promise.all([this.loadSessions(), this.loadFolders()]);
+    }
+  }
+
   togglePanel(): void {
     const opening = !this.isOpen();
     this.isOpen.set(opening);
-    if (opening && this.sessions().length === 0) {
+    if (opening && this.allSeries().length === 0) {
+      this.loadAllSeries();
+    }
+    if (opening && this.selectedSeriesId() && this.sessions().length === 0) {
       this.loadSessions();
+      this.loadFolders();
     }
   }
 
   openPanel(): void {
     this.isOpen.set(true);
-    if (this.sessions().length === 0) {
+    if (this.allSeries().length === 0) {
+      this.loadAllSeries();
+    }
+    if (this.selectedSeriesId() && this.sessions().length === 0) {
       this.loadSessions();
+      this.loadFolders();
     }
   }
 
@@ -50,9 +84,29 @@ export class AiAssistantService {
     this.isOpen.set(false);
   }
 
+  async loadAllSeries(): Promise<void> {
+    try {
+      const res = await this.authFetch('/api/series');
+      if (res.ok) {
+        const data = await res.json() as Series[];
+        const active = data.filter((s: any) => !s.deleted && !s.archived)
+          .sort((a: Series, b: Series) => (a.title ?? '').localeCompare(b.title ?? ''));
+        this.allSeries.set(active);
+        // Auto-select if only one series exists
+        if (active.length === 1 && !this.selectedSeriesId()) {
+          await this.setSeriesId(active[0].id);
+        }
+      }
+    } catch {
+      // Best-effort
+    }
+  }
+
   async loadSessions(): Promise<void> {
     try {
-      const res = await this.authFetch('/api/chat-sessions');
+      const seriesId = this.selectedSeriesId();
+      const url = seriesId ? `/api/chat-sessions?seriesId=${encodeURIComponent(seriesId)}` : '/api/chat-sessions';
+      const res = await this.authFetch(url);
       if (res.ok) {
         const data = await res.json() as ChatSessionSummary[];
         this.sessions.set(data);
@@ -64,7 +118,9 @@ export class AiAssistantService {
 
   async loadFolders(): Promise<void> {
     try {
-      const res = await this.authFetch('/api/chat-folders');
+      const seriesId = this.selectedSeriesId();
+      const url = seriesId ? `/api/chat-folders?seriesId=${encodeURIComponent(seriesId)}` : '/api/chat-folders';
+      const res = await this.authFetch(url);
       if (res.ok) {
         const data = await res.json() as ChatFolder[];
         this.folders.set(data);
@@ -79,7 +135,7 @@ export class AiAssistantService {
       const res = await this.authFetch('/api/chat-folders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, parentFolderId }),
+        body: JSON.stringify({ name, parentFolderId, seriesId: this.selectedSeriesId() }),
       });
       if (res.ok) {
         const folder = await res.json() as ChatFolder;
@@ -162,6 +218,7 @@ export class AiAssistantService {
       name: 'New Chat',
       pinned: false,
       folderId: folderId ?? null,
+      seriesId: this.selectedSeriesId(),
       messages: [],
       createdAt: now,
       updatedAt: now,
@@ -171,11 +228,12 @@ export class AiAssistantService {
 
   async createSession(): Promise<ChatSession | null> {
     const folderId = this.activeSession()?.folderId ?? null;
+    const seriesId = this.activeSession()?.seriesId ?? this.selectedSeriesId();
     try {
       const res = await this.authFetch('/api/chat-sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folderId }),
+        body: JSON.stringify({ folderId, seriesId }),
       });
       if (res.ok) {
         const session = await res.json() as ChatSession;
@@ -184,6 +242,7 @@ export class AiAssistantService {
           name: session.name,
           pinned: session.pinned,
           folderId: session.folderId,
+          seriesId: session.seriesId,
           updatedAt: session.updatedAt,
         };
         this.sessions.update(list => [summary, ...list]);

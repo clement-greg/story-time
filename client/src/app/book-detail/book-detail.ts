@@ -18,6 +18,7 @@ import { Chapter } from '@shared/models/chapter.model';
 import { v4 as uuidv4 } from 'uuid';
 import { HeaderService } from '../services/header.service';
 import { EntityPanelService } from '../services/entity-panel.service';
+import { SeriesContextService } from '../services/series-context.service';
 import { SlideOutPanelContainer } from '../shared/slide-out-panel-container/slide-out-panel-container';
 import { BookNotesComponent } from '../book-notes/book-notes';
 
@@ -47,6 +48,7 @@ export class BookDetailComponent implements OnInit, OnDestroy {
   private seriesService = inject(SeriesService);
   private headerService = inject(HeaderService);
   private entityPanel = inject(EntityPanelService);
+  private seriesContext = inject(SeriesContextService);
 
   private http = inject(HttpClient);
 
@@ -80,6 +82,7 @@ export class BookDetailComponent implements OnInit, OnDestroy {
         this.seriesService.getById(data.seriesId).subscribe({
           next: (series) => {
             this.seriesId.set(series.id);
+            this.seriesContext.set(series.id);
             this.headerService.set(
               [{ label: series.title, link: '/series/' + series.id }, { label: data.title }],
               [

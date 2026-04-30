@@ -20,6 +20,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { SlideOutPanelContainer } from '../shared/slide-out-panel-container/slide-out-panel-container';
 import { HeaderService } from '../services/header.service';
 import { EntityPanelService } from '../services/entity-panel.service';
+import { SeriesContextService } from '../services/series-context.service';
 
 @Component({
   selector: 'app-series-detail',
@@ -48,6 +49,7 @@ export class SeriesDetailComponent implements OnInit, OnDestroy {
   private bookService = inject(BookService);
   private headerService = inject(HeaderService);
   private entityPanel = inject(EntityPanelService);
+  private seriesContext = inject(SeriesContextService);
 
   series = signal<Series | null>(null);
   bookList = signal<Book[]>([]);
@@ -86,6 +88,7 @@ export class SeriesDetailComponent implements OnInit, OnDestroy {
     this.seriesService.getById(id).subscribe({
       next: (data) => {
         this.series.set(data);
+        this.seriesContext.set(data.id);
         this.headerService.set(
           [{ label: data.title }],
           [

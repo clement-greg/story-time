@@ -18,6 +18,7 @@ export interface ChatSession {
   name: string;
   pinned: boolean;
   folderId?: string | null;
+  seriesId?: string | null;
   messages: ChatSessionMessage[];
   owner?: string;
   deleted?: boolean;
@@ -30,6 +31,7 @@ export interface ChatSessionSummary {
   name: string;
   pinned: boolean;
   folderId?: string | null;
+  seriesId?: string | null;
   updatedAt: string;
 }
 
@@ -37,6 +39,7 @@ export interface ChatFolder {
   id: string;
   name: string;
   parentFolderId?: string | null;
+  seriesId?: string | null;
   owner?: string;
   createdAt: string;
   updatedAt: string;
@@ -49,6 +52,7 @@ export interface FolderFile {
   blobName: string;
   contentType: string;
   size: number;
+  seriesId?: string | null;
   owner?: string;
   createdAt: string;
   updatedAt: string;

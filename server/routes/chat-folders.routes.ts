@@ -8,10 +8,17 @@ const router = Router();
 router.get('/', async (req: Request, res: Response) => {
   try {
     const container = getContainer('chat-folders');
+    const seriesId = req.query['seriesId'] as string | undefined;
+    const params: any[] = [{ name: '@owner', value: req.user!.email }];
+    let seriesFilter = '';
+    if (seriesId) {
+      seriesFilter = ' AND c.seriesId = @seriesId';
+      params.push({ name: '@seriesId', value: seriesId });
+    }
     const { resources } = await container.items
       .query({
-        query: `SELECT * FROM c WHERE c.owner = @owner ORDER BY c.name ASC`,
-        parameters: [{ name: '@owner', value: req.user!.email }],
+        query: `SELECT * FROM c WHERE c.owner = @owner${seriesFilter} ORDER BY c.name ASC`,
+        parameters: params,
       })
       .fetchAll();
     res.json(resources);
@@ -23,7 +30,7 @@ router.get('/', async (req: Request, res: Response) => {
 
 // POST / — create a new folder
 router.post('/', async (req: Request, res: Response) => {
-  const { name, parentFolderId = null } = req.body;
+  const { name, parentFolderId = null, seriesId = null } = req.body;
   if (!name?.trim()) {
     res.status(400).json({ error: 'name is required' });
     return;
@@ -34,6 +41,7 @@ router.post('/', async (req: Request, res: Response) => {
     owner: req.user!.email,
     name: String(name).trim(),
     parentFolderId: parentFolderId ?? null,
+    seriesId: seriesId ?? null,
     createdAt: now,
     updatedAt: now,
   };
