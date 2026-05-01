@@ -20,6 +20,10 @@ interface SuggestedEntity {
   name: string;
   type: 'PERSON' | 'PLACE' | 'THING';
   description: string;
+  firstName?: string;
+  lastName?: string;
+  nickname?: string;
+  title?: string;
 }
 
 const SYSTEM_PROMPT = `You are a grammar checker and story analyst for fiction writing.
@@ -31,9 +35,15 @@ Analyze the provided text and return a JSON object with exactly two keys:
    - "message": a brief label (e.g. "Subject-verb agreement", "Missing comma")
 
 2. "suggestedEntities": proper nouns found in the text that do NOT appear in the provided Known Entities list. Each item must have:
-   - "name": the name as it appears in the text
+   - "name": the character's full name — first and last name only, never include a title or nickname in this field
    - "type": "PERSON", "PLACE", or "THING"
    - "description": one sentence describing what is known about them from the text
+   For PERSON entities only, include any of the following fields ONLY when they can be clearly inferred from the text — do not guess or fabricate:
+   - "firstName": given name, only if clearly stated or strongly implied
+   - "lastName": family name, only if clearly stated or strongly implied
+   - "nickname": an informal name or alias used in the text, only if explicitly present
+   - "title": an honorific or rank (e.g. "Dr.", "Captain", "Lord"), only if explicitly present
+   Omit a field entirely rather than guessing. Never put a title or nickname into the "name" field.
 
 Rules:
 - In "errors": only flag clear grammatical or punctuation mistakes. Do not flag proper nouns, intentional stylistic fragments, or dialogue punctuation.
@@ -91,7 +101,15 @@ router.post('/check', async (req: Request, res: Response) => {
             typeof e.type === 'string' &&
             typeof e.description === 'string' &&
             ['PERSON', 'PLACE', 'THING'].includes(e.type),
-        );
+        ).map(e => ({
+          name: e.name,
+          type: e.type,
+          description: e.description,
+          ...(e.firstName && typeof e.firstName === 'string' ? { firstName: e.firstName } : {}),
+          ...(e.lastName && typeof e.lastName === 'string' ? { lastName: e.lastName } : {}),
+          ...(e.nickname && typeof e.nickname === 'string' ? { nickname: e.nickname } : {}),
+          ...(e.title && typeof e.title === 'string' ? { title: e.title } : {}),
+        }));
       }
     } catch {
       errors = [];

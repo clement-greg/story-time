@@ -11,13 +11,14 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSelectModule } from '@angular/material/select';
 import { AiAssistantService } from '../services/ai-assistant.service';
 import { SeriesContextService } from '../services/series-context.service';
-import { ChatFolder, ChatMessageHighlight, ChatSessionMessage, ChatSessionSummary, FolderFile } from '@shared/models';
+import { ChatFolder, ChatMessageHighlight, ChatSessionMessage, ChatSessionSummary, FolderFile, FolderNote } from '@shared/models';
+import { RichTextEditorComponent } from '../shared/rich-text-editor/rich-text-editor';
 
 type SidebarItem = { kind: 'folder'; folder: ChatFolder; depth: number; trackId: string };
 
 @Component({
   selector: 'app-ai-assistant',
-  imports: [FormsModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatTooltipModule, MatSelectModule],
+  imports: [FormsModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatTooltipModule, MatSelectModule, RichTextEditorComponent],
   templateUrl: './ai-assistant.html',
   styleUrl: './ai-assistant.scss',
 })
@@ -27,7 +28,7 @@ export class AiAssistantComponent implements OnInit, AfterViewChecked, OnDestroy
 
   readonly aiAssistant = inject(AiAssistantService);
   private sanitizer = inject(DomSanitizer);
-  private seriesContext = inject(SeriesContextService);
+  readonly seriesContext = inject(SeriesContextService);
 
   readonly input = signal('');
   readonly renamingSessionId = signal<string | null>(null);
@@ -45,6 +46,7 @@ export class AiAssistantComponent implements OnInit, AfterViewChecked, OnDestroy
   readonly selectedFolderName = computed(() => {
     const id = this.selectedFolderId();
     if (!id) return null;
+    if (id === 'root') return 'Root';
     return this.aiAssistant.folders().find(f => f.id === id)?.name ?? null;
   });
   readonly renamingFolderId = signal<string | null>(null);
@@ -65,6 +67,17 @@ export class AiAssistantComponent implements OnInit, AfterViewChecked, OnDestroy
   readonly fileDragOver = signal(false);
   readonly previewObjectUrl = signal<string | null>(null);
   private fileInputEl: HTMLInputElement | null = null;
+
+  // Folder notes
+  readonly folderNotes = signal<FolderNote[]>([]);
+  readonly notesLoading = signal(false);
+  readonly activeNote = signal<FolderNote | null>(null);
+  readonly noteSaving = signal(false);
+  readonly noteHasDraft = signal(false);
+  readonly renamingNoteId = signal<string | null>(null);
+  readonly renameNoteValue = signal('');
+  readonly noteContextMenu = signal<{ x: number; y: number; note: FolderNote } | null>(null);
+  private noteAutoSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Flat ordered list of sidebar items (folders only)
   readonly sidebarItems = computed((): SidebarItem[] => {
@@ -163,9 +176,12 @@ export class AiAssistantComponent implements OnInit, AfterViewChecked, OnDestroy
       const folderId = this.selectedFolderId();
       if (folderId) {
         this.loadFolderFiles(folderId);
+        this.loadFolderNotes(folderId);
       } else {
         this.folderFiles.set([]);
+        this.folderNotes.set([]);
         this.previewFile.set(null);
+        this.activeNote.set(null);
       }
     });
 
@@ -207,6 +223,11 @@ export class AiAssistantComponent implements OnInit, AfterViewChecked, OnDestroy
     const fileMenuEl = document.querySelector('.file-context-menu');
     if (fileMenuEl && !fileMenuEl.contains(event.target as Node)) {
       this.fileContextMenu.set(null);
+    }
+    // Close note context menu when clicking outside it
+    const noteMenuEl = document.querySelector('.note-context-menu');
+    if (noteMenuEl && !noteMenuEl.contains(event.target as Node)) {
+      this.noteContextMenu.set(null);
     }
   }
 
@@ -571,6 +592,100 @@ export class AiAssistantComponent implements OnInit, AfterViewChecked, OnDestroy
     });
   }
 
+  // ── Folder notes ────────────────────────────────────────────────────────
+
+  async loadFolderNotes(folderId: string): Promise<void> {
+    this.notesLoading.set(true);
+    const notes = await this.aiAssistant.listFolderNotes(folderId);
+    this.folderNotes.set(notes);
+    this.notesLoading.set(false);
+  }
+
+  async newNote(): Promise<void> {
+    const folderId = this.selectedFolderId() ?? 'root';
+    if (folderId === 'root') this.selectedFolderId.set('root');
+    const seriesId = this.seriesContext.currentSeriesId() ?? undefined;
+    const note = await this.aiAssistant.createFolderNote(folderId, seriesId);
+    if (!note) return;
+    this.folderNotes.update(list => [note, ...list]);
+    this.openNote(note);
+  }
+
+  async openNote(note: FolderNote): Promise<void> {
+    // Load full content if stub
+    const full = await this.aiAssistant.getFolderNote(note.folderId, note.id);
+    this.activeNote.set(full ?? note);
+    this.noteHasDraft.set(false);
+  }
+
+  closeNote(): void {
+    if (this.noteAutoSaveTimer) { clearTimeout(this.noteAutoSaveTimer); this.noteAutoSaveTimer = null; }
+    this.activeNote.set(null);
+    this.noteHasDraft.set(false);
+  }
+
+  onNoteContentChange(html: string): void {
+    if (this.noteAutoSaveTimer) clearTimeout(this.noteAutoSaveTimer);
+    this.noteAutoSaveTimer = setTimeout(() => {
+      this.saveNote(html);
+    }, 1200);
+    this.noteHasDraft.set(true);
+  }
+
+  async saveNote(content?: string): Promise<void> {
+    const note = this.activeNote();
+    if (!note) return;
+    const html = content ?? '';
+    if (this.noteAutoSaveTimer) { clearTimeout(this.noteAutoSaveTimer); this.noteAutoSaveTimer = null; }
+    this.noteSaving.set(true);
+    const updated = await this.aiAssistant.saveFolderNote(note.folderId, note.id, html);
+    if (updated) {
+      this.activeNote.set(updated);
+      this.folderNotes.update(list => list.map(n => n.id === updated.id ? { ...n, name: updated.name } : n));
+    }
+    this.noteSaving.set(false);
+    this.noteHasDraft.set(false);
+  }
+
+  onNoteContextMenu(event: MouseEvent, note: FolderNote): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.noteContextMenu.set({ x: event.clientX, y: event.clientY, note });
+  }
+
+  startRenameNote(note: FolderNote): void {
+    this.noteContextMenu.set(null);
+    this.renamingNoteId.set(note.id);
+    this.renameNoteValue.set(note.name);
+    setTimeout(() => document.querySelector<HTMLInputElement>('.note-rename-input')?.select());
+  }
+
+  async commitNoteRename(noteId: string): Promise<void> {
+    const name = this.renameNoteValue().trim();
+    const note = this.folderNotes().find(n => n.id === noteId);
+    if (name && note) {
+      await this.aiAssistant.renameFolderNote(note.folderId, noteId, name);
+      this.folderNotes.update(list => list.map(n => n.id === noteId ? { ...n, name } : n));
+      const active = this.activeNote();
+      if (active?.id === noteId) this.activeNote.set({ ...active, name });
+    }
+    this.renamingNoteId.set(null);
+  }
+
+  cancelNoteRename(): void { this.renamingNoteId.set(null); }
+
+  onRenameNoteKeyDown(event: KeyboardEvent, noteId: string): void {
+    if (event.key === 'Enter') { event.preventDefault(); this.commitNoteRename(noteId); }
+    else if (event.key === 'Escape') this.cancelNoteRename();
+  }
+
+  async deleteNote(note: FolderNote): Promise<void> {
+    this.noteContextMenu.set(null);
+    await this.aiAssistant.deleteFolderNote(note.folderId, note.id);
+    this.folderNotes.update(list => list.filter(n => n.id !== note.id));
+    if (this.activeNote()?.id === note.id) this.activeNote.set(null);
+  }
+
   // ── File explorer ────────────────────────────────────────────────────────
 
   async loadFolderFiles(folderId: string): Promise<void> {
@@ -597,8 +712,9 @@ export class AiAssistantComponent implements OnInit, AfterViewChecked, OnDestroy
   }
 
   async uploadFiles(files: File[]): Promise<void> {
-    const folderId = this.selectedFolderId();
-    if (!folderId || !files.length) return;
+    const folderId = this.selectedFolderId() ?? 'root';
+    if (!files.length) return;
+    if (folderId === 'root') this.selectedFolderId.set('root');
     this.filesLoading.set(true);
     const results = await Promise.all(files.map(f => this.aiAssistant.uploadFolderFile(folderId, f)));
     this.folderFiles.update(list => [
@@ -783,6 +899,14 @@ export class AiAssistantComponent implements OnInit, AfterViewChecked, OnDestroy
     const idx = all.findIndex(e => e.highlight.id === activeId);
     const prev = all[(idx - 1 + all.length) % all.length];
     this.navigateToHighlight(prev.messageIndex, prev.highlight.id);
+  }
+
+  async deleteHighlight(messageIndex: number, highlightId: string, event: Event): Promise<void> {
+    event.stopPropagation();
+    if (this.activeHighlightId() === highlightId) {
+      this.activeHighlightId.set(null);
+    }
+    await this.aiAssistant.removeHighlight(messageIndex, highlightId);
   }
 
   private getMessagePlainText(msg: ChatSessionMessage): string {

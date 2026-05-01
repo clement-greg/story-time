@@ -1,5 +1,5 @@
 import { Injectable, signal, computed } from '@angular/core';
-import { ChatFolder, ChatMessageHighlight, ChatSession, ChatSessionMessage, ChatSessionSummary, FolderFile } from '@shared/models';
+import { ChatFolder, ChatMessageHighlight, ChatSession, ChatSessionMessage, ChatSessionSummary, FolderFile, FolderNote } from '@shared/models';
 import { Series } from '@shared/models/series.model';
 
 const PENDING_ID = '__pending__';
@@ -491,6 +491,17 @@ export class AiAssistantService {
     await this.persistSessionMessages(session.id);
   }
 
+  async removeHighlight(messageIndex: number, highlightId: string): Promise<void> {
+    const session = this.activeSession();
+    if (!session) return;
+    const updated = session.messages.map((m, i) => {
+      if (i !== messageIndex || !m.highlights?.length) return m;
+      return { ...m, highlights: m.highlights.filter(h => h.id !== highlightId) };
+    });
+    this.activeSession.set({ ...session, messages: updated });
+    await this.persistSessionMessages(session.id);
+  }
+
   private async persistSessionMessages(sessionId: string): Promise<void> {
     const finalSession = this.activeSession();
     if (!finalSession) return;
@@ -641,6 +652,64 @@ export class AiAssistantService {
 
   folderFileDownloadUrl(folderId: string, fileId: string): string {
     return `/api/folder-files/${folderId}/${fileId}/download`;
+  }
+
+  // ── Folder notes ──────────────────────────────────────────────────────────
+
+  async listFolderNotes(folderId: string): Promise<FolderNote[]> {
+    try {
+      const res = await this.authFetch(`/api/folder-notes/${folderId}`);
+      if (res.ok) return await res.json() as FolderNote[];
+    } catch { /* best-effort */ }
+    return [];
+  }
+
+  async getFolderNote(folderId: string, noteId: string): Promise<FolderNote | null> {
+    try {
+      const res = await this.authFetch(`/api/folder-notes/${folderId}/${noteId}`);
+      if (res.ok) return await res.json() as FolderNote;
+    } catch { /* best-effort */ }
+    return null;
+  }
+
+  async createFolderNote(folderId: string, seriesId?: string): Promise<FolderNote | null> {
+    try {
+      const res = await this.authFetch(`/api/folder-notes/${folderId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: '', seriesId }),
+      });
+      if (res.ok) return await res.json() as FolderNote;
+    } catch { /* best-effort */ }
+    return null;
+  }
+
+  async saveFolderNote(folderId: string, noteId: string, content: string): Promise<FolderNote | null> {
+    try {
+      const res = await this.authFetch(`/api/folder-notes/${folderId}/${noteId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+      });
+      if (res.ok) return await res.json() as FolderNote;
+    } catch { /* best-effort */ }
+    return null;
+  }
+
+  async renameFolderNote(folderId: string, noteId: string, name: string): Promise<void> {
+    try {
+      await this.authFetch(`/api/folder-notes/${folderId}/${noteId}/name`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+    } catch { /* best-effort */ }
+  }
+
+  async deleteFolderNote(folderId: string, noteId: string): Promise<void> {
+    try {
+      await this.authFetch(`/api/folder-notes/${folderId}/${noteId}`, { method: 'DELETE' });
+    } catch { /* best-effort */ }
   }
 
   private authFetch(input: string, init: RequestInit = {}): Promise<Response> {

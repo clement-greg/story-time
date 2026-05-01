@@ -15,6 +15,73 @@ const client = new AzureOpenAI({
   apiVersion: '2024-10-21',
 });
 
+// POST /general — generic inline AI assist (for notes, etc.) with optional series context
+router.post('/general', async (req: Request, res: Response) => {
+  const { messages, seriesId, selectedText } = req.body as {
+    messages: { role: 'user' | 'assistant'; content: string }[];
+    seriesId?: string;
+    selectedText?: string;
+  };
+
+  if (!messages || !Array.isArray(messages)) {
+    res.status(400).json({ error: 'messages array required' });
+    return;
+  }
+
+  let systemPrompt =
+    'You are a helpful writing assistant. Provide only the requested content in plain text. ' +
+    'Do not use markdown, HTML, or any formatting. Do not include conversational filler or meta-commentary.';
+
+  if (seriesId) {
+    try {
+      const entitiesContainer = getContainer('entities');
+      const { resources } = await entitiesContainer.items
+        .query<Entity>({
+          query: 'SELECT c.name, c.type, c.biography FROM c WHERE c.seriesId = @seriesId AND (NOT IS_DEFINED(c.deleted) OR c.deleted = false)',
+          parameters: [{ name: '@seriesId', value: seriesId }],
+        })
+        .fetchAll();
+      if (resources.length > 0) {
+        const entitySummary = resources
+          .map(e => `${e.name} (${e.type})${e.biography ? ': ' + e.biography.slice(0, 80) : ''}`)
+          .join('\n');
+        systemPrompt += `\n\nWorld context — known entities:\n${entitySummary}`;
+      }
+    } catch {
+      // Proceed without entity context
+    }
+  }
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  try {
+    const stream = await client.chat.completions.create({
+      model: config.foundry.miniModel,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...messages,
+      ],
+      stream: true,
+    });
+
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content;
+      if (delta) {
+        res.write(`data: ${JSON.stringify({ content: delta })}\n\n`);
+      }
+    }
+    res.write('data: [DONE]\n\n');
+  } catch (err) {
+    console.error('General chat streaming error:', err);
+    res.write(`data: ${JSON.stringify({ error: 'AI error occurred' })}\n\n`);
+  } finally {
+    res.end();
+  }
+});
+
 // GET chat history for a chapter (returns empty if soft-deleted or not owned)
 router.get('/:chapterId/history', async (req: Request, res: Response) => {
   const chapterId = req.params['chapterId'] as string;

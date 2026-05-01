@@ -375,9 +375,16 @@
 }
 
 .ai-close-btn {
-  color: #757575 !important;
-  width: 36px;
-  height: 36px;
+  position: absolute;
+  left: -40px;
+  top: 16px;
+  color: #555 !important;
+  background: #fff !important;
+  border-radius: 50% 0 0 50% !important;
+  box-shadow: -3px 2px 10px rgba(0, 0, 0, 0.18) !important;
+  width: 40px !important;
+  height: 40px !important;
+  z-index: 1;
   flex-shrink: 0;
 }
 
@@ -523,6 +530,31 @@
   color: #1565c0;
 }
 
+.highlight-entry-delete {
+  width: 24px !important;
+  height: 24px !important;
+  line-height: 24px !important;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.12s;
+
+  .mat-icon {
+    font-size: 16px !important;
+    width: 16px !important;
+    height: 16px !important;
+    color: #9e9e9e;
+  }
+
+  &:hover .mat-icon {
+    color: #c62828;
+  }
+}
+
+.highlight-entry:hover .highlight-entry-delete,
+.highlight-entry.highlight-entry-active .highlight-entry-delete {
+  opacity: 1;
+}
+
 /* ── Highlight flash animation ───────────────────────────────────────────── */
 
 @keyframes highlightFlash {
@@ -584,10 +616,32 @@ mark.chat-highlight.highlight-flash {
 }
 
 .fe-toolbar-btn {
-  color: #616161 !important;
-  width: 32px !important;
-  height: 32px !important;
+  display: none;
+}
+
+.fe-action-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 12px 10px;
   flex-shrink: 0;
+}
+
+.fe-action-btn {
+  font-size: 0.82rem !important;
+  height: 34px !important;
+  line-height: 34px !important;
+  padding: 0 12px !important;
+  color: #1565c0 !important;
+  border-color: #1565c0 !important;
+
+  mat-icon {
+    font-size: 16px !important;
+    width: 16px !important;
+    height: 16px !important;
+    margin-right: 4px !important;
+    vertical-align: middle;
+  }
 }
 
 .fe-loading {
@@ -799,6 +853,68 @@ mark.chat-highlight.highlight-flash {
 .fe-dl-btn {
   margin-top: 8px;
   text-decoration: none;
+}
+
+// Note item in file explorer grid
+.fe-item-note .fe-item-icon {
+  color: #7986cb;
+}
+
+// Note editor panel
+.fe-note-editor {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  // No overflow:hidden — lets fixed-position popups (autocomplete, ctx menu, inline AI) escape
+  overflow: visible;
+}
+
+.fe-note-editor-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 15px;
+}
+
+.fe-note-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e0e0e0;
+  background: #fafafa;
+  min-height: 48px;
+  flex-shrink: 0;
+}
+
+.fe-note-name {
+  flex: 1;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #212121;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fe-note-draft-indicator {
+  font-size: 0.75rem;
+  color: #e65100;
+  background: #fff3e0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.fe-note-saving-spinner {
+  flex-shrink: 0;
+}
+
+.fe-note-save-btn,
+.fe-note-close-btn {
+  flex-shrink: 0;
 }
 
 .ai-welcome {

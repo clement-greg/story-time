@@ -10,6 +10,10 @@ export interface SuggestedEntity {
   name: string;
   type: 'PERSON' | 'PLACE' | 'THING';
   description: string;
+  firstName?: string;
+  lastName?: string;
+  nickname?: string;
+  title?: string;
 }
 
 @Injectable({ providedIn: 'root' })

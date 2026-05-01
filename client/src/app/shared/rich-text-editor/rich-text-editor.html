@@ -1,0 +1,219 @@
+<div class="rte-host">
+  <!-- Contenteditable editor -->
+  <div #editorEl
+    class="rte-content-editor"
+    contenteditable="true"
+    [attr.placeholder]="placeholder()"
+    (input)="onContentInput($event)"
+    (keydown)="onEditorKeyDown($event)"
+    (mouseup)="onEditorMouseUp()"
+    (click)="onEditorClick($event)"
+    (mousemove)="onEditorMouseMove($event)"
+    (mouseleave)="onEditorMouseLeave()"
+    (scroll)="onEditorScroll()"
+    (touchstart)="onEditorTouchStart($event)"
+    (touchend)="onEditorTouchEnd()"
+    (touchmove)="onEditorTouchMove()">
+  </div>
+
+  <!-- Image resize overlay -->
+  @if (imageOverlayRect()) {
+    <div class="rte-image-resize-overlay"
+      [style.top.px]="imageOverlayRect()!.top"
+      [style.left.px]="imageOverlayRect()!.left"
+      [style.width.px]="imageOverlayRect()!.width"
+      [style.height.px]="imageOverlayRect()!.height">
+      <div class="rte-resize-handle rte-resize-e" (mousedown)="onResizeHandleMouseDown($event, 'e')"></div>
+      <div class="rte-resize-handle rte-resize-s" (mousedown)="onResizeHandleMouseDown($event, 's')"></div>
+      <div class="rte-resize-handle rte-resize-se" (mousedown)="onResizeHandleMouseDown($event, 'se')"></div>
+    </div>
+  }
+</div>
+
+<!-- Formatting toolbar (fixed, outside layout flow) -->
+@if (formattingToolbarVisible()) {
+  <div class="rte-formatting-toolbar"
+    [style.top.px]="formattingToolbarTop()"
+    [style.left.px]="formattingToolbarLeft()">
+    <button class="fmt-btn" [class.active]="formattingState().bold"
+      (mousedown)="$event.preventDefault(); applyFormat('bold')" title="Bold">
+      <strong>B</strong>
+    </button>
+    <button class="fmt-btn" [class.active]="formattingState().italic"
+      (mousedown)="$event.preventDefault(); applyFormat('italic')" title="Italic">
+      <em>I</em>
+    </button>
+    <button class="fmt-btn" [class.active]="formattingState().underline"
+      (mousedown)="$event.preventDefault(); applyFormat('underline')" title="Underline">
+      <span style="text-decoration:underline">U</span>
+    </button>
+    <div class="fmt-separator"></div>
+    <button class="fmt-btn" [class.active]="formattingState().align === 'left'"
+      (mousedown)="$event.preventDefault(); applyFormat('justifyLeft')" title="Align left">
+      <mat-icon style="font-size:16px;width:16px;height:16px;line-height:16px">format_align_left</mat-icon>
+    </button>
+    <button class="fmt-btn" [class.active]="formattingState().align === 'center'"
+      (mousedown)="$event.preventDefault(); applyFormat('justifyCenter')" title="Align center">
+      <mat-icon style="font-size:16px;width:16px;height:16px;line-height:16px">format_align_center</mat-icon>
+    </button>
+    <button class="fmt-btn" [class.active]="formattingState().align === 'right'"
+      (mousedown)="$event.preventDefault(); applyFormat('justifyRight')" title="Align right">
+      <mat-icon style="font-size:16px;width:16px;height:16px;line-height:16px">format_align_right</mat-icon>
+    </button>
+    <button class="fmt-btn" [class.active]="formattingState().align === 'justify'"
+      (mousedown)="$event.preventDefault(); applyFormat('justifyFull')" title="Justify">
+      <mat-icon style="font-size:16px;width:16px;height:16px;line-height:16px">format_align_justify</mat-icon>
+    </button>
+    <div class="fmt-separator"></div>
+    <button class="fmt-btn" (mousedown)="$event.preventDefault(); applyFormat('insertUnorderedList')" title="Bullet list">
+      <mat-icon style="font-size:16px;width:16px;height:16px;line-height:16px">format_list_bulleted</mat-icon>
+    </button>
+    @if (showNoteButton()) {
+      <div class="fmt-separator"></div>
+      <button class="fmt-btn" (mousedown)="$event.preventDefault(); $event.stopPropagation(); noteRequest.emit()" title="Add note">
+        <mat-icon style="font-size:16px;width:16px;height:16px;line-height:16px">sticky_note_2</mat-icon>
+      </button>
+    }
+  </div>
+}
+
+<!-- Autocomplete dropdown -->
+@if (autocompleteItems().length > 0) {
+  <div class="rte-autocomplete-dropdown"
+    [class.autocomplete-above]="autocompleteAbove()"
+    [style.top.px]="autocompleteTop()"
+    [style.left.px]="autocompleteLeft()">
+    @for (item of autocompleteItems(); track $index; let i = $index) {
+      <div class="rte-autocomplete-item"
+        [class.active]="i === autocompleteIndex()"
+        [class.is-preferred]="item.isPreferred"
+        (mousedown)="selectAutocomplete(item.entity, item.text)">
+        @if (item.isPreferred && item.entity.thumbnailUrl) {
+          <img [src]="proxyUrl(item.entity.thumbnailUrl)!" class="rte-autocomplete-thumb" alt="" />
+        } @else if (item.isPreferred) {
+          <span class="rte-autocomplete-thumb-placeholder"></span>
+        } @else {
+          <span class="rte-autocomplete-alt-indent"></span>
+        }
+        <span [class.rte-autocomplete-preferred]="item.isPreferred"
+              [class.rte-autocomplete-alt]="!item.isPreferred">{{ item.text }}</span>
+      </div>
+    }
+  </div>
+}
+
+<!-- Entity hover popup -->
+@if (hoveredEntity()) {
+  <div class="rte-entity-hover-popup"
+    [style.top.px]="popupTop()"
+    [style.left.px]="popupLeft()"
+    (mouseenter)="onPopupMouseEnter()"
+    (mouseleave)="onPopupMouseLeave()">
+    @if (hoveredEntity()!.thumbnailUrl) {
+      <img [src]="proxyUrl(hoveredEntity()!.thumbnailUrl)!" class="rte-popup-thumb" alt="" />
+    }
+    <div class="rte-popup-info">
+      <span class="rte-popup-name">{{ hoveredEntity()!.name }}</span>
+      @if (hoveredEntity()!.biography) {
+        <span class="rte-popup-bio">{{ hoveredEntity()!.biography }}</span>
+      }
+    </div>
+    <button mat-icon-button class="rte-popup-edit-btn" (click)="openEntityEdit(hoveredEntity()!)">
+      <mat-icon>edit</mat-icon>
+    </button>
+  </div>
+}
+
+<!-- Ctrl+. context menu -->
+@if (ctxMenuVisible()) {
+  <div class="rte-ctx-menu" [style.top.px]="ctxMenuTop()" [style.left.px]="ctxMenuLeft()">
+    @for (item of ctxMenuItems(); track item.id; let i = $index) {
+      <button class="rte-ctx-item" [class.focused]="i === ctxMenuFocusedIndex()"
+        (click)="executeCtxMenuItem(item)">
+        <mat-icon>{{ item.icon }}</mat-icon>
+        {{ item.label }}
+      </button>
+    }
+  </div>
+}
+
+<!-- Inline AI prompt -->
+@if (inlineAiVisible()) {
+  <div #inlineAiPanelEl class="rte-inline-ai-prompt"
+    [class.inline-ai-above]="inlineAiAbove()"
+    [style.top.px]="inlineAiTop()"
+    [style.left.px]="inlineAiLeft()">
+    <div class="rte-inline-ai-header">
+      <mat-icon>auto_awesome</mat-icon>
+      <span>{{ inlineAiSelectedText() ? 'AI Reword' : 'AI Insert' }}</span>
+      <button mat-icon-button class="rte-inline-ai-close-btn" (click)="dismissInlineAiPrompt()" title="Dismiss">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+    @if (inlineAiSelectedText()) {
+      <div class="rte-inline-ai-selection-preview">{{ inlineAiSelectedText() }}</div>
+    }
+    <div class="rte-inline-ai-input-row">
+      <div class="rte-inline-ai-input-wrap">
+        <input #inlineAiInputEl class="rte-inline-ai-input" type="text"
+          [placeholder]="inlineAiSelectedText() ? 'Optional: describe how to reword… (Enter to send)' : 'Describe what to insert… (Enter to send)'"
+          [value]="inlineAiInput()"
+          (input)="onInlineAiInputChange($any($event.target).value)"
+          (keydown)="onInlineAiKeyDown($event)"
+          [disabled]="inlineAiStreaming()" />
+        @if (ghostSuffix()) {
+          <div class="rte-ghost-complete-overlay" aria-hidden="true">
+            <span class="rte-ghost-typed">{{ inlineAiInput() }}</span><span class="rte-ghost-suffix">{{ ghostSuffix() }}</span>
+          </div>
+          <span class="rte-ghost-tab-badge" aria-hidden="true">Tab</span>
+        }
+      </div>
+      <button mat-icon-button
+        [disabled]="inlineAiStreaming() || (!inlineAiInput().trim() && !inlineAiSelectedText())"
+        (click)="submitInlineAiPrompt()" title="Send">
+        <mat-icon>{{ inlineAiStreaming() ? 'hourglass_top' : 'send' }}</mat-icon>
+      </button>
+    </div>
+    @if (inlineAiStreaming() || inlineAiResponse() || inlineAiImageUrl()) {
+      @if (inlineAiGeneratingImage()) {
+        <div class="rte-inline-ai-image-generating">
+          <mat-spinner diameter="20"></mat-spinner>
+          <span>Generating image…</span>
+        </div>
+      } @else if (inlineAiImageUrl()) {
+        <div class="rte-inline-ai-image-preview">
+          <img [src]="proxyUrl(inlineAiImageUrl()!)!" alt="Generated image" class="rte-inline-ai-generated-image" />
+        </div>
+      } @else {
+        <div class="rte-inline-ai-response" [class.streaming]="inlineAiStreaming()">{{ inlineAiResponse() }}</div>
+      }
+      @if (!inlineAiStreaming() && (inlineAiResponse() || inlineAiImageUrl())) {
+        <div class="rte-inline-ai-actions">
+          <button mat-flat-button (click)="acceptInlineAiResponse()">Accept <kbd>Alt+A</kbd></button>
+          <button mat-button (click)="dismissInlineAiPrompt()">Discard</button>
+        </div>
+      }
+    }
+  </div>
+}
+
+<!-- Grammar popover -->
+@if (grammarPopoverVisible()) {
+  <div class="rte-grammar-popover"
+    [class.grammar-popover-above]="grammarPopoverAbove()"
+    [style.top.px]="grammarPopoverTop()"
+    [style.left.px]="grammarPopoverLeft()">
+    <div class="rte-grammar-popover-message">
+      <mat-icon class="rte-grammar-popover-icon">spellcheck</mat-icon>
+      {{ grammarPopoverError()?.message }}
+    </div>
+    <div class="rte-grammar-popover-suggestion">
+      <span class="rte-grammar-label">Suggestion</span>
+      <span class="rte-grammar-text">{{ grammarPopoverError()?.suggestion }}</span>
+    </div>
+    <div class="rte-grammar-actions">
+      <button mat-flat-button (click)="applyGrammarSuggestion()">Apply</button>
+      <button mat-button (click)="dismissGrammarPopover()">Dismiss</button>
+    </div>
+  </div>
+}

@@ -365,7 +365,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 24px;
+  padding: 16px;
 }
 
 .content-editor {
@@ -1570,8 +1570,8 @@
 }
 
 /* ── Mobile styles ───────────────────────────────────── */
-.mobile-only {
-  display: none;
+button.mobile-only {
+  display: none !important;
 }
 
 .mobile-ai-btn.active {
@@ -1657,8 +1657,8 @@
     display: none !important;
   }
 
-  .mobile-only {
-    display: inline-flex;
+  button.mobile-only {
+    display: inline-flex !important;
   }
 
   .mobile-title-bar {

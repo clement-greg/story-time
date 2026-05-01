@@ -8,3 +8,4 @@ export * from './entity.model';
 export * from './entity-relationship.model';
 export * from './entity-quote.model';
 export * from './chat-session.model';
+export * from './folder-note.model';

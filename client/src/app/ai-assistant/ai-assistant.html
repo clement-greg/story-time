@@ -113,29 +113,33 @@
     </div>
   </aside>
 
+  <!-- Close button hanging off the left edge of the panel -->
+  <button mat-icon-button class="ai-close-btn" (click)="aiAssistant.closePanel()" matTooltip="Close">
+    <mat-icon>close</mat-icon>
+  </button>
+
   <!-- Chat area -->
   <div class="ai-chat-area">
-    <div class="ai-chat-header">
-      <!-- Mobile: sessions drawer toggle -->
-      <button mat-icon-button class="mobile-sessions-btn" (click)="mobileSidebarOpen.set(true)" matTooltip="Sessions">
-        <mat-icon>menu</mat-icon>
-      </button>
-      <span class="ai-chat-title">
-        {{ aiAssistant.activeSession()?.name ?? 'Resource Manager' }}
-      </span>
-      @if (allHighlights().length > 0) {
-        <button mat-icon-button class="ai-highlights-toggle-btn"
-                [class.highlights-toggle-active]="showHighlightsSummary()"
-                (click)="showHighlightsSummary.set(!showHighlightsSummary())"
-                [matTooltip]="showHighlightsSummary() ? 'Hide highlights' : allHighlights().length + ' highlight' + (allHighlights().length === 1 ? '' : 's')">
-          <mat-icon>bookmark</mat-icon>
-          <span class="highlights-badge">{{ allHighlights().length }}</span>
+    @if (aiAssistant.activeSession() || allHighlights().length > 0) {
+      <div class="ai-chat-header">
+        <!-- Mobile: sessions drawer toggle -->
+        <button mat-icon-button class="mobile-sessions-btn" (click)="mobileSidebarOpen.set(true)" matTooltip="Sessions">
+          <mat-icon>menu</mat-icon>
         </button>
-      }
-      <button mat-icon-button class="ai-close-btn" (click)="aiAssistant.closePanel()" matTooltip="Close">
-        <mat-icon>close</mat-icon>
-      </button>
-    </div>
+        @if (aiAssistant.activeSession()) {
+          <span class="ai-chat-title">{{ aiAssistant.activeSession()!.name }}</span>
+        }
+        @if (allHighlights().length > 0) {
+          <button mat-icon-button class="ai-highlights-toggle-btn"
+                  [class.highlights-toggle-active]="showHighlightsSummary()"
+                  (click)="showHighlightsSummary.set(!showHighlightsSummary())"
+                  [matTooltip]="showHighlightsSummary() ? 'Hide highlights' : allHighlights().length + ' highlight' + (allHighlights().length === 1 ? '' : 's')">
+            <mat-icon>bookmark</mat-icon>
+            <span class="highlights-badge">{{ allHighlights().length }}</span>
+          </button>
+        }
+      </div>
+    }
 
     @if (selectedFolderId() && !aiAssistant.activeSession()) {
       <!-- ── File explorer ── -->
@@ -149,22 +153,57 @@
           <div class="file-explorer-toolbar">
             <mat-icon class="file-explorer-folder-icon">folder_open</mat-icon>
             <span class="file-explorer-folder-name">{{ selectedFolderName() }}</span>
-            <button mat-icon-button class="fe-toolbar-btn" (click)="triggerFileUpload()" matTooltip="Upload files">
-              <mat-icon>upload_file</mat-icon>
-            </button>
-            <button mat-icon-button class="fe-toolbar-btn" (click)="newChat()" matTooltip="New chat in this folder">
-              <mat-icon>add_comment</mat-icon>
-            </button>
           </div>
 
           <!-- Loading -->
           @if (filesLoading()) {
             <div class="fe-loading"><mat-spinner diameter="28"></mat-spinner></div>
+          } @else if (activeNote()) {
+            <!-- Note editor — full-height, outside overflow:hidden so popups render correctly -->
+            <div class="fe-note-editor">
+              <div class="fe-note-header">
+                <span class="fe-note-name">{{ activeNote()!.name || 'Untitled note' }}</span>
+                @if (noteHasDraft()) {
+                  <span class="fe-note-draft-indicator">Unsaved</span>
+                }
+                @if (noteSaving()) {
+                  <mat-spinner diameter="16" class="fe-note-saving-spinner"></mat-spinner>
+                } @else {
+                  <button mat-icon-button class="fe-note-save-btn" (click)="saveNote()" matTooltip="Save note"
+                    [disabled]="!noteHasDraft()">
+                    <mat-icon>save</mat-icon>
+                  </button>
+                }
+                <button mat-icon-button class="fe-note-close-btn" (click)="closeNote()" matTooltip="Close">
+                  <mat-icon>close</mat-icon>
+                </button>
+              </div>
+              <div class="fe-note-editor-body">
+                <app-rich-text-editor
+                  [seriesId]="aiAssistant.selectedSeriesId() ?? ''"
+                  [initialContent]="activeNote()!.content"
+                  placeholder="Start writing your note…"
+                  (contentChange)="onNoteContentChange($event)">
+                </app-rich-text-editor>
+              </div>
+            </div>
           } @else {
-
             <!-- Split: file grid on left, preview on right -->
             <div class="fe-body">
               <div class="fe-grid">
+                <!-- Action buttons -->
+                <div class="fe-action-buttons">
+                  <button mat-stroked-button class="fe-action-btn" (click)="triggerFileUpload()">
+                    <mat-icon>upload_file</mat-icon> Upload
+                  </button>
+                  <button mat-stroked-button class="fe-action-btn" (click)="newNote()">
+                    <mat-icon>note_add</mat-icon> New Note
+                  </button>
+                  <button mat-stroked-button class="fe-action-btn" (click)="newChat()">
+                    <mat-icon>add_comment</mat-icon> New Chat
+                  </button>
+                </div>
+
                 <!-- Drop hint when dragging -->
                 @if (fileDragOver()) {
                   <div class="fe-drop-hint">
@@ -203,6 +242,27 @@
                   }
                 }
 
+                <!-- Notes -->
+                @for (note of folderNotes(); track note.id) {
+                  <div class="fe-item fe-item-note"
+                       [class.fe-item-selected]="activeNote()?.id === note.id"
+                       (click)="openNote(note)"
+                       (contextmenu)="onNoteContextMenu($event, note)">
+                    <mat-icon class="fe-item-icon">text_snippet</mat-icon>
+                    @if (renamingNoteId() === note.id) {
+                      <input class="fe-rename-input note-rename-input"
+                             [value]="renameNoteValue()"
+                             (input)="renameNoteValue.set($any($event.target).value)"
+                             (keydown)="onRenameNoteKeyDown($event, note.id)"
+                             (blur)="commitNoteRename(note.id)"
+                             (click)="$event.stopPropagation()"
+                             autofocus />
+                    } @else {
+                      <span class="fe-item-name">{{ note.name || 'Untitled note' }}</span>
+                    }
+                  </div>
+                }
+
                 <!-- Files -->
                 @for (file of folderFiles(); track file.id) {
                   <div class="fe-item"
@@ -236,6 +296,8 @@
                   </div>
                 }
               </div>
+
+              <!-- Note editor pane (legacy location removed — moved above fe-body) -->
 
               <!-- Preview pane -->
               @if (previewFile()) {
@@ -299,6 +361,10 @@
                 <span class="highlight-entry-swatch" [style.background]="entry.highlight.color"></span>
                 <span class="highlight-entry-text">{{ entry.excerpt }}</span>
                 <mat-icon class="highlight-entry-goto">chevron_right</mat-icon>
+                <button mat-icon-button class="highlight-entry-delete" matTooltip="Delete highlight"
+                        (click)="deleteHighlight(entry.messageIndex, entry.highlight.id, $event)">
+                  <mat-icon>close</mat-icon>
+                </button>
               </div>
             }
           </div>
@@ -361,10 +427,17 @@
       <div class="ai-welcome">
         <mat-icon class="ai-welcome-icon">smart_toy</mat-icon>
         <p>Select a previous session or start a new one.</p>
-        <button mat-flat-button color="primary" (click)="newChat()">
-          <mat-icon>add</mat-icon>
-          New Chat
-        </button>
+        <div class="fe-action-buttons">
+          <button mat-stroked-button class="fe-action-btn" (click)="triggerFileUpload()">
+            <mat-icon>upload_file</mat-icon> Upload
+          </button>
+          <button mat-stroked-button class="fe-action-btn" (click)="newNote()">
+            <mat-icon>note_add</mat-icon> New Note
+          </button>
+          <button mat-stroked-button class="fe-action-btn" (click)="newChat()">
+            <mat-icon>add_comment</mat-icon> New Chat
+          </button>
+        </div>
       </div>
     }
   </div>
@@ -438,6 +511,22 @@
     <div class="folder-ctx-divider"></div>
     <button class="folder-ctx-item folder-ctx-danger"
             (mousedown)="deleteFile(fileContextMenu()!.file.id, fileContextMenu()!.file.folderId); fileContextMenu.set(null)">
+      <mat-icon>delete</mat-icon> Delete
+    </button>
+  </div>
+}
+
+<!-- Note context menu -->
+@if (noteContextMenu()) {
+  <div class="folder-context-menu note-context-menu"
+       [style.left.px]="noteContextMenu()!.x"
+       [style.top.px]="noteContextMenu()!.y">
+    <button class="folder-ctx-item" (mousedown)="startRenameNote(noteContextMenu()!.note)">
+      <mat-icon>edit</mat-icon> Rename
+    </button>
+    <div class="folder-ctx-divider"></div>
+    <button class="folder-ctx-item folder-ctx-danger"
+            (mousedown)="deleteNote(noteContextMenu()!.note)">
       <mat-icon>delete</mat-icon> Delete
     </button>
   </div>

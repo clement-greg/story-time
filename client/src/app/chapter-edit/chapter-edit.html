@@ -5,20 +5,18 @@
     <div class="page">
       <div class="top-bar">
         @if (chapter()) {
-        <mat-form-field appearance="outline" class="title-field desktop-only">
-          <mat-label>Title</mat-label>
-          <input matInput [ngModel]="chapter()!.title" (ngModelChange)="updateTitle($event)" />
-        </mat-form-field>
+          <mat-form-field appearance="outline" class="title-field desktop-only">
+            <mat-label>Title</mat-label>
+            <input matInput [ngModel]="chapter()!.title" (ngModelChange)="updateTitle($event)" />
+          </mat-form-field>
         } @else {
-        <h1 class="title-placeholder desktop-only">Edit Chapter</h1>
+          <h1 class="title-placeholder desktop-only">Edit Chapter</h1>
         }
         <div class="top-bar-actions">
           @if (hasDraft()) {
-          <span class="draft-indicator">Unsaved draft</span>
-          <button mat-button (click)="discardDraft()">Discard draft</button>
+            <span class="draft-indicator">Unsaved draft</span>
+            <button mat-button (click)="discardDraft()">Discard draft</button>
           }
-
-
           <button mat-flat-button (click)="save()" [disabled]="saving() || !chapter()">
             {{ saving() ? 'Saving…' : 'Save' }}
           </button>
@@ -26,453 +24,252 @@
       </div>
 
       @if (chapter()) {
-      <div class="workspace">
+        <div class="workspace">
 
-        <!-- Content editor -->
-        <div class="editor-panel">
-          <div #contentEditor class="content-editor" contenteditable="true" (input)="onContentInput($event)"
-            (keydown)="onEditorKeyDown($event)" (mouseup)="onEditorMouseUp()" (click)="onEditorClick($event)"
-            (mousemove)="onEditorMouseMove($event)" (mouseleave)="onEditorMouseLeave()" (scroll)="onEditorScroll()"
-            (touchstart)="onEditorTouchStart($event)" (touchend)="onEditorTouchEnd()" (touchmove)="onEditorTouchMove()"
-            placeholder="Start writing your chapter…"></div>
-
-          <!-- Image resize overlay (shown on image click) -->
-          @if (imageOverlayRect()) {
-          <div class="image-resize-overlay" [style.top.px]="imageOverlayRect()!.top"
-            [style.left.px]="imageOverlayRect()!.left" [style.width.px]="imageOverlayRect()!.width"
-            [style.height.px]="imageOverlayRect()!.height">
-            <div class="resize-handle resize-e" (mousedown)="onResizeHandleMouseDown($event, 'e')"></div>
-            <div class="resize-handle resize-s" (mousedown)="onResizeHandleMouseDown($event, 's')"></div>
-            <div class="resize-handle resize-se" (mousedown)="onResizeHandleMouseDown($event, 'se')"></div>
+          <!-- Rich text editor -->
+          <div class="editor-panel">
+            <app-rich-text-editor
+              [seriesId]="seriesId()"
+              [externalEntities]="entities()"
+              [aiEndpoint]="aiEndpoint()"
+              [ctxMenuExtraItems]="ctxMenuExtraItems"
+              [showNoteButton]="true"
+              placeholder="Start writing your chapter…"
+              (contentChange)="onEditorContentChange($event)"
+              (entityEditRequest)="onEntityEditRequest($event)"
+              (pendingSuggestionsChange)="onEditorPendingSuggestionsChange($event)"
+              (ctxMenuExtraItemSelected)="onEditorCtxMenuAction($event)"
+              (noteRequest)="onNoteRequest()">
+            </app-rich-text-editor>
           </div>
-          }
 
-          <!-- Formatting toolbar (shown on text selection or image selection) -->
-          @if (formattingToolbarVisible()) {
-          <div class="formatting-toolbar" [style.top.px]="formattingToolbarTop()"
-            [style.left.px]="formattingToolbarLeft()">
-            <button class="fmt-btn" [class.active]="formattingState().bold"
-              (mousedown)="$event.preventDefault(); applyFormat('bold')" title="Bold">
-              <strong>B</strong>
-            </button>
-            <button class="fmt-btn" [class.active]="formattingState().italic"
-              (mousedown)="$event.preventDefault(); applyFormat('italic')" title="Italic">
-              <em>I</em>
-            </button>
-            <button class="fmt-btn" [class.active]="formattingState().underline"
-              (mousedown)="$event.preventDefault(); applyFormat('underline')" title="Underline">
-              <span style="text-decoration:underline">U</span>
-            </button>
-            <div class="fmt-separator"></div>
-            <button class="fmt-btn" [class.active]="formattingState().align === 'left'"
-              (mousedown)="$event.preventDefault(); applyFormat('justifyLeft')" title="Align left">
-              <mat-icon style="font-size:16px;width:16px;height:16px;line-height:16px">format_align_left</mat-icon>
-            </button>
-            <button class="fmt-btn" [class.active]="formattingState().align === 'center'"
-              (mousedown)="$event.preventDefault(); applyFormat('justifyCenter')" title="Align center">
-              <mat-icon style="font-size:16px;width:16px;height:16px;line-height:16px">format_align_center</mat-icon>
-            </button>
-            <button class="fmt-btn" [class.active]="formattingState().align === 'right'"
-              (mousedown)="$event.preventDefault(); applyFormat('justifyRight')" title="Align right">
-              <mat-icon style="font-size:16px;width:16px;height:16px;line-height:16px">format_align_right</mat-icon>
-            </button>
-            <button class="fmt-btn" [class.active]="formattingState().align === 'justify'"
-              (mousedown)="$event.preventDefault(); applyFormat('justifyFull')" title="Justify">
-              <mat-icon style="font-size:16px;width:16px;height:16px;line-height:16px">format_align_justify</mat-icon>
-            </button>
-            <div class="fmt-separator"></div>
-            <button class="fmt-btn" (mousedown)="$event.preventDefault(); applyFormat('insertUnorderedList')"
-              title="Bullet list">
-              <mat-icon style="font-size:16px;width:16px;height:16px;line-height:16px">format_list_bulleted</mat-icon>
-            </button>
-            <div class="fmt-separator"></div>
-            <button class="fmt-btn" (mousedown)="$event.preventDefault(); $event.stopPropagation(); openNoteInput()"
-              title="Add note">
-              <mat-icon style="font-size:16px;width:16px;height:16px;line-height:16px">sticky_note_2</mat-icon>
-            </button>
-          </div>
-          }
-        </div>
+          <!-- Resizer handle (desktop only) -->
+          <div class="panel-resizer desktop-only" (mousedown)="onResizerMouseDown($event)"></div>
 
-        <!-- Resizer handle (desktop only) -->
-        <div class="panel-resizer desktop-only" (mousedown)="onResizerMouseDown($event)"></div>
+          <!-- Sidebar panel (Notes / Entity Suggestions / Version History) -->
+          <aside class="sidebar-panel" [class.mobile-sidebar-open]="mobileSidebarOpen()"
+            [style.width.px]="sidebarWidth()">
+            <button mat-icon-button class="sidebar-close-btn mobile-only"
+              (click)="mobileSidebarOpen.set(false)" title="Close">
+              <mat-icon>close</mat-icon>
+            </button>
 
-        <!-- Sidebar panel (AI / Notes / History) -->
-        <aside class="sidebar-panel" [class.mobile-sidebar-open]="mobileSidebarOpen()"
-          [style.width.px]="sidebarWidth()">
-          <button mat-icon-button class="sidebar-close-btn mobile-only" (click)="mobileSidebarOpen.set(false)"
-            title="Close">
-            <mat-icon>close</mat-icon>
-          </button>
+            <mat-tab-group [selectedIndex]="sidebarTabIndex()" (selectedIndexChange)="onSidebarTabChange($event)"
+              headerPosition="below" class="sidebar-tab-group">
 
-          <mat-tab-group [selectedIndex]="sidebarTabIndex()" (selectedIndexChange)="onSidebarTabChange($event)"
-            headerPosition="below" class="sidebar-tab-group">
-
-            <!-- Tab 0: Notes -->
-            <mat-tab>
-              <ng-template mat-tab-label><mat-icon>sticky_note_2</mat-icon></ng-template>
-              <div class="sidebar-tab-content">
-                <div class="notes-panel-header">
-                  <mat-icon>sticky_note_2</mat-icon>
-                  <span>Notes</span>
-                  <span class="notes-panel-count">({{ notes().length }})</span>
-                </div>
-
-                <div class="notes-list">
-                  @if (notes().length === 0) {
-                  <p class="notes-empty">No notes yet. Select text and click <mat-icon
-                      style="font-size:14px;vertical-align:middle">sticky_note_2</mat-icon> to add one.</p>
-                  }
-                  @for (note of notes(); track note.id) {
-                  <div class="note-item" [class.note-item-highlighted]="highlightedNoteId() === note.id"
-                    (click)="scrollToNote(note.id)">
-                    @if (note.createdByName || note.createdByAvatar) {
-                    <div class="note-author">
-                      @if (note.createdByAvatar) {
-                        <img class="note-author-avatar" [src]="note.createdByAvatar" [alt]="note.createdByName || 'Author'" />
-                      } @else {
-                        <span class="note-author-avatar-placeholder"><mat-icon style="font-size:14px;width:14px;height:14px;line-height:14px">person</mat-icon></span>
-                      }
-                      @if (note.createdByName) {
-                        <span class="note-author-name">{{ note.createdByName }}</span>
-                      }
-                    </div>
-                    }
-                    <div class="note-selected-text">&ldquo;{{ note.selectedText }}&rdquo;</div>
-                    <div class="note-text">{{ note.noteText }}</div>
-                    <button class="note-delete-btn" mat-icon-button
-                      (click)="deleteNote(note.id); $event.stopPropagation()" title="Delete note">
-                      <mat-icon>delete</mat-icon>
-                    </button>
+              <!-- Tab 0: Notes -->
+              <mat-tab>
+                <ng-template mat-tab-label><mat-icon>sticky_note_2</mat-icon></ng-template>
+                <div class="sidebar-tab-content">
+                  <div class="notes-panel-header">
+                    <mat-icon>sticky_note_2</mat-icon>
+                    <span>Notes</span>
+                    <span class="notes-panel-count">({{ notes().length }})</span>
                   </div>
-                  }
-                </div>
-              </div>
-            </mat-tab>
-
-            <!-- Tab 1: Entity Suggestions -->
-            <mat-tab>
-              <ng-template mat-tab-label>
-                <span class="entity-suggestion-tab-label">
-                  <mat-icon>person_add</mat-icon>
-                  @if (pendingSuggestions().length > 0) {
-                  <span class="entity-suggestion-tab-badge">{{ pendingSuggestions().length }}</span>
-                  }
-                </span>
-              </ng-template>
-              <div class="sidebar-tab-content">
-                <div class="notes-panel-header">
-                  <mat-icon>person_add</mat-icon>
-                  <span>New Entities</span>
-                </div>
-                @if (pendingSuggestions().length === 0) {
-                <p class="notes-empty">No new entities detected yet. Keep writing — characters, places, and things will appear here as they're recognized.</p>
-                } @else {
-                <div class="entity-suggestion-list">
-                  @for (card of pendingSuggestions(); track $index; let i = $index) {
-                  <div class="entity-suggestion-card" [class.is-editing]="card.creating && !!card.draftEntity">
-                    @if (card.created) {
-                    <div class="entity-suggestion-done">
-                      <mat-icon>check_circle</mat-icon>
-                      <span>{{ card.name }} added</span>
-                    </div>
-                    } @else if (card.creating && card.draftEntity) {
-                    <div class="entity-suggestion-header">
-                      <mat-icon class="entity-type-icon">{{ card.type === 'PERSON' ? 'person' : card.type === 'PLACE' ? 'place' : 'category' }}</mat-icon>
-                      <span class="entity-suggestion-name">{{ card.name }}</span>
-                      <span class="entity-suggestion-type-badge">{{ card.type }}</span>
-                      <button mat-icon-button class="entity-suggestion-close-btn" (click)="cancelSuggestionInlineEdit(i)" title="Close">
-                        <mat-icon>close</mat-icon>
-                      </button>
-                    </div>
-                    <div class="entity-suggestion-inline-edit">
-                      <app-entity-edit [entity]="card.draftEntity" [isNew]="true" (save)="acceptSuggestedEntity(i, $event)" (cancel)="cancelSuggestionInlineEdit(i)" />
-                    </div>
-                    } @else {
-                    <div class="entity-suggestion-header">
-                      <mat-icon class="entity-type-icon">{{ card.type === 'PERSON' ? 'person' : card.type === 'PLACE' ? 'place' : 'category' }}</mat-icon>
-                      <span class="entity-suggestion-name">{{ card.name }}</span>
-                      <span class="entity-suggestion-type-badge">{{ card.type }}</span>
-                    </div>
-                    <p class="entity-suggestion-desc">{{ card.description }}</p>
-                    <div class="entity-suggestion-actions">
-                      <button mat-stroked-button (click)="openSuggestionInlineEdit(i)">Add Entity</button>
-                      <button mat-icon-button (click)="dismissSuggestion(i)" title="Dismiss">
-                        <mat-icon>close</mat-icon>
-                      </button>
-                    </div>
+                  <div class="notes-list">
+                    @if (notes().length === 0) {
+                      <p class="notes-empty">No notes yet. Select text and click
+                        <mat-icon style="font-size:14px;vertical-align:middle">sticky_note_2</mat-icon>
+                        to add one.
+                      </p>
+                    }
+                    @for (note of notes(); track note.id) {
+                      <div class="note-item" [class.note-item-highlighted]="highlightedNoteId() === note.id"
+                        (click)="scrollToNote(note.id)">
+                        @if (note.createdByName || note.createdByAvatar) {
+                          <div class="note-author">
+                            @if (note.createdByAvatar) {
+                              <img class="note-author-avatar" [src]="note.createdByAvatar" [alt]="note.createdByName || 'Author'" />
+                            } @else {
+                              <span class="note-author-avatar-placeholder">
+                                <mat-icon style="font-size:14px;width:14px;height:14px;line-height:14px">person</mat-icon>
+                              </span>
+                            }
+                            @if (note.createdByName) {
+                              <span class="note-author-name">{{ note.createdByName }}</span>
+                            }
+                          </div>
+                        }
+                        <div class="note-selected-text">&ldquo;{{ note.selectedText }}&rdquo;</div>
+                        <div class="note-text">{{ note.noteText }}</div>
+                        <button class="note-delete-btn" mat-icon-button
+                          (click)="deleteNote(note.id); $event.stopPropagation()" title="Delete note">
+                          <mat-icon>delete</mat-icon>
+                        </button>
+                      </div>
                     }
                   </div>
-                  }
                 </div>
-                }
-              </div>
-            </mat-tab>
+              </mat-tab>
 
-            <!-- Tab 2: Version History -->
-            <mat-tab>
-              <ng-template mat-tab-label><mat-icon>history</mat-icon></ng-template>
-              <div class="sidebar-tab-content tab-history">
-                <div class="history-sidebar-list">
-                  <div class="history-list-title">
-                    <span>Version History</span>
-                    <button mat-icon-button class="history-refresh-btn" [disabled]="historyLoading()"
-                      (click)="loadHistory(chapter()!.id)" title="Refresh">
-                      <mat-icon>refresh</mat-icon>
-                    </button>
+              <!-- Tab 1: Entity Suggestions -->
+              <mat-tab>
+                <ng-template mat-tab-label>
+                  <span class="entity-suggestion-tab-label">
+                    <mat-icon>person_add</mat-icon>
+                    @if (pendingSuggestions().length > 0) {
+                      <span class="entity-suggestion-tab-badge">{{ pendingSuggestions().length }}</span>
+                    }
+                  </span>
+                </ng-template>
+                <div class="sidebar-tab-content">
+                  <div class="notes-panel-header">
+                    <mat-icon>person_add</mat-icon>
+                    <span>New Entities</span>
                   </div>
-                  @if (historyLoading()) {
-                  <p class="history-status">Loading…</p>
-                  } @else if (historyVersions().length === 0) {
-                  <p class="history-status">No saved versions yet.</p>
+                  @if (pendingSuggestions().length === 0) {
+                    <p class="notes-empty">No new entities detected yet. Keep writing — characters, places, and things will appear here as they're recognized.</p>
                   } @else {
-                  @for (version of historyVersions(); track version.id) {
-                  <button class="history-version-item" [class.selected]="selectedVersion()?.id === version.id"
-                    (click)="selectVersion(version)">
-                    @if (version.createdByAvatar || version.createdByName) {
-                    <span class="version-author">
-                      @if (version.createdByAvatar) {
-                        <img class="version-author-avatar" [src]="version.createdByAvatar" [alt]="version.createdByName || 'Author'" />
-                      } @else {
-                        <span class="version-author-avatar-placeholder"><mat-icon style="font-size:14px;width:14px;height:14px;line-height:14px">person</mat-icon></span>
+                    <div class="entity-suggestion-list">
+                      @for (card of pendingSuggestions(); track $index; let i = $index) {
+                        <div class="entity-suggestion-card" [class.is-editing]="card.creating && !!card.draftEntity">
+                          @if (card.created) {
+                            <div class="entity-suggestion-done">
+                              <mat-icon>check_circle</mat-icon>
+                              <span>{{ card.name }} added</span>
+                            </div>
+                          } @else if (card.creating && card.draftEntity) {
+                            <div class="entity-suggestion-header">
+                              <mat-icon class="entity-type-icon">{{ card.type === 'PERSON' ? 'person' : card.type === 'PLACE' ? 'place' : 'category' }}</mat-icon>
+                              <span class="entity-suggestion-name">{{ card.name }}</span>
+                              <span class="entity-suggestion-type-badge">{{ card.type }}</span>
+                              <button mat-icon-button class="entity-suggestion-close-btn" (click)="cancelSuggestionInlineEdit(i)" title="Close">
+                                <mat-icon>close</mat-icon>
+                              </button>
+                            </div>
+                            <div class="entity-suggestion-inline-edit">
+                              <app-entity-edit [entity]="card.draftEntity" [isNew]="true"
+                                (save)="acceptSuggestedEntity(i, $event)"
+                                (cancel)="cancelSuggestionInlineEdit(i)" />
+                            </div>
+                          } @else {
+                            <div class="entity-suggestion-header">
+                              <mat-icon class="entity-type-icon">{{ card.type === 'PERSON' ? 'person' : card.type === 'PLACE' ? 'place' : 'category' }}</mat-icon>
+                              <span class="entity-suggestion-name">{{ card.name }}</span>
+                              <span class="entity-suggestion-type-badge">{{ card.type }}</span>
+                            </div>
+                            <p class="entity-suggestion-desc">{{ card.description }}</p>
+                            <div class="entity-suggestion-actions">
+                              <button mat-stroked-button (click)="openSuggestionInlineEdit(i)">Add Entity</button>
+                              <button mat-icon-button (click)="dismissSuggestion(i)" title="Dismiss">
+                                <mat-icon>close</mat-icon>
+                              </button>
+                            </div>
+                          }
+                        </div>
                       }
-                      @if (version.createdByName) {
-                        <span class="version-author-name">{{ version.createdByName }}</span>
-                      }
-                    </span>
-                    }
-                    <span class="version-date">{{ formatVersionDate(version.savedAt) }}</span>
-                  </button>
-                  }
-                  }
-                </div>
-                @if (!selectedVersion()) {
-                <p class="history-status history-select-hint">Select a version to compare with current content.</p>
-                } @else {
-                <div class="history-sidebar-diff">
-                  <div class="history-diff-legend">
-                    <span class="legend-remove">&#8722; Version ({{ formatVersionDate(selectedVersion()!.savedAt)
-                      }})</span>
-                    <span class="legend-add">&#43; Current</span>
-                  </div>
-                  <div class="history-diff-lines">
-                    @for (line of diffLines(); track $index) {
-                    <div class="diff-line" [class.diff-add]="line.type === 'add'"
-                      [class.diff-remove]="line.type === 'remove'" [class.diff-same]="line.type === 'same'">
-                      <span class="diff-marker">{{ line.type === 'add' ? '+' : line.type === 'remove' ? '-' : ' '
-                        }}</span>
-                      <span class="diff-text">{{ line.text }}</span>
                     </div>
+                  }
+                </div>
+              </mat-tab>
+
+              <!-- Tab 2: Version History -->
+              <mat-tab>
+                <ng-template mat-tab-label><mat-icon>history</mat-icon></ng-template>
+                <div class="sidebar-tab-content tab-history">
+                  <div class="history-sidebar-list">
+                    <div class="history-list-title">
+                      <span>Version History</span>
+                      <button mat-icon-button class="history-refresh-btn" [disabled]="historyLoading()"
+                        (click)="loadHistory(chapter()!.id)" title="Refresh">
+                        <mat-icon>refresh</mat-icon>
+                      </button>
+                    </div>
+                    @if (historyLoading()) {
+                      <p class="history-status">Loading…</p>
+                    } @else if (historyVersions().length === 0) {
+                      <p class="history-status">No saved versions yet.</p>
+                    } @else {
+                      @for (version of historyVersions(); track version.id) {
+                        <button class="history-version-item"
+                          [class.selected]="selectedVersion()?.id === version.id"
+                          (click)="selectVersion(version)">
+                          @if (version.createdByAvatar || version.createdByName) {
+                            <span class="version-author">
+                              @if (version.createdByAvatar) {
+                                <img class="version-author-avatar" [src]="version.createdByAvatar" [alt]="version.createdByName || 'Author'" />
+                              } @else {
+                                <span class="version-author-avatar-placeholder">
+                                  <mat-icon style="font-size:14px;width:14px;height:14px;line-height:14px">person</mat-icon>
+                                </span>
+                              }
+                              @if (version.createdByName) {
+                                <span class="version-author-name">{{ version.createdByName }}</span>
+                              }
+                            </span>
+                          }
+                          <span class="version-date">{{ formatVersionDate(version.savedAt) }}</span>
+                        </button>
+                      }
                     }
                   </div>
+                  @if (!selectedVersion()) {
+                    <p class="history-status history-select-hint">Select a version to compare with current content.</p>
+                  } @else {
+                    <div class="history-sidebar-diff">
+                      <div class="history-diff-legend">
+                        <span class="legend-remove">&#8722; Version ({{ formatVersionDate(selectedVersion()!.savedAt) }})</span>
+                        <span class="legend-add">&#43; Current</span>
+                      </div>
+                      <div class="history-diff-lines">
+                        @for (line of diffLines(); track $index) {
+                          <div class="diff-line"
+                            [class.diff-add]="line.type === 'add'"
+                            [class.diff-remove]="line.type === 'remove'"
+                            [class.diff-same]="line.type === 'same'">
+                            <span class="diff-marker">{{ line.type === 'add' ? '+' : line.type === 'remove' ? '-' : ' ' }}</span>
+                            <span class="diff-text">{{ line.text }}</span>
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  }
                 </div>
-                }
-              </div>
-            </mat-tab>
+              </mat-tab>
 
-          </mat-tab-group>
-        </aside>
+            </mat-tab-group>
+          </aside>
+        </div>
 
-      </div>
-
-      <!-- Entity autocomplete dropdown -->
-      @if (autocompleteItems().length > 0) {
-      <div class="autocomplete-dropdown" [class.autocomplete-above]="autocompleteAbove()" [style.top.px]="autocompleteTop()" [style.left.px]="autocompleteLeft()">
-        @for (item of autocompleteItems(); track $index; let i = $index) {
-        <div class="autocomplete-item" [class.active]="i === autocompleteIndex()"
-          [class.is-preferred]="item.isPreferred" (mousedown)="selectAutocomplete(item.entity, item.text)">
-          @if (item.isPreferred && item.entity.thumbnailUrl) {
-          <img [src]="proxyUrl(item.entity.thumbnailUrl)!" class="autocomplete-thumb" alt="" />
-          } @else if (item.isPreferred) {
-          <span class="autocomplete-thumb-placeholder"></span>
-          } @else {
-          <span class="autocomplete-alt-indent"></span>
-          }
-          <span [class.autocomplete-preferred]="item.isPreferred" [class.autocomplete-alt]="!item.isPreferred">{{
-            item.text }}</span>
-        </div>
-        }
-      </div>
-      }
-
-      <!-- Entity hover popup -->
-      @if (hoveredEntity()) {
-      <div class="entity-hover-popup" [style.top.px]="popupTop()" [style.left.px]="popupLeft()"
-        (mouseenter)="onPopupMouseEnter()" (mouseleave)="onPopupMouseLeave()">
-        @if (hoveredEntity()!.thumbnailUrl) {
-        <img [src]="proxyUrl(hoveredEntity()!.thumbnailUrl)!" class="popup-thumb" alt="" />
-        }
-        <div class="popup-info">
-          <span class="popup-name">{{ hoveredEntity()!.name }}</span>
-          @if (hoveredEntity()!.biography) {
-          <span class="popup-bio">{{ hoveredEntity()!.biography }}</span>
-          }
-        </div>
-        <button mat-icon-button class="popup-edit-btn" (click)="openEntityEdit(hoveredEntity()!)">
-          <mat-icon>edit</mat-icon>
-        </button>
-      </div>
-      }
-
-      <!-- Note input popup -->
-      @if (noteInputVisible()) {
-      <div class="note-input-popup" [style.top.px]="noteInputTop()" [style.left.px]="noteInputLeft()">
-        <div class="note-input-header">
-          <mat-icon>sticky_note_2</mat-icon>
-          <span>Add Note</span>
-          <button mat-icon-button class="note-input-close-btn" (click)="dismissNoteInput()" title="Dismiss">
-            <mat-icon>close</mat-icon>
-          </button>
-        </div>
-        <div class="note-input-body">
-          <textarea #noteInputEl class="note-textarea" placeholder="Enter your note… (Ctrl+Enter to save)" rows="3"
-            [value]="noteInputText()" (input)="noteInputText.set($any($event.target).value)"
-            (keydown)="onNoteInputKeyDown($event)"></textarea>
-        </div>
-        <div class="note-input-actions">
-          <button mat-flat-button (click)="submitNote()" [disabled]="!noteInputText().trim()">Save</button>
-          <button mat-button (click)="dismissNoteInput()">Cancel</button>
-        </div>
-      </div>
-      }
-
-      <!-- Grammar suggestion popover -->
-      @if (grammarPopoverVisible()) {
-      <div class="grammar-popover" [class.grammar-popover-above]="grammarPopoverAbove()" [style.top.px]="grammarPopoverTop()" [style.left.px]="grammarPopoverLeft()">
-        <div class="grammar-popover-message">
-          <mat-icon class="grammar-popover-icon">spellcheck</mat-icon>
-          {{ grammarPopoverError()?.message }}
-        </div>
-        <div class="grammar-popover-suggestion">
-          <span class="grammar-popover-label">Suggestion</span>
-          <span class="grammar-popover-text">{{ grammarPopoverError()?.suggestion }}</span>
-        </div>
-        <div class="grammar-popover-actions">
-          <button mat-flat-button (click)="applyGrammarSuggestion()">Apply</button>
-          <button mat-button (click)="dismissGrammarPopover()">Dismiss</button>
-        </div>
-      </div>
-      }
-
-      <!-- Inline AI prompt (Ctrl+.) -->
-      @if (inlineAiVisible()) {
-      <div #inlineAiPanel class="inline-ai-prompt" [class.inline-ai-above]="inlineAiAbove()" [style.top.px]="inlineAiTop()" [style.left.px]="inlineAiLeft()">
-        <div class="inline-ai-header">
-          <mat-icon>auto_awesome</mat-icon>
-          <span>{{ inlineAiSelectedText() ? 'AI Reword' : 'AI Insert' }}</span>
-          <button mat-icon-button class="inline-ai-close-btn" (click)="dismissInlineAiPrompt()" title="Dismiss (Esc)">
-            <mat-icon>close</mat-icon>
-          </button>
-        </div>
-        @if (inlineAiSelectedText()) {
-        <div class="inline-ai-selection-preview">{{ inlineAiSelectedText() }}</div>
-        }
-        <div class="inline-ai-input-row">
-          <div class="inline-ai-input-wrap">
-            <input #inlineAiInputEl class="inline-ai-input" type="text"
-              [placeholder]="inlineAiSelectedText() ? 'Optional: describe how to reword… (Enter to send)' : 'Describe what to insert… (Enter to send)'"
-              [value]="inlineAiInput()" (input)="onInlineAiInputChange($any($event.target).value)"
-              (keydown)="onInlineAiKeyDown($event)" [disabled]="inlineAiStreaming()" />
-            @if (ghostSuffix()) {
-            <div class="ghost-complete-overlay" aria-hidden="true">
-              <span class="ghost-typed">{{ inlineAiInput() }}</span><span class="ghost-suffix">{{ ghostSuffix() }}</span>
+        <!-- Note input popup (chapter-specific) -->
+        @if (noteInputVisible()) {
+          <div class="note-input-popup" [style.top.px]="noteInputTop()" [style.left.px]="noteInputLeft()">
+            <div class="note-input-header">
+              <mat-icon>sticky_note_2</mat-icon>
+              <span>Add Note</span>
+              <button mat-icon-button class="note-input-close-btn" (click)="dismissNoteInput()" title="Dismiss">
+                <mat-icon>close</mat-icon>
+              </button>
             </div>
-            <span class="ghost-tab-badge" aria-hidden="true">Tab</span>
-            }
+            <div class="note-input-body">
+              <textarea #noteInputEl class="note-textarea"
+                placeholder="Enter your note… (Ctrl+Enter to save)" rows="3"
+                [value]="noteInputText()"
+                (input)="noteInputText.set($any($event.target).value)"
+                (keydown)="onNoteInputKeyDown($event)"></textarea>
+            </div>
+            <div class="note-input-actions">
+              <button mat-flat-button (click)="submitNote()" [disabled]="!noteInputText().trim()">Save</button>
+              <button mat-button (click)="dismissNoteInput()">Cancel</button>
+            </div>
           </div>
-          <button mat-icon-button
-            [disabled]="inlineAiStreaming() || (!inlineAiInput().trim() && !inlineAiSelectedText())"
-            (click)="submitInlineAiPrompt()" title="Send">
-            <mat-icon>{{ inlineAiStreaming() ? 'hourglass_top' : 'send' }}</mat-icon>
-          </button>
-        </div>
-        @if (inlineAiStreaming() || inlineAiResponse() || inlineAiImageUrl()) {
-        @if (inlineAiGeneratingImage()) {
-        <div class="inline-ai-image-generating">
-          <mat-spinner diameter="20"></mat-spinner>
-          <span>Generating image…</span>
-        </div>
-        } @else if (inlineAiImageUrl()) {
-        <div class="inline-ai-image-preview">
-          <img [src]="proxyUrl(inlineAiImageUrl()!)" alt="Generated image" class="inline-ai-generated-image" />
-        </div>
-        } @else {
-        <div class="inline-ai-response" [class.streaming]="inlineAiStreaming()">{{ inlineAiResponse() }}</div>
         }
-        @if (!inlineAiStreaming() && (inlineAiResponse() || inlineAiImageUrl())) {
-        <div class="inline-ai-actions">
-          <button mat-flat-button (click)="acceptInlineAiResponse()" title="Accept (Alt+A)">Accept</button>
-          <button mat-button (click)="dismissInlineAiPrompt()">Dismiss</button>
-        </div>
-        }
-        }
-      </div>
       }
-
-      } @else {
-      <p class="loading">Loading…</p>
-      }
-
-      <!-- Mobile: floating title bar -->
-      @if (chapter()) {
-      <div class="mobile-title-bar mobile-only">
-        <span class="mobile-title-text">{{ chapter()!.title || 'Untitled' }}</span>
-        <button mat-icon-button class="mobile-title-edit-btn"
-          (click)="mobileTitleDraft.set(chapter()!.title); mobileTitleEditOpen.set(true)" title="Edit title">
-          <mat-icon>edit</mat-icon>
-        </button>
-      </div>
-      }
-
-      <!-- Mobile: title edit bottom sheet -->
-      @if (mobileTitleEditOpen()) {
-      <div class="mobile-title-sheet-backdrop" (click)="mobileTitleEditOpen.set(false)"></div>
-      <div class="mobile-title-sheet">
-        <div class="mobile-title-sheet-header">
-          <span>Edit Title</span>
-          <button mat-icon-button (click)="mobileTitleEditOpen.set(false)">
-            <mat-icon>close</mat-icon>
-          </button>
-        </div>
-        <div class="mobile-title-sheet-body">
-          <mat-form-field appearance="outline" style="width: 100%">
-            <mat-label>Title</mat-label>
-            <input matInput [ngModel]="mobileTitleDraft()" (ngModelChange)="mobileTitleDraft.set($event)"
-              (keydown.enter)="updateTitle(mobileTitleDraft()); mobileTitleEditOpen.set(false)" />
-          </mat-form-field>
-        </div>
-        <div class="mobile-title-sheet-actions">
-          <button mat-button (click)="mobileTitleEditOpen.set(false)">Cancel</button>
-          <button mat-flat-button
-            (click)="updateTitle(mobileTitleDraft()); mobileTitleEditOpen.set(false)">Done</button>
-        </div>
-      </div>
-      }
-
     </div>
   </div>
 
+  <!-- Entity edit slide-out panel -->
   <div right-panel>
     @if (editingEntity()) {
-    <div class="entity-edit-panel">
-      <h3>Edit Entity</h3>
-      <app-entity-edit [entity]="editingEntity()!" (save)="saveEntityEdit($event)" (cancel)="cancelEntityEdit()"
-        (archive)="archiveEntityEdit($event)" />
-    </div>
+      <div class="entity-edit-panel">
+        <app-entity-edit
+          [entity]="editingEntity()!"
+          [isNew]="false"
+          (save)="saveEntityEdit($event)"
+          (cancel)="cancelEntityEdit()"
+          (archive)="archiveEntityEdit($event)" />
+      </div>
     }
   </div>
 
 </app-slide-out-panel-container>
-
-<!-- Ctrl+. context menu -->
-@if (ctxMenuVisible()) {
-<div class="ctrl-dot-menu" [style.top.px]="ctxMenuTop()" [style.left.px]="ctxMenuLeft()">
-  @for (item of ctxMenuItems(); track item.id; let i = $index) {
-  <button class="ctrl-dot-item" [class.focused]="ctxMenuFocusedIndex() === i"
-    (click)="executeCtxMenuItem(item)" (mouseenter)="ctxMenuFocusedIndex.set(i)">
-    <mat-icon>{{ item.icon }}</mat-icon>
-    <span>{{ item.label }}</span>
-  </button>
-  }
-</div>
-}
