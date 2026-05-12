@@ -2,6 +2,7 @@ import { Component, inject } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { CdkDrag, CdkDragDrop, CdkDragHandle, CdkDropList } from '@angular/cdk/drag-drop';
 import { EntityPanelService } from '../../services/entity-panel.service';
 import { EntityEditComponent } from '../../entity-edit/entity-edit';
 
@@ -12,10 +13,25 @@ import { EntityEditComponent } from '../../entity-edit/entity-edit';
     MatIconModule,
     MatTooltipModule,
     EntityEditComponent,
+    CdkDropList,
+    CdkDrag,
+    CdkDragHandle,
   ],
   templateUrl: './entity-panel.html',
   styleUrl: './entity-panel.scss',
 })
 export class EntityPanelComponent {
   panel = inject(EntityPanelService);
+
+  onGroupDrop(type: string, event: CdkDragDrop<unknown>): void {
+    this.panel.reorderWithinGroup(type, event.previousIndex, event.currentIndex);
+  }
+
+  groupLabel(type: string): string {
+    return type.charAt(0) + type.slice(1).toLowerCase() + 's';
+  }
+
+  groupIcon(type: string): string {
+    return type === 'PERSON' ? 'people' : type === 'PLACE' ? 'place' : 'category';
+  }
 }

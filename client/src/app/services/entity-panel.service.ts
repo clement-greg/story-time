@@ -1,4 +1,4 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import { EntityService } from './entity.service';
 import { Entity } from '@shared/models/entity.model';
 import { v4 as uuidv4 } from 'uuid';
@@ -16,6 +16,32 @@ export class EntityPanelService {
   entityLoading = signal(false);
   showingArchived = signal(false);
   lastUpdatedEntity = signal<Entity | null>(null);
+  private readonly COLLAPSED_KEY = 'entityPanel.collapsedGroups';
+  collapsedGroups = signal<Set<string>>(this.loadCollapsedGroups());
+
+  private loadCollapsedGroups(): Set<string> {
+    try {
+      const stored = localStorage.getItem(this.COLLAPSED_KEY);
+      return stored ? new Set(JSON.parse(stored) as string[]) : new Set();
+    } catch {
+      return new Set();
+    }
+  }
+
+  private saveCollapsedGroups(set: Set<string>): void {
+    try {
+      localStorage.setItem(this.COLLAPSED_KEY, JSON.stringify([...set]));
+    } catch { /* storage unavailable */ }
+  }
+
+  readonly GROUP_ORDER = ['PERSON', 'PLACE', 'THING'] as const;
+
+  entityGroups = computed(() => {
+    const list = this.entityList();
+    return this.GROUP_ORDER
+      .map(type => ({ type, entities: list.filter(e => e.type === type) }))
+      .filter(g => g.entities.length > 0);
+  });
 
   get panelWidth(): number {
     return this.editingEntity() ? 572 : 340;
@@ -52,7 +78,13 @@ export class EntityPanelService {
     fetch.subscribe({
       next: (data) => {
         // Keep narrator out of the main list (it has its own dedicated section)
-        this.entityList.set(data.filter(e => !e.isNarrator));
+        const filtered = data.filter(e => !e.isNarrator);
+        filtered.sort((a, b) => {
+          const aOrder = a.sortOrder ?? Infinity;
+          const bOrder = b.sortOrder ?? Infinity;
+          return aOrder - bOrder;
+        });
+        this.entityList.set(filtered);
         this.entityLoading.set(false);
       },
       error: () => this.entityLoading.set(false),
@@ -149,6 +181,32 @@ export class EntityPanelService {
         }
       },
     });
+  }
+
+  toggleGroup(type: string): void {
+    this.collapsedGroups.update(set => {
+      const next = new Set(set);
+      if (next.has(type)) next.delete(type); else next.add(type);
+      this.saveCollapsedGroups(next);
+      return next;
+    });
+  }
+
+  isGroupCollapsed(type: string): boolean {
+    return this.collapsedGroups().has(type);
+  }
+
+  reorderWithinGroup(type: string, previousIndex: number, currentIndex: number): void {
+    const list = [...this.entityList()];
+    // Extract only this group's items in order
+    const groupItems = list.filter(e => e.type === type);
+    const [moved] = groupItems.splice(previousIndex, 1);
+    groupItems.splice(currentIndex, 0, moved);
+    // Rebuild the full list, replacing type items with reordered ones
+    let gi = 0;
+    const result = list.map(e => e.type === type ? groupItems[gi++] : e);
+    this.entityList.set(result);
+    this.entityService.reorder(result.map(e => e.id)).subscribe();
   }
 
   proxyUrl(url: string | undefined): string | null {

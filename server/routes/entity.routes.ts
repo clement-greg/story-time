@@ -182,6 +182,31 @@ router.put('/:id', async (req: Request, res: Response) => {
   }
 });
 
+// PATCH reorder entities (bulk sort-order update)
+router.patch('/reorder', async (req: Request, res: Response) => {
+  try {
+    const { ids }: { ids: string[] } = req.body;
+    if (!Array.isArray(ids)) {
+      res.status(400).json({ error: 'ids must be an array' });
+      return;
+    }
+    const now = new Date().toISOString();
+    await Promise.all(
+      ids.map(async (id, index) => {
+        const existing = await readOwnedItem<Entity>(container, id, id, req);
+        if (existing) {
+          const updated: Entity = { ...existing, sortOrder: index, modifiedBy: req.user!.email, modifiedAt: now };
+          await container.item(id, id).replace<Entity>(updated);
+        }
+      }),
+    );
+    res.status(204).send();
+  } catch (err) {
+    console.error('Error reordering entities:', err);
+    res.status(500).json({ error: 'Failed to reorder entities' });
+  }
+});
+
 // PATCH archive entity
 router.patch('/:id/archive', async (req: Request, res: Response) => {
   try {

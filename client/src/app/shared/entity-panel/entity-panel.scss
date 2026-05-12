@@ -79,6 +79,61 @@
   width: 100%;
 }
 
+/* ── Entity groups ── */
+.entity-group {
+  margin-bottom: 4px;
+}
+
+.entity-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 8px 6px 4px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: rgba(0, 0, 0, 0.6);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: background 0.12s;
+}
+
+.entity-group-header:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.entity-group-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  line-height: 16px;
+}
+
+.entity-group-label {
+  flex: 1;
+  text-align: left;
+}
+
+.entity-group-count {
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.entity-group-chevron {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  line-height: 18px;
+  color: rgba(0, 0, 0, 0.4);
+}
+
 .entity-list-item {
   display: flex;
   align-items: center;
@@ -91,6 +146,44 @@
   box-sizing: border-box;
   user-select: none;
   border: 1px solid transparent;
+}
+
+.drag-handle {
+  cursor: grab;
+  color: rgba(0, 0, 0, 0.3);
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  line-height: 20px;
+  flex-shrink: 0;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.cdk-drag-preview {
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  min-height: 52px;
+  box-sizing: border-box;
+}
+
+.cdk-drag-placeholder {
+  opacity: 0.3;
+  border: 2px dashed rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  background: transparent;
+}
+
+.cdk-drop-list-dragging .entity-list-item:not(.cdk-drag-placeholder) {
+  transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
 }
 
 .entity-list-item:hover {

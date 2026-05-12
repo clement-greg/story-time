@@ -26,6 +26,7 @@ import { SeriesService } from '../series/series.service';
 import { SlideOutPanelContainer } from '../shared/slide-out-panel-container/slide-out-panel-container';
 import { EntityEditComponent } from '../entity-edit/entity-edit';
 import { RichTextEditorComponent, SuggestedEntityCard } from '../shared/rich-text-editor/rich-text-editor';
+import { AiStatsComponent } from '../book-detail/ai-stats/ai-stats';
 import { HeaderService } from '../services/header.service';
 import { EntityPanelService } from '../services/entity-panel.service';
 import { UserSettingsService } from '../services/user-settings.service';
@@ -37,7 +38,7 @@ import { SeriesContextService } from '../services/series-context.service';
     FormsModule,
     MatButtonModule, MatIconModule, MatInputModule, MatFormFieldModule,
     MatProgressSpinnerModule, MatTabsModule, MatDialogModule, MatMenuModule,
-    SlideOutPanelContainer, EntityEditComponent, RichTextEditorComponent,
+    SlideOutPanelContainer, EntityEditComponent, RichTextEditorComponent, AiStatsComponent,
   ],
   templateUrl: './chapter-edit.html',
   styleUrl: './chapter-edit.scss',
@@ -95,6 +96,9 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
 
   // ── Entity editing slide-out ─────────────────────────────────────────────
   editingEntity = signal<Entity | null>(null);
+
+  // ── AI stats slide-out ───────────────────────────────────────────────────
+  showAiStats = signal(false);
 
   // ── Entity suggestions (from editor grammar check) ───────────────────────
   pendingSuggestions = signal<SuggestedEntityCard[]>([]);
@@ -502,6 +506,13 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   }
 
   cancelEntityEdit(): void { this.editingEntity.set(null); }
+
+  openAiStats(): void { this.editingEntity.set(null); this.showAiStats.set(true); }
+  closeAiStats(): void { this.showAiStats.set(false); }
+
+  onRightPanelChange(open: boolean): void {
+    if (!open) { this.editingEntity.set(null); this.showAiStats.set(false); }
+  }
 
   // ── Version history ──────────────────────────────────────────────────────
 

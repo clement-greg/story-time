@@ -73,4 +73,8 @@ export class EntityService {
   getOrCreateNarrator(seriesId: string): Observable<Entity> {
     return this.http.get<Entity>(`${this.apiUrl}/narrator/${seriesId}`);
   }
+
+  reorder(ids: string[]): Observable<void> {
+    return this.http.patch<void>(`${this.apiUrl}/reorder`, { ids });
+  }
 }

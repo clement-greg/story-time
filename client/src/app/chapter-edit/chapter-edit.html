@@ -1,5 +1,5 @@
-<app-slide-out-panel-container [showRightPanel]="!!editingEntity()"
-  (showRightPanelChange)="$event ? null : cancelEntityEdit()" [rightPanelWidth]="450">
+<app-slide-out-panel-container [showRightPanel]="!!editingEntity() || showAiStats()"
+  (showRightPanelChange)="onRightPanelChange($event)" [rightPanelWidth]="showAiStats() ? 520 : 450">
 
   <div main-content>
     <div class="page">
@@ -19,6 +19,9 @@
           }
           <button mat-flat-button (click)="save()" [disabled]="saving() || !chapter()">
             {{ saving() ? 'Saving…' : 'Save' }}
+          </button>
+          <button mat-icon-button (click)="openAiStats()" title="AI Writing Insights" [disabled]="!chapter()">
+            <mat-icon>auto_awesome</mat-icon>
           </button>
         </div>
       </div>
@@ -258,7 +261,7 @@
     </div>
   </div>
 
-  <!-- Entity edit slide-out panel -->
+  <!-- Entity edit / AI stats slide-out panel -->
   <div right-panel>
     @if (editingEntity()) {
       <div class="entity-edit-panel">
@@ -269,6 +272,9 @@
           (cancel)="cancelEntityEdit()"
           (archive)="archiveEntityEdit($event)" />
       </div>
+    }
+    @if (showAiStats() && chapter()) {
+      <app-ai-stats [chapters]="[chapter()!]" [loading]="false" />
     }
   </div>
 

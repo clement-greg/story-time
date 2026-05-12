@@ -48,29 +48,66 @@
           </div>
         }
 
-        <div class="entity-list">
-          @for (entity of panel.entityList(); track entity.id) {
-            <div class="entity-list-item"
-                 [class.entity-selected]="panel.editingEntity()?.id === entity.id"
-                 (click)="panel.startEditEntity(entity)"
-                 [matTooltip]="panel.editingEntity() ? (entity.name || '(unnamed)') : ''"
-                 matTooltipPosition="right">
-
-              <div class="entity-avatar">
-                @if (entity.thumbnailUrl) {
-                  <img [src]="panel.proxyUrl(entity.thumbnailUrl)!" [alt]="entity.name" />
-                } @else {
-                  <mat-icon class="entity-avatar-icon">person</mat-icon>
-                }
-              </div>
-
-              @if (!panel.editingEntity()) {
-                <span class="entity-type-badge">{{ entity.type }}</span>
-                <span class="entity-name">{{ entity.name || '(unnamed)' }}</span>
+        <!-- Grouped view: non-archived + full width -->
+        @if (!panel.showingArchived() && !panel.editingEntity()) {
+          @for (group of panel.entityGroups(); track group.type) {
+            <div class="entity-group">
+              <button class="entity-group-header" (click)="panel.toggleGroup(group.type)">
+                <mat-icon class="entity-group-icon">{{ groupIcon(group.type) }}</mat-icon>
+                <span class="entity-group-label">{{ groupLabel(group.type) }}</span>
+                <span class="entity-group-count">{{ group.entities.length }}</span>
+                <mat-icon class="entity-group-chevron">{{ panel.isGroupCollapsed(group.type) ? 'expand_more' : 'expand_less' }}</mat-icon>
+              </button>
+              @if (!panel.isGroupCollapsed(group.type)) {
+                <div class="entity-list"
+                     cdkDropList
+                     (cdkDropListDropped)="onGroupDrop(group.type, $event)">
+                  @for (entity of group.entities; track entity.id) {
+                    <div class="entity-list-item"
+                         cdkDrag
+                         [class.entity-selected]="panel.editingEntity()?.id === entity.id"
+                         (click)="panel.startEditEntity(entity)">
+                      <mat-icon class="drag-handle" cdkDragHandle (click)="$event.stopPropagation()">drag_indicator</mat-icon>
+                      <div class="entity-avatar">
+                        @if (entity.thumbnailUrl) {
+                          <img [src]="panel.proxyUrl(entity.thumbnailUrl)!" [alt]="entity.name" />
+                        } @else {
+                          <mat-icon class="entity-avatar-icon">person</mat-icon>
+                        }
+                      </div>
+                      <span class="entity-name">{{ entity.name || '(unnamed)' }}</span>
+                    </div>
+                  }
+                </div>
               }
             </div>
           }
-        </div>
+        }
+
+        <!-- Flat list: narrow (editing) or archived -->
+        @if (panel.showingArchived() || panel.editingEntity()) {
+          <div class="entity-list">
+            @for (entity of panel.entityList(); track entity.id) {
+              <div class="entity-list-item"
+                   [class.entity-selected]="panel.editingEntity()?.id === entity.id"
+                   (click)="panel.startEditEntity(entity)"
+                   [matTooltip]="panel.editingEntity() ? (entity.name || '(unnamed)') : ''"
+                   matTooltipPosition="right">
+                <div class="entity-avatar">
+                  @if (entity.thumbnailUrl) {
+                    <img [src]="panel.proxyUrl(entity.thumbnailUrl)!" [alt]="entity.name" />
+                  } @else {
+                    <mat-icon class="entity-avatar-icon">person</mat-icon>
+                  }
+                </div>
+                @if (!panel.editingEntity()) {
+                  <span class="entity-type-badge">{{ entity.type }}</span>
+                  <span class="entity-name">{{ entity.name || '(unnamed)' }}</span>
+                }
+              </div>
+            }
+          </div>
+        }
       </div>
 
       <!-- Edit column -->
