@@ -30,7 +30,12 @@ import { AiStatsComponent } from '../book-detail/ai-stats/ai-stats';
 import { HeaderService } from '../services/header.service';
 import { EntityPanelService } from '../services/entity-panel.service';
 import { UserSettingsService } from '../services/user-settings.service';
+import { AuthService } from '../auth/auth.service';
 import { SeriesContextService } from '../services/series-context.service';
+import { diffWords } from 'diff';
+
+interface DiffWord { type: 'same' | 'add' | 'remove'; text: string; }
+interface DiffParagraph { hasChanges: boolean; segments: DiffWord[]; }
 
 @Component({
   selector: 'app-chapter-edit',
@@ -61,6 +66,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   private headerService = inject(HeaderService);
   private entityPanel = inject(EntityPanelService);
   private userSettings = inject(UserSettingsService);
+  private authService = inject(AuthService);
   private seriesContext = inject(SeriesContextService);
 
   // ── Chapter state ────────────────────────────────────────────────────────
@@ -92,7 +98,9 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   historyLoading = signal(false);
   historyVersions = signal<ChapterVersion[]>([]);
   selectedVersion = signal<ChapterVersion | null>(null);
-  diffLines = signal<{ type: 'same' | 'add' | 'remove'; text: string }[]>([]);
+  previousVersion = signal<ChapterVersion | null>(null);
+  diffLines = signal<DiffParagraph[]>([]);
+  historyListHeight = signal(180);
 
   // ── Entity editing slide-out ─────────────────────────────────────────────
   editingEntity = signal<Entity | null>(null);
@@ -113,6 +121,15 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     startX: number; startWidth: number;
     moveHandler: (e: MouseEvent) => void; upHandler: () => void;
   } | null = null;
+
+  private historyResizerDrag: {
+    startY: number; startHeight: number;
+    moveHandler: (e: MouseEvent) => void; upHandler: () => void;
+  } | null = null;
+
+  private static readonly HISTORY_LIST_HEIGHT_KEY = 'chapter-edit-history-list-height';
+  private static readonly HISTORY_LIST_MIN = 80;
+  private static readonly HISTORY_LIST_MAX = 400;
 
   private autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -148,6 +165,7 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.loadSidebarWidth();
+    this.loadHistoryListHeight();
     const id = this.route.snapshot.paramMap.get('id')!;
 
     this.chapterService.getById(id).subscribe({
@@ -203,6 +221,10 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     if (this.resizerDrag) {
       document.removeEventListener('mousemove', this.resizerDrag.moveHandler);
       document.removeEventListener('mouseup', this.resizerDrag.upHandler);
+    }
+    if (this.historyResizerDrag) {
+      document.removeEventListener('mousemove', this.historyResizerDrag.moveHandler);
+      document.removeEventListener('mouseup', this.historyResizerDrag.upHandler);
     }
   }
 
@@ -291,8 +313,8 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
       next: async () => {
         this.chapterVersionService.create(
           chapter.id, content,
-          this.userSettings.displayName() || undefined,
-          this.userSettings.avatarUrl() || undefined,
+          this.userSettings.displayName() || this.authService.currentUser()?.name || undefined,
+          this.userSettings.avatarUrl() || this.authService.currentUser()?.picture || undefined,
         ).subscribe();
 
         if (this.historyVersions().length > 0) this.loadHistory(chapter.id);
@@ -526,8 +548,13 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
 
   selectVersion(version: ChapterVersion): void {
     this.selectedVersion.set(version);
-    const oldText = this.stripHtml(version.content);
-    const newText = this.stripHtml(this.editorRef?.getContent() ?? '');
+    const versions = this.historyVersions();
+    const idx = versions.findIndex(v => v.id === version.id);
+    // versions are newest-first, so previous version is at idx+1
+    const prev = idx >= 0 && idx + 1 < versions.length ? versions[idx + 1] : null;
+    this.previousVersion.set(prev);
+    const oldText = this.stripHtml(prev ? prev.content : '');
+    const newText = this.stripHtml(version.content);
     this.diffLines.set(this.computeDiff(oldText, newText));
   }
 
@@ -541,24 +568,22 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     return (div.innerText || div.textContent || '').trim();
   }
 
-  private computeDiff(oldText: string, newText: string): { type: 'same' | 'add' | 'remove'; text: string }[] {
-    const a = oldText.split('\n');
-    const b = newText.split('\n');
-    const m = a.length, n = b.length;
-    const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
-    for (let i = m - 1; i >= 0; i--)
-      for (let j = n - 1; j >= 0; j--)
-        dp[i][j] = a[i] === b[j] ? 1 + dp[i + 1][j + 1] : Math.max(dp[i + 1][j], dp[i][j + 1]);
-    const result: { type: 'same' | 'add' | 'remove'; text: string }[] = [];
-    let i = 0, j = 0;
-    while (i < m && j < n) {
-      if (a[i] === b[j]) { result.push({ type: 'same', text: a[i] }); i++; j++; }
-      else if (dp[i + 1][j] >= dp[i][j + 1]) { result.push({ type: 'remove', text: a[i] }); i++; }
-      else { result.push({ type: 'add', text: b[j] }); j++; }
+  private computeDiff(oldText: string, newText: string): DiffParagraph[] {
+    const changes = diffWords(oldText, newText);
+    const paragraphs: DiffParagraph[] = [{ hasChanges: false, segments: [] }];
+    for (const change of changes) {
+      const type: 'same' | 'add' | 'remove' = change.added ? 'add' : change.removed ? 'remove' : 'same';
+      const parts = change.value.split('\n');
+      for (let i = 0; i < parts.length; i++) {
+        if (i > 0) paragraphs.push({ hasChanges: false, segments: [] });
+        if (parts[i]) {
+          const para = paragraphs[paragraphs.length - 1];
+          para.segments.push({ type, text: parts[i] });
+          if (type !== 'same') para.hasChanges = true;
+        }
+      }
     }
-    while (i < m) result.push({ type: 'remove', text: a[i++] });
-    while (j < n) result.push({ type: 'add', text: b[j++] });
-    return result;
+    return paragraphs.filter(p => p.segments.length > 0);
   }
 
   // ── Sidebar ──────────────────────────────────────────────────────────────
@@ -612,6 +637,42 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     document.addEventListener('mousemove', moveHandler);
     document.addEventListener('mouseup', upHandler);
     this.resizerDrag = { startX, startWidth, moveHandler, upHandler };
+  }
+
+  private loadHistoryListHeight(): void {
+    const stored = localStorage.getItem(ChapterEditComponent.HISTORY_LIST_HEIGHT_KEY);
+    if (stored) {
+      const h = parseInt(stored, 10);
+      if (!isNaN(h) && h >= ChapterEditComponent.HISTORY_LIST_MIN && h <= ChapterEditComponent.HISTORY_LIST_MAX) {
+        this.historyListHeight.set(h);
+      }
+    }
+  }
+
+  onHistoryResizerMouseDown(event: MouseEvent): void {
+    event.preventDefault();
+    const startY = event.clientY;
+    const startHeight = this.historyListHeight();
+    const moveHandler = (e: MouseEvent) => {
+      const delta = e.clientY - startY;
+      this.historyListHeight.set(Math.round(Math.max(
+        ChapterEditComponent.HISTORY_LIST_MIN,
+        Math.min(startHeight + delta, ChapterEditComponent.HISTORY_LIST_MAX),
+      )));
+    };
+    const upHandler = () => {
+      document.removeEventListener('mousemove', moveHandler);
+      document.removeEventListener('mouseup', upHandler);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      localStorage.setItem(ChapterEditComponent.HISTORY_LIST_HEIGHT_KEY, String(this.historyListHeight()));
+      this.historyResizerDrag = null;
+    };
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', moveHandler);
+    document.addEventListener('mouseup', upHandler);
+    this.historyResizerDrag = { startY, startHeight, moveHandler, upHandler };
   }
 
   @HostListener('document:mousedown', ['$event'])

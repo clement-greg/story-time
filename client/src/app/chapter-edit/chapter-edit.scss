@@ -157,8 +157,21 @@
 .history-sidebar-list {
   flex-shrink: 0;
   overflow-y: auto;
-  max-height: 180px;
+  border-bottom: none;
+}
+
+.history-panel-resizer {
+  flex-shrink: 0;
+  height: 6px;
+  cursor: row-resize;
+  background: transparent;
+  border-top: 1px solid var(--mat-sys-outline-variant, #e0e0e0);
   border-bottom: 1px solid var(--mat-sys-outline-variant, #e0e0e0);
+  transition: background 0.15s;
+}
+
+.history-panel-resizer:hover {
+  background: var(--mat-sys-primary-container, #e3f2fd);
 }
 
 .history-select-hint {
@@ -175,7 +188,7 @@
   min-height: 0;
 }
 
-.history-sidebar-diff .history-diff-lines {
+.history-sidebar-diff .history-diff-content {
   flex: 1;
   overflow-y: auto;
 }
@@ -1433,10 +1446,12 @@
 }
 
 .history-version-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   width: 100%;
   text-align: left;
-  padding: 10px 16px;
+  padding: 7px 16px;
   background: none;
   border: none;
   border-bottom: 1px solid var(--mat-sys-outline-variant, #e0e0e0);
@@ -1448,10 +1463,7 @@
 
 /* ── Version author row ──────────────────────────── */
 .version-author {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-bottom: 3px;
+  display: contents;
 }
 
 .version-author-avatar {
@@ -1483,7 +1495,7 @@
 }
 
 .version-date {
-  display: block;
+  color: var(--mat-sys-on-surface-variant, #777);
 }
 
 .history-version-item:hover {
@@ -1528,45 +1540,37 @@
   font-weight: 600;
 }
 
-.history-diff-lines {
+.history-diff-content {
   flex: 1;
   overflow-y: auto;
-  font-family: 'Courier New', Courier, monospace;
-  font-size: 0.82rem;
-  line-height: 1.6;
-  padding: 8px 0;
+  font-size: 0.88rem;
+  line-height: 1.75;
+  padding: 8px 12px;
 }
 
-.diff-line {
-  display: flex;
-  padding: 1px 12px;
-  white-space: pre-wrap;
+.diff-paragraph {
+  margin: 0 0 0.75em 0;
   word-break: break-word;
-}
-
-.diff-line.diff-remove {
-  background: #ffebee;
-  color: #b71c1c;
-}
-
-.diff-line.diff-add {
-  background: #e8f5e9;
-  color: #1b5e20;
-}
-
-.diff-line.diff-same {
   color: var(--mat-sys-on-surface-variant, #555);
 }
 
-.diff-marker {
-  width: 16px;
-  flex-shrink: 0;
-  user-select: none;
-  opacity: 0.7;
+.diff-paragraph.diff-paragraph-changed {
+  color: var(--mat-sys-on-surface, #222);
 }
 
-.diff-text {
-  flex: 1;
+.diff-word-add {
+  background: #c8e6c9;
+  color: #1b5e20;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+.diff-word-remove {
+  background: #ffcdd2;
+  color: #b71c1c;
+  text-decoration: line-through;
+  border-radius: 2px;
+  padding: 0 1px;
 }
 
 /* ── Mobile styles ───────────────────────────────────── */

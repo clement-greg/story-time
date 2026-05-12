@@ -61,3 +61,11 @@ html, body {
 .entity-quote {
   color: orange;
 }
+
+span[data-ai-generated="true"] {
+  color: #7D69B1;
+}
+
+span[data-ai-generated="modified"] {
+  color: #ECAD63;
+}

@@ -158,7 +158,7 @@ export class RichTextEditorComponent implements OnInit, AfterViewInit, OnDestroy
   private _editorContent = '';
   get editorContent(): string { return this._editorContent; }
   set editorContent(value: string) {
-    const needsClean = value.includes('grammar-error') || value.includes('ai-insertion-marker');
+    const needsClean = value.includes('grammar-error') || value.includes('ai-insertion-marker') || value.includes('<font');
     if (needsClean) {
       const div = document.createElement('div');
       div.innerHTML = value;
@@ -168,6 +168,13 @@ export class RichTextEditorComponent implements OnInit, AfterViewInit, OnDestroy
         parent.removeChild(mark);
       });
       div.querySelectorAll('.ai-insertion-marker').forEach(el => el.remove());
+      // Chrome sometimes wraps new-paragraph content in <font color="..."> when
+      // breaking out of a styled inline span.  Unwrap them so content is clean.
+      div.querySelectorAll('font').forEach(font => {
+        const parent = font.parentNode!;
+        while (font.firstChild) parent.insertBefore(font.firstChild, font);
+        parent.removeChild(font);
+      });
       this._editorContent = div.innerHTML;
     } else {
       this._editorContent = value;
@@ -177,6 +184,10 @@ export class RichTextEditorComponent implements OnInit, AfterViewInit, OnDestroy
   private emitTimer: ReturnType<typeof setTimeout> | null = null;
   private longPressTimer: ReturnType<typeof setTimeout> | null = null;
   private contentInitialized = false;
+
+  // Guard that re-extracts text Chrome snaps back into an AI span after a sentence boundary.
+  private lastEjectedSpan: HTMLElement | null = null;
+  private lastEjectedSpanTextLength = 0;
 
   private entityService = inject(EntityService);
   private grammarService = inject(GrammarCheckService);
@@ -379,6 +390,27 @@ export class RichTextEditorComponent implements OnInit, AfterViewInit, OnDestroy
     const el = event.target as HTMLDivElement;
     this.editorContent = el.innerHTML;
 
+    // If a sentence-ending ejection was set on a previous input, check whether
+    // Chrome snapped the newly typed text back inside the AI span. If so,
+    // extract the overflow and move it out.
+    const ejectedSpan = this.lastEjectedSpan;
+    if (ejectedSpan?.isConnected) {
+      const currentLen = ejectedSpan.textContent?.length ?? 0;
+      if (currentLen > this.lastEjectedSpanTextLength) {
+        this.extractOverflowFromAiSpan(ejectedSpan, this.lastEjectedSpanTextLength);
+        this.editorContent = el.innerHTML;
+      } else {
+        // Span didn't grow — if cursor has moved away, clear the guard.
+        const selClear = window.getSelection();
+        if (selClear && selClear.rangeCount > 0) {
+          const nc = selClear.getRangeAt(0).startContainer;
+          const inSpan = (nc.nodeType === Node.ELEMENT_NODE ? nc as Element : (nc as Text).parentElement)
+            ?.closest('[data-ai-generated]');
+          if (inSpan !== ejectedSpan) this.lastEjectedSpan = null;
+        }
+      }
+    }
+
     // Mark AI-generated spans as modified when the user edits text inside them
     const sel = window.getSelection();
     if (sel && sel.rangeCount > 0) {
@@ -391,8 +423,30 @@ export class RichTextEditorComponent implements OnInit, AfterViewInit, OnDestroy
       }
     }
 
-    // Strip trailing \u00A0 after entity-reference when punctuation typed
+    // Detect sentence-ending punctuation followed by space typed inside an AI span.
+    // Record the current span length as the eject-guard threshold so that on
+    // the *next* input event we can extract any overflow Chrome snapped back in.
     const inputData = (event as InputEvent).data;
+    if (inputData === ' ') {
+      const selSp = window.getSelection();
+      if (selSp && selSp.rangeCount > 0 && selSp.isCollapsed) {
+        const rSp = selSp.getRangeAt(0);
+        if (rSp.startContainer.nodeType === Node.TEXT_NODE) {
+          const textSp = rSp.startContainer as Text;
+          // At this point the space has already been inserted; offset - 2 is the char before it.
+          const charBefore = (textSp.textContent ?? '')[rSp.startOffset - 2] ?? '';
+          if (/[.!?]/.test(charBefore)) {
+            const aiSpSp = textSp.parentElement?.closest<HTMLElement>('[data-ai-generated]');
+            if (aiSpSp) {
+              this.lastEjectedSpan = aiSpSp;
+              this.lastEjectedSpanTextLength = aiSpSp.textContent?.length ?? 0;
+            }
+          }
+        }
+      }
+    }
+
+    // Strip trailing \u00A0 after entity-reference when punctuation typed
     if (inputData && /^[.,!?;:)'""\u2019\u201d]$/.test(inputData)) {
       const sel = window.getSelection();
       if (sel && sel.rangeCount > 0 && sel.isCollapsed) {
@@ -525,6 +579,26 @@ export class RichTextEditorComponent implements OnInit, AfterViewInit, OnDestroy
       }
     }
 
+    // Enter: eject cursor from ai-generated span so the new block starts outside it.
+    if (event.key === 'Enter' && !event.shiftKey && this.autocompleteItems().length === 0) {
+      if (this.ejectFromAiSpan() && this.editorRef) {
+        this.lastEjectedSpan = null; // new block element always lands outside the span
+        this.editorContent = this.editorRef.nativeElement.innerHTML;
+        // Chrome may inject <font color> into the new block asynchronously.
+        // Strip any font tags after the browser finishes creating the paragraph.
+        setTimeout(() => {
+          if (!this.editorRef) return;
+          const editor = this.editorRef.nativeElement;
+          editor.querySelectorAll('font').forEach((font: HTMLElement) => {
+            const parent = font.parentNode!;
+            while (font.firstChild) parent.insertBefore(font.firstChild, font);
+            parent.removeChild(font);
+          });
+          this.editorContent = editor.innerHTML;
+        }, 0);
+      }
+    }
+
     // Autocomplete navigation
     const items = this.autocompleteItems();
     if (items.length === 0) return;
@@ -559,6 +633,7 @@ export class RichTextEditorComponent implements OnInit, AfterViewInit, OnDestroy
   // ── Mouse / touch handlers ───────────────────────────────────────────────
 
   onEditorClick(event: MouseEvent): void {
+    this.lastEjectedSpan = null; // user repositioned cursor manually
     const target = event.target as HTMLElement;
     const grammarMark = target.closest('mark.grammar-error') as HTMLElement | null;
     if (grammarMark) { this.showGrammarPopover(event, grammarMark); return; }
@@ -1098,6 +1173,103 @@ export class RichTextEditorComponent implements OnInit, AfterViewInit, OnDestroy
 
   private removeAiMarker(): void {
     this.editorRef?.nativeElement.querySelectorAll('.ai-insertion-marker').forEach(el => el.remove());
+  }
+
+  /**
+   * Extracts text beyond `keepLength` characters from `span` and places it
+   * immediately after the span in the DOM. Used to move text that Chrome
+   * snapped back into an AI-generated span after a sentence boundary.
+   */
+  private extractOverflowFromAiSpan(span: HTMLElement, keepLength: number): void {
+    // Collect text nodes first so DOM mutation doesn't disrupt the walk.
+    const textNodes: Text[] = [];
+    const walker = document.createTreeWalker(span, NodeFilter.SHOW_TEXT);
+    let tn: Text | null;
+    while ((tn = walker.nextNode() as Text | null)) textNodes.push(tn);
+
+    let walked = 0;
+    const overflow = document.createDocumentFragment();
+    let cutDone = false;
+    let lastOverflowNode: Text | null = null;
+
+    for (const node of textNodes) {
+      const nodeLen = node.textContent?.length ?? 0;
+      if (cutDone) {
+        lastOverflowNode = node;
+        overflow.appendChild(node); // moves node out of span automatically
+      } else if (walked + nodeLen > keepLength) {
+        const cutAt = keepLength - walked;
+        if (cutAt < nodeLen) {
+          const after = node.splitText(cutAt);
+          lastOverflowNode = after;
+          overflow.appendChild(after);
+        }
+        cutDone = true;
+      }
+      walked += nodeLen;
+    }
+
+    if (!overflow.hasChildNodes() || !lastOverflowNode) return;
+
+    span.after(overflow);
+    // Update threshold so the next input starts from the new end of the span.
+    this.lastEjectedSpanTextLength = span.textContent?.length ?? 0;
+
+    // Position cursor at the END of the last moved text node.
+    // A text-node-offset cursor (unlike a parent-node-index cursor) is
+    // unambiguous — Chrome will not snap subsequent keystrokes back into the
+    // adjacent span, and the cursor won't reset to before previously typed chars.
+    const sel = window.getSelection();
+    if (sel && lastOverflowNode) {
+      const range = document.createRange();
+      range.setStart(lastOverflowNode, lastOverflowNode.textContent?.length ?? 0);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+  }
+
+  /**
+   * If the caret is inside a [data-ai-generated] span, splits the span at the
+   * cursor and moves the caret to just after the span.  Any content that was
+   * after the cursor inside the span is placed after the span as-is.
+   * Returns true when an ejection was performed.
+   */
+  private ejectFromAiSpan(): boolean {
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount || !sel.isCollapsed) return false;
+    const range = sel.getRangeAt(0);
+    const node = range.startContainer;
+    const aiSpan = (node.nodeType === Node.ELEMENT_NODE
+      ? node as Element
+      : (node as Text).parentElement)
+      ?.closest<HTMLElement>('[data-ai-generated]');
+    if (!aiSpan) return false;
+
+    // Extract everything from the cursor to the end of the span.
+    const splitRange = document.createRange();
+    splitRange.setStart(range.startContainer, range.startOffset);
+    splitRange.setEnd(aiSpan, aiSpan.childNodes.length);
+    const tail = splitRange.extractContents();
+
+    // Re-insert tail content immediately after the span.
+    if (tail.hasChildNodes()) {
+      aiSpan.after(tail);
+    }
+
+    // Position cursor using a parent-node index rather than a text-node anchor.
+    // Chrome collapses zero-width / empty text nodes and re-snaps the cursor
+    // back into the adjacent span.  A parent-node offset (setStart on the
+    // containing block with a child index) is unambiguous: there is no inline
+    // element at that position for the browser to snap into.
+    const parent = aiSpan.parentNode!;
+    const spanIdx = Array.from(parent.childNodes).indexOf(aiSpan as ChildNode);
+    const newRange = document.createRange();
+    newRange.setStart(parent, spanIdx + 1);
+    newRange.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(newRange);
+    return true;
   }
 
   // ── Grammar check ────────────────────────────────────────────────────────
