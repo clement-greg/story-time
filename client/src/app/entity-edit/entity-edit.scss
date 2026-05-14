@@ -75,6 +75,12 @@
   margin-top: -50px;
 }
 
+.thumbnail-paste-hint {
+  font-size: 11px;
+  color: #9e9e9e;
+  text-align: center;
+}
+
 @media (max-width: 599px) {
   .entity-edit-actions {
     justify-content: flex-start;

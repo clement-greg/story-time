@@ -1,4 +1,4 @@
-import { Component, input, output, signal, inject, effect, computed } from '@angular/core';
+import { Component, input, output, signal, inject, effect, computed, HostListener } from '@angular/core';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -106,11 +106,35 @@ export class EntityEditComponent {
     return filename ? `/api/image/${filename}` : null;
   }
 
+  @HostListener('paste', ['$event'])
+  onPaste(event: ClipboardEvent): void {
+    const target = event.target as HTMLElement;
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+    if (this.isNarrator()) return;
+
+    const items = event.clipboardData?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/')) {
+        const file = items[i].getAsFile();
+        if (!file) continue;
+        event.preventDefault();
+        this.uploadFile(file);
+        break;
+      }
+    }
+  }
+
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) return;
 
+    this.uploadFile(file);
+  }
+
+  private uploadFile(file: File): void {
     const reader = new FileReader();
     reader.onload = () => this.thumbnailPreview.set(reader.result as string);
     reader.readAsDataURL(file);
