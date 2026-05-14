@@ -104,6 +104,11 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
   diffLines = signal<DiffParagraph[]>([]);
   historyListHeight = signal(180);
 
+  // ── Chapter image ──────────────────────────────────────────────────────
+  imageUrl = signal<string | null>(null);
+  imageThumbnailUrl = signal<string | null>(null);
+  imageUploading = signal(false);
+
   // ── Entity editing slide-out ─────────────────────────────────────────────
   editingEntity = signal<Entity | null>(null);
 
@@ -189,6 +194,8 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
         if (hasDraft) this.hasDraft.set(true);
         this.chapter.set({ ...data, content });
         this.notes.set(notes);
+        this.imageUrl.set(data.imageUrl ?? null);
+        this.imageThumbnailUrl.set(data.imageThumbnailUrl ?? null);
 
         // Set editor content after view init (setTimeout ensures ViewChild is ready)
         setTimeout(() => {
@@ -320,6 +327,58 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
     setTimeout(() => this.noteInputEl?.nativeElement?.focus());
   }
 
+  // ── Chapter image ──────────────────────────────────────────────────────
+
+  onImageFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    input.value = '';
+    this.imageUploading.set(true);
+    this.chapterService.uploadImage(file).subscribe({
+      next: ({ url, thumbnailUrl }) => {
+        this.imageUrl.set(url);
+        this.imageThumbnailUrl.set(thumbnailUrl);
+        const current = this.chapter();
+        if (!current) { this.imageUploading.set(false); return; }
+        const updated = { ...current, imageUrl: url, imageThumbnailUrl: thumbnailUrl };
+        this.chapter.set(updated);
+        this.chapterService.update(updated).subscribe({
+          next: () => {
+            this.imageUploading.set(false);
+            this.snackBar.open('Chapter image saved', undefined, { duration: 2500 });
+          },
+          error: () => {
+            this.imageUploading.set(false);
+            this.snackBar.open('Image uploaded but chapter save failed — click Save to retry', undefined, { duration: 4000 });
+          },
+        });
+      },
+      error: () => {
+        this.snackBar.open('Image upload failed', undefined, { duration: 3000 });
+        this.imageUploading.set(false);
+      },
+    });
+  }
+
+  removeChapterImage(): void {
+    const current = this.chapter();
+    if (!current) return;
+    const updated = { ...current, imageUrl: undefined, imageThumbnailUrl: undefined };
+    this.imageUrl.set(null);
+    this.imageThumbnailUrl.set(null);
+    this.chapter.set(updated);
+    this.chapterService.update(updated).subscribe({
+      error: () => this.snackBar.open('Failed to remove image — click Save to retry', undefined, { duration: 4000 }),
+    });
+  }
+
+  proxyUrl(azureUrl: string | null): string | null {
+    if (!azureUrl) return null;
+    const filename = azureUrl.split('/').pop();
+    return filename ? `/api/image/${filename}` : null;
+  }
+
   // ── Title / save ─────────────────────────────────────────────────────────
 
   updateTitle(value: string): void {
@@ -372,6 +431,8 @@ export class ChapterEditComponent implements OnInit, OnDestroy {
         next: (data) => {
           this.chapter.set(data);
           this.notes.set(data.notes ?? []);
+          this.imageUrl.set(data.imageUrl ?? null);
+          this.imageThumbnailUrl.set(data.imageThumbnailUrl ?? null);
           this.editorRef?.setContent(data.content ?? '');
         },
       });

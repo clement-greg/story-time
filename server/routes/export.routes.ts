@@ -1,4 +1,5 @@
 ﻿import { Router, Request, Response } from 'express';
+import sharp from 'sharp';
 import {
   Document,
   Packer,
@@ -28,6 +29,7 @@ interface FetchedBook {
   book: Book;
   chapters: Chapter[];
   imageBuffer: Buffer | null;
+  chapterImageBuffers: Map<string, Buffer>;
 }
 
 async function fetchBookData(bookId: string, userEmail: string): Promise<FetchedBook | null> {
@@ -56,11 +58,38 @@ async function fetchBookData(bookId: string, userEmail: string): Promise<Fetched
     }
   }
 
-  return { book, chapters, imageBuffer };
+  // Fetch chapter images in parallel
+  const chapterImageBuffers = new Map<string, Buffer>();
+  await Promise.all(
+    chapters
+      .filter(ch => ch.imageUrl)
+      .map(async (ch) => {
+        try {
+          const filename = ch.imageUrl!.split('/').pop()!;
+          const blob = await downloadBlob(filename);
+          chapterImageBuffers.set(ch.id, blob.data);
+        } catch (err) {
+          console.error(`Failed to fetch chapter image for chapter ${ch.id}:`, err);
+        }
+      }),
+  );
+
+  return { book, chapters, imageBuffer, chapterImageBuffers };
 }
 
 function safeFilename(title: string): string {
   return title.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_') || 'book';
+}
+
+/** Scale dimensions to fit within maxW×maxH, preserving aspect ratio. */
+function fitDimensions(
+  naturalW: number, naturalH: number, maxW: number, maxH: number,
+): { width: number; height: number } {
+  const ratio = naturalW / naturalH;
+  let w = Math.min(naturalW, maxW);
+  let h = w / ratio;
+  if (h > maxH) { h = maxH; w = h * ratio; }
+  return { width: Math.round(w), height: Math.round(h) };
 }
 
 function decodeHtmlEntities(text: string): string {
@@ -150,6 +179,7 @@ function buildHtml(book: Book, chapters: Chapter[], imageProxyBase: string): str
     .map(
       (ch) => `
     <div class="chapter">
+      ${ch.imageThumbnailUrl ? `<img src="${imageProxyBase}/${ch.imageThumbnailUrl.split('/').pop()}" alt="${ch.title}" class="chapter-image">` : ''}
       <h1>${ch.title}</h1>
       <div class="chapter-content">${ch.content ?? ''}</div>
     </div>`,
@@ -168,6 +198,7 @@ function buildHtml(book: Book, chapters: Chapter[], imageProxyBase: string): str
     h1.book-title { font-size: 2.5rem; margin: 1rem 0; }
     .chapter { page-break-before: always; }
     .chapter h1 { font-size: 1.8rem; border-bottom: 1px solid #ccc; padding-bottom: 0.5rem; margin-bottom: 1.5rem; }
+    .chapter-image { display: block; width: 100%; max-height: 280px; object-fit: cover; border-radius: 4px; margin-bottom: 1.5rem; }
     p { line-height: 1.8; margin: 0 0 1rem; }
     @media print { .chapter { page-break-before: always; } }
   </style>
@@ -191,7 +222,7 @@ router.get('/books/:bookId/docx', async (req: Request, res: Response) => {
   try {
     const data = await fetchBookData(req.params['bookId'] as string, req.user!.email);
     if (!data) { res.status(404).json({ error: 'Book not found' }); return; }
-    const { book, chapters, imageBuffer } = data;
+    const { book, chapters, imageBuffer, chapterImageBuffers } = data;
 
     const titlePageChildren: Paragraph[] = [];
     titlePageChildren.push(new Paragraph({ children: [new TextRun({ text: '', break: 4 })] }));
@@ -221,13 +252,35 @@ router.get('/books/:bookId/docx', async (req: Request, res: Response) => {
     titlePageChildren.push(new Paragraph({ children: [new PageBreak()] }));
 
     const chapterChildren: Paragraph[] = [];
-    chapters.forEach((chapter, index) => {
+    for (let index = 0; index < chapters.length; index++) {
+      const chapter = chapters[index];
+      const chapterImgBuffer = chapterImageBuffers.get(chapter.id);
+      if (chapterImgBuffer) {
+        try {
+          const meta = await sharp(chapterImgBuffer).metadata();
+          const { width, height } = fitDimensions(
+            meta.width ?? 800, meta.height ?? 600, 480, 300,
+          );
+          chapterChildren.push(
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              children: [
+                new ImageRun({
+                  data: chapterImgBuffer,
+                  transformation: { width, height },
+                  type: 'jpg',
+                } as any),
+              ],
+            }),
+          );
+        } catch { /* skip image if metadata or rendering fails */ }
+      }
       chapterChildren.push(new Paragraph({ text: chapter.title, heading: HeadingLevel.HEADING_1 }));
       chapterChildren.push(...htmlToParagraphs(chapter.content ?? ''));
       if (index < chapters.length - 1) {
         chapterChildren.push(new Paragraph({ children: [new PageBreak()] }));
       }
-    });
+    }
 
     const doc = new Document({ sections: [{ children: [...titlePageChildren, ...chapterChildren] }] });
     const buffer = await Packer.toBuffer(doc);
@@ -265,7 +318,7 @@ router.get('/books/:bookId/pdf', async (req: Request, res: Response) => {
   try {
     const data = await fetchBookData(req.params['bookId'] as string, req.user!.email);
     if (!data) { res.status(404).json({ error: 'Book not found' }); return; }
-    const { book, chapters, imageBuffer } = data;
+    const { book, chapters, imageBuffer, chapterImageBuffers } = data;
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${safeFilename(book.title)}.pdf"`);
@@ -297,8 +350,29 @@ router.get('/books/:bookId/pdf', async (req: Request, res: Response) => {
 
     doc.fontSize(32).font('Helvetica-Bold').text(book.title, { align: 'center' });
 
-    chapters.forEach((chapter) => {
+    for (const chapter of chapters) {
       doc.addPage();
+      const chapterImgBuffer = chapterImageBuffers.get(chapter.id);
+      if (chapterImgBuffer) {
+        try {
+          const availableWidth = pageWidth - margin * 2;
+          const meta = await sharp(chapterImgBuffer).metadata();
+          const { width: imgW, height: imgH } = fitDimensions(
+            meta.width ?? 800, meta.height ?? 600, availableWidth, 300,
+          );
+          // Centre horizontally by offsetting x
+          const imgX = margin + (availableWidth - imgW) / 2;
+          const imgY = doc.y;
+          // Place with explicit width only — pdfkit computes proportional height
+          // and advances doc.y correctly past the image
+          doc.image(chapterImgBuffer, imgX, imgY, { width: imgW });
+          // Ensure cursor is below the image regardless of pdfkit internals
+          doc.y = imgY + imgH + 16;
+          doc.x = margin;
+        } catch {
+          // skip image if rendering fails
+        }
+      }
       doc.fontSize(22).font('Helvetica-Bold').text(chapter.title);
       doc.moveDown();
       doc.fontSize(12).font('Helvetica');
@@ -322,7 +396,7 @@ router.get('/books/:bookId/pdf', async (req: Request, res: Response) => {
           if (text) doc.text(text, { align: 'justify', lineGap: 4 });
         }
       }
-    });
+    }
 
     doc.end();
   } catch (err) {

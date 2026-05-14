@@ -9,6 +9,27 @@
             <mat-label>Title</mat-label>
             <input matInput [ngModel]="chapter()!.title" (ngModelChange)="updateTitle($event)" />
           </mat-form-field>
+          <!-- Chapter image thumbnail / upload -->
+          @if (imageUrl()) {
+            <div class="chapter-thumb-wrap">
+              <img class="chapter-thumb" [src]="proxyUrl(imageThumbnailUrl() || imageUrl())!" alt="Chapter image" />
+              <div class="chapter-thumb-popup">
+                <img [src]="proxyUrl(imageThumbnailUrl() || imageUrl())!" alt="Chapter image preview" />
+              </div>
+              <button mat-icon-button class="chapter-thumb-remove" (click)="removeChapterImage()" title="Remove image">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+          } @else {
+            <label class="chapter-thumb-upload" [class.uploading]="imageUploading()" title="Add chapter image">
+              @if (imageUploading()) {
+                <mat-progress-spinner diameter="18" mode="indeterminate"></mat-progress-spinner>
+              } @else {
+                <mat-icon>add_photo_alternate</mat-icon>
+              }
+              <input type="file" accept="image/*" (change)="onImageFileSelected($event)" [disabled]="imageUploading()" style="display:none" />
+            </label>
+          }
         } @else {
           <h1 class="title-placeholder desktop-only">Edit Chapter</h1>
         }

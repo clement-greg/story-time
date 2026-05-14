@@ -18,6 +18,8 @@ export interface Chapter extends AuditedRecord {
     contentVector?: number[];
     notes?: ChapterNote[];
     sortOrder?: number;
+    imageUrl?: string;
+    imageThumbnailUrl?: string;
 }
 
 export interface ChapterVersion {

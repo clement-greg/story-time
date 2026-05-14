@@ -35,4 +35,10 @@ export class ChapterService {
   reorder(items: { id: string; sortOrder: number }[]): Observable<void> {
     return this.http.patch<void>(`${this.apiUrl}/reorder`, items);
   }
+
+  uploadImage(file: File): Observable<{ url: string; thumbnailUrl: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<{ url: string; thumbnailUrl: string }>('/api/upload', formData);
+  }
 }
