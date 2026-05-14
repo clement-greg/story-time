@@ -8,6 +8,45 @@
   overflow-y: auto;
 }
 
+/* ── Greeting banner ─────────────────────────────────────────────────────── */
+
+.greeting-banner {
+  padding: 32px 0 20px;
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+  margin-bottom: 4px;
+}
+
+.greeting-text {
+  margin: 0 0 12px;
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: var(--mat-sys-on-surface);
+  line-height: 1.2;
+}
+
+.writing-quote {
+  margin: 0;
+  padding: 0 0 0 14px;
+  border-left: 3px solid var(--mat-sys-primary);
+}
+
+.quote-text {
+  margin: 0 0 4px;
+  font-size: 0.9rem;
+  font-style: italic;
+  color: var(--mat-sys-on-surface-variant);
+  line-height: 1.55;
+}
+
+.quote-author {
+  font-size: 0.8rem;
+  font-style: normal;
+  font-weight: 500;
+  color: var(--mat-sys-outline);
+}
+
+/* ── Rest of page ─────────────────────────────────────────────────────────── */
+
 .series-header {
   display: flex;
   align-items: center;

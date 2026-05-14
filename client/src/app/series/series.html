@@ -2,6 +2,15 @@
 
   <div main-content>
     <div class="container">
+
+      <div class="greeting-banner">
+        <p class="greeting-text">{{ greeting() }}, {{ firstName() }}.</p>
+        <blockquote class="writing-quote">
+          <p class="quote-text">"{{ quote().text }}"</p>
+          <footer class="quote-author">— {{ quote().author }}</footer>
+        </blockquote>
+      </div>
+
       <div class="series-header">
         <h2>Series</h2>
         <button mat-flat-button (click)="openNew()">

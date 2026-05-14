@@ -150,6 +150,22 @@ export class AiStatsComponent implements AfterViewInit, OnDestroy {
 
     const s = this.stats();
 
+    // Material CSS variables use oklch() which the Canvas API can't parse.
+    // We resolve them to rgb() by briefly applying the variable to a hidden
+    // element and reading the browser-computed value.
+    const resolveColor = (cssVar: string, fallback: string): string => {
+      const el = document.createElement('div');
+      el.style.cssText = `color:var(${cssVar});position:absolute;visibility:hidden`;
+      document.body.appendChild(el);
+      const resolved = getComputedStyle(el).color;
+      document.body.removeChild(el);
+      return resolved || fallback;
+    };
+
+    const onSurfaceVariant = resolveColor('--mat-sys-on-surface-variant', 'rgba(128,128,128,0.9)');
+    const outlineVariant   = resolveColor('--mat-sys-outline-variant',    'rgba(128,128,128,0.25)');
+    const surfaceBg        = resolveColor('--mat-sys-surface',             '#fff');
+
     // Doughnut chart – overall breakdown
     const donutCtx = this.donutCanvasRef?.nativeElement?.getContext('2d');
     if (donutCtx) {
@@ -161,7 +177,7 @@ export class AiStatsComponent implements AfterViewInit, OnDestroy {
             data: [s.ai, s.modified, s.human],
             backgroundColor: [COLORS.ai, COLORS.modified, COLORS.human],
             borderWidth: 2,
-            borderColor: '#fff',
+            borderColor: surfaceBg,
           }],
         },
         options: {
@@ -171,7 +187,7 @@ export class AiStatsComponent implements AfterViewInit, OnDestroy {
           plugins: {
             legend: {
               position: 'bottom',
-              labels: { padding: 16, font: { size: 12 } },
+              labels: { padding: 16, font: { size: 12 }, color: onSurfaceVariant },
             },
             tooltip: {
               callbacks: {
@@ -223,13 +239,13 @@ export class AiStatsComponent implements AfterViewInit, OnDestroy {
           scales: {
             x: {
               stacked: true,
-              ticks: { font: { size: 11 } },
-              grid: { color: 'rgba(0,0,0,0.06)' },
-              title: { display: true, text: 'Words', font: { size: 11 } },
+              ticks: { font: { size: 11 }, color: onSurfaceVariant },
+              grid: { color: outlineVariant },
+              title: { display: true, text: 'Words', font: { size: 11 }, color: onSurfaceVariant },
             },
             y: {
               stacked: true,
-              ticks: { font: { size: 11 } },
+              ticks: { font: { size: 11 }, color: onSurfaceVariant },
               grid: { display: false },
             },
           },

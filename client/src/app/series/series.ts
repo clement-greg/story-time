@@ -1,4 +1,60 @@
 import { Component, inject, signal, OnInit, computed } from '@angular/core';
+
+const WRITING_QUOTES: { text: string; author: string }[] = [
+  { text: "Start writing, no matter what. The water does not flow until the faucet is turned on.", author: "Louis L'Amour" },
+  { text: "You can always edit a bad page. You can't edit a blank page.", author: "Jodi Picoult" },
+  { text: "There is nothing to writing. All you do is sit down at a typewriter and bleed.", author: "Ernest Hemingway" },
+  { text: "If there's a book that you want to read, but it hasn't been written yet, then you must write it.", author: "Toni Morrison" },
+  { text: "The first draft of anything is shit.", author: "Ernest Hemingway" },
+  { text: "Writing is the painting of the voice.", author: "Voltaire" },
+  { text: "Either write something worth reading or do something worth writing.", author: "Benjamin Franklin" },
+  { text: "A writer is someone for whom writing is more difficult than it is for other people.", author: "Thomas Mann" },
+  { text: "One day I will find the right words, and they will be simple.", author: "Jack Kerouac" },
+  { text: "If you don't have time to read, you don't have the time — or the tools — to write.", author: "Stephen King" },
+  { text: "The scariest moment is always just before you start.", author: "Stephen King" },
+  { text: "The most valuable of all talents is that of never using two words when one will do.", author: "Thomas Jefferson" },
+  { text: "Easy reading is damn hard writing.", author: "Nathaniel Hawthorne" },
+  { text: "Fill your paper with the breathings of your heart.", author: "William Wordsworth" },
+  { text: "Writing is thinking. To write well is to think clearly. That's why it's so hard.", author: "David McCullough" },
+  { text: "The pen is the tongue of the mind.", author: "Miguel de Cervantes" },
+  { text: "You must stay drunk on writing so reality cannot destroy you.", author: "Ray Bradbury" },
+  { text: "We are all apprentices in a craft where no one ever becomes a master.", author: "Ernest Hemingway" },
+  { text: "Writing is the only thing that, when I do it, I don't feel I should be doing something else.", author: "Gloria Steinem" },
+  { text: "You fail only if you stop writing.", author: "Ray Bradbury" },
+  { text: "The difference between the right word and the almost right word is the difference between lightning and a lightning bug.", author: "Mark Twain" },
+  { text: "You have to write the book that wants to be written.", author: "Madeleine L'Engle" },
+  { text: "The writer must believe that what he is doing is the most important thing in the world.", author: "John Steinbeck" },
+  { text: "You can't wait for inspiration. You have to go after it with a club.", author: "Jack London" },
+  { text: "Writing is utter solitude, the descent into the cold abyss of oneself.", author: "Franz Kafka" },
+  { text: "If I don't write to empty my mind, I go mad.", author: "Lord Byron" },
+  { text: "Write what disturbs you, what you fear, what you have not been willing to speak about.", author: "Natalie Goldberg" },
+  { text: "The purpose of a writer is to keep civilization from destroying itself.", author: "Albert Camus" },
+  { text: "Prose is architecture, not interior decoration.", author: "Ernest Hemingway" },
+  { text: "The road to hell is paved with adverbs.", author: "Stephen King" },
+  { text: "Write hard and clear about what hurts.", author: "Ernest Hemingway" },
+  { text: "Not a wasted word. This has been a main point to my literary thinking all my life.", author: "Hunter S. Thompson" },
+  { text: "A story has no beginning or end; arbitrarily one chooses that moment of experience from which to look back or from which, to look ahead.", author: "Graham Greene" },
+  { text: "Be obscure clearly.", author: "E.B. White" },
+  { text: "Words are a lens to focus one's mind.", author: "Ayn Rand" },
+  { text: "A writer never has a vacation. For a writer, life consists of either writing or thinking about writing.", author: "Eugene Ionesco" },
+  { text: "There's no such thing as writer's block. That was invented by people in California who couldn't write.", author: "Terry Pratchett" },
+  { text: "A writer only begins a book. A reader finishes it.", author: "Samuel Johnson" },
+  { text: "Don't tell me the moon is shining; show me the glint of light on broken glass.", author: "Anton Chekhov" },
+  { text: "Every secret of a writer's soul, every experience of his life, every quality of his mind, is written large in his works.", author: "Virginia Woolf" },
+  { text: "If you want to be a writer, you must do two things above all others: read a lot and write a lot.", author: "Stephen King" },
+  { text: "A writer who waits for ideal conditions under which to work will die without putting a word to paper.", author: "E.B. White" },
+  { text: "Write. Rewrite. When not writing or rewriting, read. I know of no shortcuts.", author: "Larry L. King" },
+  { text: "We do not write in order to be understood; we write in order to understand.", author: "C.S. Lewis" },
+  { text: "Writing a book is a horrible, exhausting struggle, like a long bout with some painful illness.", author: "George Orwell" },
+  { text: "The most important things are the hardest to say.", author: "Stephen King" },
+  { text: "An author in his book must be like God in the universe, present everywhere and visible nowhere.", author: "Gustave Flaubert" },
+  { text: "Writing a novel is like driving a car at night. You can only see as far as your headlights, but you can make the whole trip that way.", author: "E.L. Doctorow" },
+  { text: "Substitute 'damn' every time you're inclined to write 'very'; your editor will delete it and the writing will be just as it should be.", author: "Mark Twain" },
+  { text: "I write to give myself strength. I write to be the characters that I am not. I write to explore all the things I'm afraid of.", author: "Joss Whedon" },
+  { text: "The greatest part of a writer's time is spent in reading, in order to write; a man will turn over half a library to make one book.", author: "Samuel Johnson" },
+  { text: "One must be drenched in words, literally soaked in them, to have the right ones form themselves into the proper pattern at the right moment.", author: "Hart Crane" },
+  { text: "There is no greater agony than bearing an untold story inside you.", author: "Maya Angelou" },
+];
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -42,6 +98,20 @@ export class SeriesComponent implements OnInit {
   private seriesService = inject(SeriesService);
   private authService = inject(AuthService);
   private router = inject(Router);
+
+  readonly greeting = computed(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    if (hour < 21) return 'Good evening';
+    return 'Good night';
+  });
+
+  readonly firstName = computed(() =>
+    (this.authService.currentUser()?.name ?? '').split(' ')[0]
+  );
+
+  readonly quote = signal(WRITING_QUOTES[Math.floor(Math.random() * WRITING_QUOTES.length)]);
 
   seriesList = signal<Series[]>([]);
   loading = signal(false);

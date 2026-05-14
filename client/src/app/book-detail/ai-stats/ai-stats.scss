@@ -8,6 +8,7 @@
   box-sizing: border-box;
 }
 
+/* ── Header ────────────────────────────────────────── */
 .panel-title {
   display: flex;
   align-items: center;
@@ -15,10 +16,10 @@
   margin: 0;
   font-size: 17px;
   font-weight: 600;
-  color: #333;
+  color: var(--mat-sys-on-surface);
 
   mat-icon {
-    color: #6750a4;
+    color: var(--mat-sys-primary);
   }
 }
 
@@ -28,7 +29,7 @@
   align-items: center;
   gap: 12px;
   padding-top: 60px;
-  color: #777;
+  color: var(--mat-sys-on-surface-variant);
   font-size: 14px;
 }
 
@@ -36,6 +37,13 @@
 .totals {
   display: flex;
   gap: 10px;
+}
+
+// Custom token fallbacks for the non-Material accent colours
+:host {
+  --ai-stats-ai-color:       #7c6bca;
+  --ai-stats-modified-color: #d4921e;
+  --ai-stats-human-color:    #3da57a;
 }
 
 .total-pill {
@@ -46,22 +54,23 @@
   border-radius: 12px;
   padding: 12px 8px 10px;
   gap: 2px;
-  border: 1px solid transparent;
+  background: var(--mat-sys-surface-container);
+  border: 1px solid var(--mat-sys-outline-variant);
 
   &.ai {
-    background: rgba(103, 80, 164, 0.08);
-    border-color: rgba(103, 80, 164, 0.2);
-    .pill-value { color: #6750a4; }
+    background: rgba(103, 80, 164, 0.12);
+    border-color: rgba(103, 80, 164, 0.32);
+    .pill-value { color: var(--ai-stats-ai-color); }
   }
   &.modified {
-    background: rgba(234, 160, 73, 0.1);
-    border-color: rgba(234, 160, 73, 0.3);
-    .pill-value { color: #b87019; }
+    background: rgba(234, 160, 73, 0.12);
+    border-color: rgba(234, 160, 73, 0.38);
+    .pill-value { color: var(--ai-stats-modified-color); }
   }
   &.human {
-    background: rgba(79, 177, 128, 0.1);
-    border-color: rgba(79, 177, 128, 0.3);
-    .pill-value { color: #2e7d5e; }
+    background: rgba(79, 177, 128, 0.12);
+    border-color: rgba(79, 177, 128, 0.38);
+    .pill-value { color: var(--ai-stats-human-color); }
   }
 }
 
@@ -73,14 +82,14 @@
 
 .pill-label {
   font-size: 11px;
-  color: #666;
+  color: var(--mat-sys-on-surface-variant);
   text-align: center;
 }
 
 .pill-pct {
   font-size: 12px;
   font-weight: 600;
-  color: #888;
+  color: var(--mat-sys-outline);
 }
 
 /* ── Charts ─────────────────────────────────────────── */
@@ -94,7 +103,7 @@
   margin: 0;
   font-size: 13px;
   font-weight: 600;
-  color: #555;
+  color: var(--mat-sys-on-surface-variant);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -124,13 +133,13 @@
 .donut-total {
   font-size: 22px;
   font-weight: 700;
-  color: #333;
+  color: var(--mat-sys-on-surface);
   line-height: 1;
 }
 
 .donut-total-label {
   font-size: 11px;
-  color: #888;
+  color: var(--mat-sys-outline);
 }
 
 .bar-legend {
@@ -141,7 +150,7 @@
 
 .legend-item {
   font-size: 12px;
-  color: #555;
+  color: var(--mat-sys-on-surface-variant);
   display: flex;
   align-items: center;
   gap: 5px;
