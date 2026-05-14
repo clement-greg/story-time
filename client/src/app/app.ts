@@ -1,5 +1,7 @@
 import { Component, inject, computed, OnInit, OnDestroy, effect } from '@angular/core';
-import { RouterOutlet, RouterLink, Router } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { RouterOutlet, RouterLink, Router, NavigationEnd } from '@angular/router';
+import { filter, map, startWith } from 'rxjs';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -32,6 +34,19 @@ export class App implements OnInit, OnDestroy {
   private router = inject(Router);
   settings = inject(UserSettingsService);
 
+  private currentUrl = toSignal(
+    this.router.events.pipe(
+      filter(e => e instanceof NavigationEnd),
+      map(e => (e as NavigationEnd).urlAfterRedirects),
+      startWith(this.router.url)
+    )
+  );
+
+  isUnthemed = computed(() => {
+    const url = this.currentUrl() ?? '';
+    return url === '/home' || url.startsWith('/login');
+  });
+
   navigateToRelationships(): void {
     const id = this.seriesContext.currentSeriesId();
     if (id) {
@@ -43,13 +58,14 @@ export class App implements OnInit, OnDestroy {
 
   private darkModeEffect = effect(() => {
     const theme = this.settings.colorTheme();
+    const unthemed = this.isUnthemed();
     // Remove any previously applied theme class
     document.body.classList.forEach(cls => {
       if (cls.startsWith('theme-') || cls === 'dark-theme') {
         document.body.classList.remove(cls);
       }
     });
-    if (theme && theme !== 'default') {
+    if (!unthemed && theme && theme !== 'default') {
       document.body.classList.add(`theme-${theme}`);
     }
   });

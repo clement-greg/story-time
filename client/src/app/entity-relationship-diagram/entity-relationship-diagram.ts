@@ -94,15 +94,6 @@ export class EntityRelationshipDiagramComponent implements OnInit, OnDestroy {
   private boundOnMouseUp = this.onMouseUp.bind(this);
 
   ngOnInit(): void {
-    this.seriesService.getAll().subscribe({
-      next: (data) => {
-        this.allSeries.set(
-          data.filter((s: any) => !s.deleted && !s.archived)
-               .sort((a, b) => (a.title ?? '').localeCompare(b.title ?? ''))
-        );
-      },
-    });
-
     this.routeSub = this.route.paramMap.subscribe(params => {
       const id = params.get('seriesId');
       this.currentSeriesId.set(id);
@@ -112,14 +103,34 @@ export class EntityRelationshipDiagramComponent implements OnInit, OnDestroy {
       this.layout.set(null);
       if (id) {
         this.loadData(id);
-        this.seriesService.getById(id).subscribe({
-          next: (series) => {
-            this.headerService.set(
-              [{ label: series.title, link: '/series/' + series.id }, { label: 'Relationships' }]
-            );
+        forkJoin({
+          series: this.seriesService.getById(id),
+          allSeries: this.seriesService.getAll(),
+        }).subscribe({
+          next: ({ series, allSeries }) => {
+            const filtered = allSeries
+              .filter((s: any) => !s.deleted && !s.archived)
+              .sort((a: any, b: any) => (a.title ?? '').localeCompare(b.title ?? ''));
+            this.allSeries.set(filtered);
+            this.headerService.set([
+              {
+                label: series.title,
+                link: '/series/' + series.id,
+                dropdownItems: filtered.map(s => ({ label: s.title, link: '/series/' + s.id, isCurrent: s.id === id })),
+              },
+              { label: 'Relationships' },
+            ]);
           },
         });
       } else {
+        this.seriesService.getAll().subscribe({
+          next: (data) => {
+            this.allSeries.set(
+              data.filter((s: any) => !s.deleted && !s.archived)
+                   .sort((a: any, b: any) => (a.title ?? '').localeCompare(b.title ?? ''))
+            );
+          },
+        });
         this.headerService.set([{ label: 'Relationships' }]);
       }
     });
