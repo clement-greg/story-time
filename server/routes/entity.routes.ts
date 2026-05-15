@@ -299,6 +299,50 @@ router.delete('/:id', async (req: Request, res: Response) => {
   }
 });
 
+// POST add a photo to a person entity
+router.post('/:id/photos', async (req: Request, res: Response) => {
+  try {
+    const id = req.params['id'] as string;
+    const { url, thumbnailUrl, caption } = req.body as { url?: string; thumbnailUrl?: string; caption?: string };
+    if (!url || !thumbnailUrl) {
+      res.status(400).json({ error: 'url and thumbnailUrl are required' });
+      return;
+    }
+    const existing = await readOwnedItem<Entity>(container, id, id, req);
+    if (!existing) {
+      res.status(404).json({ error: 'Entity not found' });
+      return;
+    }
+    const photos = [...(existing.photos ?? []), { url, thumbnailUrl, ...(caption ? { caption } : {}) }];
+    const updated: Entity = { ...existing, photos, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };
+    const { resource } = await container.item(id, id).replace<Entity>(updated);
+    res.json(resource);
+  } catch (err) {
+    console.error('Error adding photo:', err);
+    res.status(500).json({ error: 'Failed to add photo' });
+  }
+});
+
+// DELETE remove a photo from a person entity by index
+router.delete('/:id/photos/:index', async (req: Request, res: Response) => {
+  try {
+    const id = req.params['id'] as string;
+    const index = parseInt(req.params['index'] as string, 10);
+    const existing = await readOwnedItem<Entity>(container, id, id, req);
+    if (!existing) {
+      res.status(404).json({ error: 'Entity not found' });
+      return;
+    }
+    const photos = (existing.photos ?? []).filter((_, i) => i !== index);
+    const updated: Entity = { ...existing, photos, modifiedBy: req.user!.email, modifiedAt: new Date().toISOString() };
+    const { resource } = await container.item(id, id).replace<Entity>(updated);
+    res.json(resource);
+  } catch (err) {
+    console.error('Error removing photo:', err);
+    res.status(500).json({ error: 'Failed to remove photo' });
+  }
+});
+
 // POST generate a personality prompt from basic entity info
 router.post('/:id/generate-personality', async (req: Request, res: Response) => {
   try {

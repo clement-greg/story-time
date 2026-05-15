@@ -2,6 +2,12 @@ import { AuditedRecord } from './audited-record';
 
 export type EntityReference = 'full-name' | 'first-name' | 'last-name' | 'nickname' | 'title-full-name' | 'title-last-name';
 
+export interface EntityPhoto {
+    url: string;
+    thumbnailUrl: string;
+    caption?: string;
+}
+
 export interface Entity extends AuditedRecord {
     id: string;
     name: string;
@@ -20,4 +26,5 @@ export interface Entity extends AuditedRecord {
     archived?: boolean;
     deleted?: boolean;
     isNarrator?: boolean;
+    photos?: EntityPhoto[];
 }

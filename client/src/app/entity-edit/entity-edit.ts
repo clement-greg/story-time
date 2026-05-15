@@ -11,7 +11,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatDialog } from '@angular/material/dialog';
 import { TextFieldModule } from '@angular/cdk/text-field';
-import { Entity, EntityReference } from '@shared/models/entity.model';
+import { Entity, EntityPhoto, EntityReference } from '@shared/models/entity.model';
 import { EntityQuote } from '@shared/models/entity-quote.model';
 import { EntityService } from '../services/entity.service';
 import { EntityQuoteService } from '../services/entity-quote.service';
@@ -72,6 +72,12 @@ export class EntityEditComponent {
   addingQuote = signal(false);
   newQuoteText = signal('');
 
+  // Photos tab
+  photos = signal<EntityPhoto[]>([]);
+  photoUploading = signal(false);
+  lightboxIndex = signal<number | null>(null);
+  lightboxAnim = signal<'next' | 'prev' | ''>('');
+
   // Per-quote inline edit state: maps quote id → draft text (null = not editing)
   editingQuoteId = signal<string | null>(null);
   editingQuoteText = signal('');
@@ -85,6 +91,7 @@ export class EntityEditComponent {
       }
       this.draft.set(draft);
       this.thumbnailPreview.set(this.proxyUrl(e.thumbnailUrl));
+      this.photos.set(e.photos ?? []);
       if (e.id) this.loadQuotes(e.id);
     });
   }
@@ -104,6 +111,38 @@ export class EntityEditComponent {
     if (!url) return null;
     const filename = url.split('/').pop();
     return filename ? `/api/image/${filename}` : null;
+  }
+
+  @HostListener('keydown', ['$event'])
+  onKeydown(event: KeyboardEvent): void {
+    const idx = this.lightboxIndex();
+    if (idx === null) return;
+    if (event.key === 'Escape') { this.closeLightbox(); event.preventDefault(); }
+    else if (event.key === 'ArrowRight') { this.lightboxNext(); event.preventDefault(); }
+    else if (event.key === 'ArrowLeft') { this.lightboxPrev(); event.preventDefault(); }
+  }
+
+  openLightbox(index: number): void {
+    this.lightboxAnim.set('');
+    this.lightboxIndex.set(index);
+  }
+
+  closeLightbox(): void {
+    this.lightboxIndex.set(null);
+  }
+
+  lightboxNext(): void {
+    const idx = this.lightboxIndex();
+    if (idx === null) return;
+    this.lightboxAnim.set('next');
+    this.lightboxIndex.set((idx + 1) % this.photos().length);
+  }
+
+  lightboxPrev(): void {
+    const idx = this.lightboxIndex();
+    if (idx === null) return;
+    this.lightboxAnim.set('prev');
+    this.lightboxIndex.set((idx - 1 + this.photos().length) % this.photos().length);
   }
 
   @HostListener('paste', ['$event'])
@@ -292,6 +331,40 @@ export class EntityEditComponent {
   deleteQuote(quote: EntityQuote): void {
     this.entityQuoteService.delete(quote.id, quote.entityId).subscribe({
       next: () => this.quotes.update(qs => qs.filter(q => q.id !== quote.id)),
+    });
+  }
+
+  onPhotoFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    input.value = '';
+    this.uploadPhoto(file);
+  }
+
+  private uploadPhoto(file: File): void {
+    const entityId = this.entity().id;
+    if (!entityId) return;
+    this.photoUploading.set(true);
+    this.entityService.uploadThumbnail(file).subscribe({
+      next: ({ url, thumbnailUrl }) => {
+        this.entityService.addPhoto(entityId, url, thumbnailUrl).subscribe({
+          next: updated => {
+            this.photos.set(updated.photos ?? []);
+            this.photoUploading.set(false);
+          },
+          error: () => this.photoUploading.set(false),
+        });
+      },
+      error: () => this.photoUploading.set(false),
+    });
+  }
+
+  deletePhoto(index: number): void {
+    const entityId = this.entity().id;
+    if (!entityId) return;
+    this.entityService.removePhoto(entityId, index).subscribe({
+      next: updated => this.photos.set(updated.photos ?? []),
     });
   }
 

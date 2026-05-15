@@ -195,6 +195,47 @@
       </mat-tab>
     }
 
+    <!-- ── Photos tab ──────────────────────────────── -->
+    @if (entity().id && entity().type === 'PERSON' && !isNarrator()) {
+      <mat-tab>
+        <ng-template mat-tab-label>
+          Photos
+          @if (photos().length > 0) {
+            <span class="tab-badge">{{ photos().length }}</span>
+          }
+        </ng-template>
+
+        <div class="tab-content photos-tab">
+          <div class="photos-toolbar">
+            <button mat-stroked-button type="button" (click)="photoFileInput.click()" [disabled]="photoUploading()">
+              @if (photoUploading()) {
+                <mat-spinner diameter="18" />
+              } @else {
+                <mat-icon>add_photo_alternate</mat-icon>
+              }
+              {{ photoUploading() ? 'Uploading…' : 'Add photo' }}
+            </button>
+            <input #photoFileInput type="file" accept="image/*" hidden (change)="onPhotoFileSelected($event)" />
+          </div>
+
+          @if (photos().length === 0) {
+            <p class="photos-empty">No photos yet. Add photos to build a gallery for this character.</p>
+          } @else {
+            <div class="photos-grid">
+              @for (photo of photos(); track photo.url; let i = $index) {
+                <div class="photo-tile" (click)="openLightbox(i)">
+                  <img [src]="proxyUrl(photo.thumbnailUrl)" [alt]="photo.caption || 'Photo ' + (i + 1)" />
+                  <button mat-icon-button class="photo-delete-btn" (click)="$event.stopPropagation(); deletePhoto(i)" matTooltip="Remove photo">
+                    <mat-icon>close</mat-icon>
+                  </button>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      </mat-tab>
+    }
+
   </mat-tab-group>
 
   <!-- Actions always visible below the tabs -->
@@ -220,3 +261,34 @@
   </div>
 
 </div>
+
+<!-- ── Photo lightbox overlay ───────────────────────── -->
+@if (lightboxIndex() !== null) {
+  <div class="lightbox-backdrop" (click)="closeLightbox()">
+    <button mat-icon-button class="lightbox-close" (click)="closeLightbox()" matTooltip="Close">
+      <mat-icon>close</mat-icon>
+    </button>
+
+    @if (photos().length > 1) {
+      <button mat-icon-button class="lightbox-nav lightbox-prev" (click)="$event.stopPropagation(); lightboxPrev()" matTooltip="Previous">
+        <mat-icon>chevron_left</mat-icon>
+      </button>
+    }
+
+    <div class="lightbox-image-wrap" (click)="$event.stopPropagation()">
+      @for (photo of photos(); track photo.url; let i = $index) {
+        @if (i === lightboxIndex()) {
+          <img [src]="proxyUrl(photo.url)" [alt]="photo.caption || 'Photo ' + (i + 1)"
+               class="lightbox-image" [class.lightbox-anim-next]="lightboxAnim() === 'next'" [class.lightbox-anim-prev]="lightboxAnim() === 'prev'" />
+        }
+      }
+      <span class="lightbox-counter">{{ lightboxIndex()! + 1 }} / {{ photos().length }}</span>
+    </div>
+
+    @if (photos().length > 1) {
+      <button mat-icon-button class="lightbox-nav lightbox-next" (click)="$event.stopPropagation(); lightboxNext()" matTooltip="Next">
+        <mat-icon>chevron_right</mat-icon>
+      </button>
+    }
+  </div>
+}

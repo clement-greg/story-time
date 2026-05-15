@@ -77,4 +77,12 @@ export class EntityService {
   reorder(ids: string[]): Observable<void> {
     return this.http.patch<void>(`${this.apiUrl}/reorder`, { ids });
   }
+
+  addPhoto(entityId: string, url: string, thumbnailUrl: string): Observable<Entity> {
+    return this.http.post<Entity>(`${this.apiUrl}/${entityId}/photos`, { url, thumbnailUrl });
+  }
+
+  removePhoto(entityId: string, index: number): Observable<Entity> {
+    return this.http.delete<Entity>(`${this.apiUrl}/${entityId}/photos/${index}`);
+  }
 }
