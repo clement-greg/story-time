@@ -266,6 +266,21 @@ export class RichTextEditorComponent implements OnInit, AfterViewInit, OnDestroy
     effect(() => {
       this.pendingSuggestionsChange.emit(this.pendingSuggestions());
     });
+
+    // When grammar check or entity detection is toggled off, clean up accordingly.
+    // Only abort the in-flight request when both are disabled.
+    effect(() => {
+      const grammarEnabled = this.userSettings.grammarCheckEnabled();
+      const entityEnabled = this.userSettings.entityDetectionEnabled();
+      if (!grammarEnabled) {
+        untracked(() => this.unwrapGrammarMarks());
+      }
+      if (!grammarEnabled && !entityEnabled) {
+        this.grammarAbortController?.abort();
+        this.grammarAbortController = null;
+        if (this.grammarTimer) { clearTimeout(this.grammarTimer); this.grammarTimer = null; }
+      }
+    });
   }
 
   ngOnInit(): void { /* entities loaded via effect */ }
@@ -1324,6 +1339,7 @@ export class RichTextEditorComponent implements OnInit, AfterViewInit, OnDestroy
   // ── Grammar check ────────────────────────────────────────────────────────
 
   scheduleGrammarCheck(): void {
+    if (!this.userSettings.grammarCheckEnabled() && !this.userSettings.entityDetectionEnabled()) return;
     if (this.grammarTimer) clearTimeout(this.grammarTimer);
     this.grammarTimer = setTimeout(() => this.runGrammarCheck(), 750);
   }
@@ -1346,25 +1362,27 @@ export class RichTextEditorComponent implements OnInit, AfterViewInit, OnDestroy
     this.grammarLastCheckedText = text;
 
     this.unwrapGrammarMarks();
-    if (errors.length > 0) this.applyGrammarMarks(errors);
+    if (this.userSettings.grammarCheckEnabled() && errors.length > 0) this.applyGrammarMarks(errors);
 
-    const fullText = (editor.innerText ?? '').toLowerCase();
-    this.pendingSuggestions.update(prev =>
-      prev.filter(c => c.created || c.creating || fullText.includes(c.name.toLowerCase())),
-    );
-
-    if (suggestedEntities.length > 0) {
-      const knownLower = new Set(
-        this.entities().flatMap(e =>
-          [e.name, e.firstName, e.lastName, e.nickname].filter((n): n is string => !!n).map(n => n.toLowerCase()),
-        ),
+    if (this.userSettings.entityDetectionEnabled()) {
+      const fullText = (editor.innerText ?? '').toLowerCase();
+      this.pendingSuggestions.update(prev =>
+        prev.filter(c => c.created || c.creating || fullText.includes(c.name.toLowerCase())),
       );
-      const newCards = suggestedEntities.filter(s => {
-        const lower = s.name.toLowerCase();
-        return !this.suggestedEntityNames.has(lower) && !knownLower.has(lower);
-      });
-      if (newCards.length > 0) this.pendingSuggestions.update(prev => [...prev, ...newCards]);
-      suggestedEntities.forEach(s => this.suggestedEntityNames.add(s.name.toLowerCase()));
+
+      if (suggestedEntities.length > 0) {
+        const knownLower = new Set(
+          this.entities().flatMap(e =>
+            [e.name, e.firstName, e.lastName, e.nickname].filter((n): n is string => !!n).map(n => n.toLowerCase()),
+          ),
+        );
+        const newCards = suggestedEntities.filter(s => {
+          const lower = s.name.toLowerCase();
+          return !this.suggestedEntityNames.has(lower) && !knownLower.has(lower);
+        });
+        if (newCards.length > 0) this.pendingSuggestions.update(prev => [...prev, ...newCards]);
+        suggestedEntities.forEach(s => this.suggestedEntityNames.add(s.name.toLowerCase()));
+      }
     }
   }
 
@@ -1856,19 +1874,21 @@ export class RichTextEditorComponent implements OnInit, AfterViewInit, OnDestroy
     if (totalH <= 0) return;
     const scale = H / totalH;
 
-    // Background: match editor surface; fall back to themed surface for transparent backgrounds
-    const editorBg = getComputedStyle(editor).backgroundColor;
-    const bgIsTransparent = !editorBg || editorBg === 'transparent' || editorBg === 'rgba(0, 0, 0, 0)';
-    if (bgIsTransparent) {
-      const surfaceColor = getComputedStyle(document.documentElement).getPropertyValue('--mat-sys-surface-container-low').trim();
-      ctx.fillStyle = surfaceColor || '#ffffff';
-    } else {
-      ctx.fillStyle = editorBg;
-    }
+    // Background: read from the minimap container so the browser resolves light-dark() and
+    // CSS variables before we hand the value to canvas, which cannot parse them itself.
+    const minimapDiv = canvas.parentElement!;
+    const minimapBgComputed = getComputedStyle(minimapDiv).backgroundColor;
+    const bgIsTransparent = !minimapBgComputed || minimapBgComputed === 'transparent' || minimapBgComputed === 'rgba(0, 0, 0, 0)';
+    ctx.fillStyle = bgIsTransparent ? '#f4f4f4' : minimapBgComputed;
     ctx.fillRect(0, 0, W, H);
 
-    // Derive text color components for drawing bars
-    const [tr, tg, tb] = this.minimapParseRgb(getComputedStyle(editor).color);
+    // Determine dark vs light from background luminance and pick a contrasting bar colour.
+    // getComputedStyle(editor).color is unreliable when the theme uses light-dark() — the
+    // resolved value may be the wrong polarity due to colour-scheme inheritance.
+    const [bgr, bgg, bgb] = this.minimapParseRgb(ctx.fillStyle as string);
+    const bgLum = (0.299 * bgr + 0.587 * bgg + 0.114 * bgb) / 255;
+    const isDark = bgLum < 0.45;
+    const [tr, tg, tb] = isDark ? [210, 210, 220] : [40, 42, 54];
 
     // Use getBoundingClientRect for reliable positions within the scroll container.
     // offsetParent skips statically-positioned elements so it cannot be used here.
@@ -1993,14 +2013,19 @@ export class RichTextEditorComponent implements OnInit, AfterViewInit, OnDestroy
       }
     }
 
-    // Viewport indicator (the "slider") — colored with the theme's primary
-    const primaryStr = getComputedStyle(document.documentElement).getPropertyValue('--mat-sys-primary').trim();
-    const [pr, pg, pb] = this.minimapParseRgb(primaryStr);
+    // Viewport indicator — probe --mat-sys-primary via a temporary element so the browser
+    // resolves light-dark() before we pass the colour to canvas.
+    const primaryProbe = document.createElement('span');
+    primaryProbe.style.cssText = 'display:none;color:var(--mat-sys-primary,#005cbb)';
+    document.body.appendChild(primaryProbe);
+    const primaryResolved = getComputedStyle(primaryProbe).color;
+    document.body.removeChild(primaryProbe);
+    const [pr, pg, pb] = this.minimapParseRgb(primaryResolved);
     const vpTop = (editor.scrollTop / totalH) * H;
     const vpH = Math.max(12, (editor.clientHeight / totalH) * H);
-    ctx.fillStyle = `rgba(${pr},${pg},${pb},0.15)`;
+    ctx.fillStyle = `rgba(${pr},${pg},${pb},0.18)`;
     ctx.fillRect(0, vpTop, W, vpH);
-    ctx.strokeStyle = `rgba(${pr},${pg},${pb},0.5)`;
+    ctx.strokeStyle = `rgba(${pr},${pg},${pb},0.65)`;
     ctx.lineWidth = 1;
     ctx.strokeRect(0.5, vpTop + 0.5, W - 1, vpH - 1);
   }

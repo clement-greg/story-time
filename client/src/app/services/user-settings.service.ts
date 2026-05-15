@@ -16,6 +16,8 @@ export interface UserSettingsData {
   editorFontSize?: string;
   editorFontFamily?: string;
   ghostCompleteItems?: GhostCompleteItem[];
+  grammarCheckEnabled?: boolean;
+  entityDetectionEnabled?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -27,6 +29,8 @@ export class UserSettingsService {
   private _editorFontFamily = signal<string>('serif');
   private _displayName = signal<string>('');
   private _avatarUrl = signal<string>('');
+  private _grammarCheckEnabled = signal<boolean>(true);
+  private _entityDetectionEnabled = signal<boolean>(true);
   /** True when the active theme is a dark variant (for backward compat). */
   readonly darkMode = computed(() =>
     this._colorTheme() === 'dark' || this._colorTheme() === 'midnight'
@@ -37,6 +41,8 @@ export class UserSettingsService {
   readonly displayName = this._displayName.asReadonly();
   readonly avatarUrl = this._avatarUrl.asReadonly();
   readonly ghostCompleteItems = this._ghostCompleteItems.asReadonly();
+  readonly grammarCheckEnabled = this._grammarCheckEnabled.asReadonly();
+  readonly entityDetectionEnabled = this._entityDetectionEnabled.asReadonly();
 
   /** Loads all settings from the server. Call after authentication. */
   async loadFromServer(): Promise<void> {
@@ -49,6 +55,8 @@ export class UserSettingsService {
       this._editorFontSize.set(settings.editorFontSize ?? 'normal');
       this._editorFontFamily.set(settings.editorFontFamily ?? 'serif');
       this._ghostCompleteItems.set(settings.ghostCompleteItems ?? []);
+      this._grammarCheckEnabled.set(settings.grammarCheckEnabled ?? true);
+      this._entityDetectionEnabled.set(settings.entityDetectionEnabled ?? true);
     } catch {
       // Server unavailable — signals keep their default values
     }
@@ -64,6 +72,8 @@ export class UserSettingsService {
         editorFontSize: this._editorFontSize(),
         editorFontFamily: this._editorFontFamily(),
         ghostCompleteItems: this._ghostCompleteItems(),
+        grammarCheckEnabled: this._grammarCheckEnabled(),
+        entityDetectionEnabled: this._entityDetectionEnabled(),
       })
     ).catch(() => {});
   }
@@ -120,6 +130,16 @@ export class UserSettingsService {
 
   setAvatarUrl(value: string): void {
     this._avatarUrl.set(value);
+    this.saveToServer();
+  }
+
+  setGrammarCheckEnabled(value: boolean): void {
+    this._grammarCheckEnabled.set(value);
+    this.saveToServer();
+  }
+
+  setEntityDetectionEnabled(value: boolean): void {
+    this._entityDetectionEnabled.set(value);
     this.saveToServer();
   }
 

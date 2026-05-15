@@ -5,6 +5,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { UserSettingsService, GhostCompleteItem } from '../services/user-settings.service';
 import { HeaderService } from '../services/header.service';
@@ -41,6 +42,7 @@ export const COLOR_THEMES: ColorThemeOption[] = [
     MatInputModule,
     MatFormFieldModule,
     MatButtonToggleModule,
+    MatSlideToggleModule,
   ],
   templateUrl: './user-settings.html',
   styleUrl: './user-settings.scss',
@@ -58,6 +60,8 @@ export class UserSettingsComponent {
   readonly avatarUrl = this.settingsService.avatarUrl;
   readonly editorFontSize = this.settingsService.editorFontSize;
   readonly editorFontFamily = this.settingsService.editorFontFamily;
+  readonly grammarCheckEnabled = this.settingsService.grammarCheckEnabled;
+  readonly entityDetectionEnabled = this.settingsService.entityDetectionEnabled;
 
   readonly fontSizePreviewValue = computed(() => ({
     xs:     '0.75rem',
@@ -190,5 +194,13 @@ export class UserSettingsComponent {
 
   setEditorFontFamily(value: string): void {
     this.settingsService.setEditorFontFamily(value);
+  }
+
+  setGrammarCheckEnabled(value: boolean): void {
+    this.settingsService.setGrammarCheckEnabled(value);
+  }
+
+  setEntityDetectionEnabled(value: boolean): void {
+    this.settingsService.setEntityDetectionEnabled(value);
   }
 }

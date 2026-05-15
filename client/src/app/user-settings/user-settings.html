@@ -91,6 +91,28 @@
     </div>
   </section>
 
+  <!-- Writing Assistance Section -->
+  <section class="settings-section">
+    <div class="section-header">
+      <h3>Writing Assistance</h3>
+      <p class="section-desc">AI-powered tools that run while you write.</p>
+    </div>
+    <div class="editor-pref-row">
+      <span class="editor-pref-label">AI grammar check</span>
+      <mat-slide-toggle
+        [checked]="grammarCheckEnabled()"
+        (change)="setGrammarCheckEnabled($event.checked)">
+      </mat-slide-toggle>
+    </div>
+    <div class="editor-pref-row">
+      <span class="editor-pref-label">AI entity detection</span>
+      <mat-slide-toggle
+        [checked]="entityDetectionEnabled()"
+        (change)="setEntityDetectionEnabled($event.checked)">
+      </mat-slide-toggle>
+    </div>
+  </section>
+
   <!-- Ghost Complete Section -->
   <section class="settings-section">
     <div class="section-header">
